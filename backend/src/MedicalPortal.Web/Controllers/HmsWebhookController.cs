@@ -53,6 +53,7 @@ public class HmsWebhookController : ControllerBase
 
     [HttpGet("conflicts")]
     [RequireAuth]
+    [RequireAdmin]
     public async Task<IActionResult> GetConflicts([FromQuery] Guid? patientId)
     {
         var conflicts = await _conflictService.GetPendingConflictsAsync(patientId, HttpContext.RequestAborted);
@@ -63,9 +64,15 @@ public class HmsWebhookController : ControllerBase
 
     [HttpPost("conflicts/{id:guid}/resolve")]
     [RequireAuth]
+    [RequireAdmin]
     public async Task<IActionResult> ResolveConflict(Guid id, [FromBody] ResolveConflictBody body)
     {
         var actor = (AccessTokenClaims)HttpContext.Items["Actor"]!;
+        if (actor.Role is not (UserRole.ADMIN or UserRole.SYSTEM_ADMIN))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { error = "Resolving demographic conflicts is restricted to system administrators." });
+        }
+
         var resolved = await _conflictService.ResolveConflictAsync(
             id,
             body.AcceptHms,
@@ -81,6 +88,7 @@ public class HmsWebhookController : ControllerBase
 
     [HttpGet("dead-letters")]
     [RequireAuth]
+    [RequireAdmin]
     public async Task<IActionResult> GetDeadLetters([FromQuery] HmsDeadLetterStatus? status, [FromQuery] int page = 1, [FromQuery] int pageSize = 50)
     {
         var actor = (AccessTokenClaims)HttpContext.Items["Actor"]!;
@@ -92,9 +100,15 @@ public class HmsWebhookController : ControllerBase
 
     [HttpPost("dead-letters/{id:guid}/resolve")]
     [RequireAuth]
+    [RequireAdmin]
     public async Task<IActionResult> ResolveDeadLetter(Guid id, [FromBody] ResolveDeadLetterBody body)
     {
         var actor = (AccessTokenClaims)HttpContext.Items["Actor"]!;
+        if (actor.Role is not (UserRole.ADMIN or UserRole.SYSTEM_ADMIN))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { error = "Resolving dead letters is restricted to system administrators." });
+        }
+
         var success = await _deadLetterService.ResolveDeadLetterAsync(id, body.Status, actor.UserAccountId, body.Notes, HttpContext.RequestAborted);
         if (!success)
             return NotFound(new { error = "Dead-letter record not found" });

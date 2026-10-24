@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text.Json;
+using MedicalPortal.Core.Domain;
 using MedicalPortal.Core.Entities;
 using MedicalPortal.Core.Enums;
 using MedicalPortal.Infrastructure.Auth;
@@ -226,7 +227,7 @@ public class FormsController : ControllerBase
     public record SubmitFormBody(Dictionary<string, object> Answers);
 
     [HttpPost("{id}/submit")]
-    [RequirePatientAccess(Permission.viewRecords)]
+    [RequirePatientAccess(Permission.submitForms, AppResource.ClinicalResults, AppAction.Write)]
     public async Task<IActionResult> SubmitForm(Guid id, [FromBody] SubmitFormBody body)
     {
         var def = await _db.FormDefinitions.FindAsync(id);
@@ -314,7 +315,8 @@ public class FamilyAndSettingsController : ControllerBase
         bool CanMessage,
         bool CanManageAppointments,
         bool CanRequestRefills,
-        bool CanPayBills);
+        bool CanPayBills,
+        bool CanSubmitForms = false);
 
     [HttpPost("api/invites")]
     public async Task<IActionResult> CreateInvite([FromBody] CreateInviteBody body)
@@ -322,11 +324,14 @@ public class FamilyAndSettingsController : ControllerBase
         if (string.IsNullOrWhiteSpace(body.Email))
             return BadRequest(new { error = "Email is required." });
 
-        var code = $"INV-{Convert.ToHexString(RandomNumberGenerator.GetBytes(4))}";
+        // SEC-10: Generate 128-bit cryptographic random entropy for invite tokens
+        var code = $"INV-{Convert.ToHexString(RandomNumberGenerator.GetBytes(16))}";
         var codeHash = Convert.ToHexString(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(code)));
 
+        var inviter = await _db.Persons.FindAsync(Actor.PersonId);
         var invite = new ProxyInvite
         {
+            Inviter = inviter!,
             InviterPersonId = Actor.PersonId,
             Email = body.Email.Trim().ToLowerInvariant(),
             CodeHash = codeHash,
@@ -336,6 +341,7 @@ public class FamilyAndSettingsController : ControllerBase
             CanManageAppointments = body.CanManageAppointments,
             CanRequestRefills = body.CanRequestRefills,
             CanPayBills = body.CanPayBills,
+            CanSubmitForms = body.CanSubmitForms,
             CreatedAt = DateTime.UtcNow,
             ExpiresAt = DateTime.UtcNow.AddDays(7)
         };
@@ -382,6 +388,18 @@ public class FamilyAndSettingsController : ControllerBase
         if (invite == null || invite.ExpiresAt < DateTime.UtcNow)
             return BadRequest(new { error = "Invalid or expired invitation code." });
 
+        // SEC-10: Reject user attempting to accept their own invite
+        if (invite.InviterPersonId == Actor.PersonId)
+            return BadRequest(new { error = "You cannot accept an invitation issued by yourself." });
+
+        // SEC-10: Bind invitation acceptance strictly to the recipient's authenticated email
+        var actorPerson = await _db.Persons.FirstOrDefaultAsync(p => p.Id == Actor.PersonId);
+        if (actorPerson == null || string.IsNullOrWhiteSpace(actorPerson.Email) ||
+            !string.Equals(actorPerson.Email, invite.Email, StringComparison.OrdinalIgnoreCase))
+        {
+            return BadRequest(new { error = "This invitation was issued to a different email address." });
+        }
+
         invite.Status = "ACCEPTED";
         invite.AcceptedAt = DateTime.UtcNow;
 
@@ -395,6 +413,7 @@ public class FamilyAndSettingsController : ControllerBase
             CanManageAppointments = invite.CanManageAppointments,
             CanRequestRefills = invite.CanRequestRefills,
             CanPayBills = invite.CanPayBills,
+            CanSubmitForms = invite.CanSubmitForms,
             CanManageSharing = false,
             ConsentGivenAt = DateTime.UtcNow
         };

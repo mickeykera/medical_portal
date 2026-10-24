@@ -309,6 +309,42 @@ namespace MedicalPortal.Infrastructure.Migrations
                     b.ToTable("Conditions");
                 });
 
+            modelBuilder.Entity("MedicalPortal.Core.Entities.ConsumedPaymentIntent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("AmountCents")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("ConsumedAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("GatewayPaymentIntentId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("IdempotencyKey")
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("PatientId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("GatewayPaymentIntentId")
+                        .IsUnique();
+
+                    b.HasIndex("PatientId", "IdempotencyKey");
+
+                    b.ToTable("ConsumedPaymentIntents");
+                });
+
             modelBuilder.Entity("MedicalPortal.Core.Entities.Department", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1482,6 +1518,9 @@ namespace MedicalPortal.Infrastructure.Migrations
                     b.Property<bool>("CanRequestRefills")
                         .HasColumnType("boolean");
 
+                    b.Property<bool>("CanSubmitForms")
+                        .HasColumnType("boolean");
+
                     b.Property<bool>("CanViewRecords")
                         .HasColumnType("boolean");
 
@@ -1528,6 +1567,9 @@ namespace MedicalPortal.Infrastructure.Migrations
                         .HasColumnType("boolean");
 
                     b.Property<bool>("CanRequestRefills")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("CanSubmitForms")
                         .HasColumnType("boolean");
 
                     b.Property<bool>("CanViewRecords")
@@ -2091,6 +2133,17 @@ namespace MedicalPortal.Infrastructure.Migrations
                 {
                     b.HasOne("MedicalPortal.Core.Entities.Patient", "Patient")
                         .WithMany("Conditions")
+                        .HasForeignKey("PatientId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Patient");
+                });
+
+            modelBuilder.Entity("MedicalPortal.Core.Entities.ConsumedPaymentIntent", b =>
+                {
+                    b.HasOne("MedicalPortal.Core.Entities.Patient", "Patient")
+                        .WithMany()
                         .HasForeignKey("PatientId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();

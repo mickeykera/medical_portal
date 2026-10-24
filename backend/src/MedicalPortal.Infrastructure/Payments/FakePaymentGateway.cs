@@ -39,7 +39,8 @@ public class FakePaymentGateway : IPaymentGateway
             clientSecret,
             request.AmountCents,
             request.Currency,
-            "requires_payment_method");
+            "requires_payment_method",
+            PatientId: request.PatientId);
 
         CreatedIntents[id] = response;
         return Task.FromResult(response);
@@ -77,6 +78,8 @@ public class FakePaymentGateway : IPaymentGateway
 
         var chargeId = "ch_fake_" + Guid.NewGuid().ToString("N");
         var amountCents = CreatedIntents.TryGetValue(request.PaymentIntentId, out var intent) ? intent.AmountCents : 5000;
+        var patientId = CreatedIntents.TryGetValue(request.PaymentIntentId, out var pIntent) ? pIntent.PatientId : null;
+        var currency = CreatedIntents.TryGetValue(request.PaymentIntentId, out var cIntent) ? cIntent.Currency : "usd";
 
         var successResult = new PaymentResult(
             true,
@@ -85,7 +88,9 @@ public class FakePaymentGateway : IPaymentGateway
             amountCents,
             "succeeded",
             last4,
-            DefaultCardBrand);
+            DefaultCardBrand,
+            Currency: currency,
+            PatientId: patientId);
 
         ConfirmedPayments[request.PaymentIntentId] = successResult;
         return Task.FromResult(successResult);
@@ -99,6 +104,9 @@ public class FakePaymentGateway : IPaymentGateway
         }
 
         var amountCents = CreatedIntents.TryGetValue(paymentIntentId, out var intent) ? intent.AmountCents : 5000;
+        var patientId = CreatedIntents.TryGetValue(paymentIntentId, out var pIntent) ? pIntent.PatientId : null;
+        var currency = CreatedIntents.TryGetValue(paymentIntentId, out var cIntent) ? cIntent.Currency : "usd";
+
         var result = new PaymentResult(
             true,
             paymentIntentId,
@@ -106,7 +114,9 @@ public class FakePaymentGateway : IPaymentGateway
             amountCents,
             "succeeded",
             DefaultLast4,
-            DefaultCardBrand);
+            DefaultCardBrand,
+            Currency: currency,
+            PatientId: patientId);
 
         return Task.FromResult(result);
     }

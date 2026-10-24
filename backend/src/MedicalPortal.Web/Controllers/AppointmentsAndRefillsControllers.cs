@@ -469,9 +469,10 @@ public class RefillsController : ControllerBase
     [RequireClinician]
     public async Task<IActionResult> ApproveRefill(Guid id)
     {
+        // SEC-09: Scope refill lookup to the authorized TargetPatientId to prevent cross-patient BOLA/IDOR
         var refill = await _db.RefillRequests
             .Include(r => r.Prescription)
-            .FirstOrDefaultAsync(r => r.Id == id);
+            .FirstOrDefaultAsync(r => r.Id == id && r.Prescription.PatientId == TargetPatientId);
 
         if (refill == null) return NotFound(new { error = "Refill request not found." });
 
@@ -497,9 +498,10 @@ public class RefillsController : ControllerBase
     [RequireClinician]
     public async Task<IActionResult> DenyRefill(Guid id, [FromBody] dynamic? body = null)
     {
+        // SEC-09: Scope refill lookup to the authorized TargetPatientId to prevent cross-patient BOLA/IDOR
         var refill = await _db.RefillRequests
             .Include(r => r.Prescription)
-            .FirstOrDefaultAsync(r => r.Id == id);
+            .FirstOrDefaultAsync(r => r.Id == id && r.Prescription.PatientId == TargetPatientId);
 
         if (refill == null) return NotFound(new { error = "Refill request not found." });
 

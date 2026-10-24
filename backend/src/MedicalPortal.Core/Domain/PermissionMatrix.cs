@@ -148,6 +148,7 @@ public static class PermissionMatrix
         (UserRole.PATIENT, AppResource.Appointments, AppAction.Write),
         (UserRole.PATIENT, AppResource.ClinicalNotes, AppAction.Read),
         (UserRole.PATIENT, AppResource.ClinicalResults, AppAction.Read),
+        (UserRole.PATIENT, AppResource.ClinicalResults, AppAction.Write),
         (UserRole.PATIENT, AppResource.Medications, AppAction.Read),
         (UserRole.PATIENT, AppResource.Medications, AppAction.Write),
         (UserRole.PATIENT, AppResource.Billing, AppAction.Read),

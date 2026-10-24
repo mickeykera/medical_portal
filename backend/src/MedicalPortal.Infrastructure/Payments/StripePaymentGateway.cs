@@ -189,8 +189,17 @@ public class StripePaymentGateway : IPaymentGateway
             failureReason = lpe.TryGetProperty("message", out var lpeMsg) ? lpeMsg.GetString() : null;
         }
 
+        string? currency = root.TryGetProperty("currency", out var currEl) ? currEl.GetString() : "usd";
+        Guid? patientId = null;
+        if (root.TryGetProperty("metadata", out var metaEl) &&
+            metaEl.TryGetProperty("patient_id", out var pidEl) &&
+            Guid.TryParse(pidEl.GetString(), out var parsedPid))
+        {
+            patientId = parsedPid;
+        }
+
         var isSucceeded = status == "succeeded";
-        return new PaymentResult(isSucceeded, id, chargeId, amount, status, last4, cardBrand, isSucceeded ? null : failureReason, failureReason);
+        return new PaymentResult(isSucceeded, id, chargeId, amount, status, last4, cardBrand, isSucceeded ? null : failureReason, failureReason, Currency: currency, PatientId: patientId);
     }
 
     public async Task<RefundResult> RefundPaymentAsync(RefundRequest request, CancellationToken cancellationToken = default)

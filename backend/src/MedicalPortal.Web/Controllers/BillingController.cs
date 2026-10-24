@@ -150,19 +150,21 @@ public class BillingController : ControllerBase
     [RequirePatientAccess(Permission.payBills, AppResource.Billing, AppAction.Write)]
     public async Task<IActionResult> SubmitPayment([FromBody] PaymentBody body)
     {
-        // Enforce idempotency if key provided
+        // Enforce idempotency scoped to patient context
         if (!string.IsNullOrWhiteSpace(body.IdempotencyKey))
         {
-            var existingPayments = await _db.Payments
-                .Where(p => p.IdempotencyKey == body.IdempotencyKey)
-                .ToListAsync();
+            var existingConsumed = await _db.ConsumedPaymentIntents
+                .FirstOrDefaultAsync(c => c.PatientId == TargetPatientId && c.IdempotencyKey == body.IdempotencyKey);
 
-            if (existingPayments.Count > 0)
+            if (existingConsumed != null)
             {
-                var totalPaid = existingPayments.Sum(p => p.AmountCents);
+                var existingPayments = await _db.Payments
+                    .Where(p => p.GatewayPaymentIntentId == existingConsumed.GatewayPaymentIntentId)
+                    .ToListAsync();
+
                 return Ok(new
                 {
-                    paid = totalPaid,
+                    paid = existingConsumed.AmountCents,
                     appliedTo = existingPayments.Select(p => new { statementId = p.StatementId, amountCents = p.AmountCents }),
                     last4 = existingPayments.FirstOrDefault()?.Last4,
                     message = "Payment already processed.",
@@ -180,6 +182,20 @@ public class BillingController : ControllerBase
             if (!paymentResult.Success || paymentResult.Status != "succeeded")
             {
                 return BadRequest(new { error = paymentResult.ErrorMessage ?? "Payment has not succeeded.", reason = paymentResult.FailureReason });
+            }
+
+            // SEC-05: Ensure payment intent matches target patient context
+            if (paymentResult.PatientId.HasValue && paymentResult.PatientId.Value != TargetPatientId)
+            {
+                return BadRequest(new { error = "Payment intent belongs to a different patient context." });
+            }
+
+            // SEC-05: Enforce that the gateway intent has not been previously consumed
+            var alreadyConsumed = await _db.ConsumedPaymentIntents
+                .AnyAsync(c => c.GatewayPaymentIntentId == paymentResult.PaymentIntentId);
+            if (alreadyConsumed)
+            {
+                return Conflict(new { error = "Payment intent has already been consumed." });
             }
         }
         else if (!string.IsNullOrWhiteSpace(body.PaymentToken) && !string.IsNullOrWhiteSpace(body.Amount))
@@ -244,6 +260,17 @@ public class BillingController : ControllerBase
             };
             _db.Payments.Add(payment);
         }
+
+        // SEC-05: Record consumed intent to prevent replay and enforce database unique constraint
+        _db.ConsumedPaymentIntents.Add(new ConsumedPaymentIntent
+        {
+            GatewayPaymentIntentId = paymentResult.PaymentIntentId,
+            PatientId = TargetPatientId,
+            AmountCents = paymentResult.AmountCents,
+            Currency = paymentResult.Currency ?? "usd",
+            IdempotencyKey = body.IdempotencyKey,
+            ConsumedAt = DateTime.UtcNow
+        });
 
         await _db.SaveChangesAsync();
 
@@ -441,6 +468,20 @@ public class BillingController : ControllerBase
     [RequirePatientAccess(Permission.payBills, AppResource.Billing, AppAction.Write)]
     public async Task<IActionResult> RefundPayment([FromBody] RefundBody body)
     {
+        // SEC-16: Restrict direct gateway refund execution to authorized billing staff
+        if (Actor.Role is not (UserRole.BILLING or UserRole.ADMIN or UserRole.SYSTEM_ADMIN))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new
+            {
+                error = "Direct refund execution is restricted to authorized billing administrators."
+            });
+        }
+
+        if (string.IsNullOrWhiteSpace(body.Reason))
+        {
+            return BadRequest(new { error = "A mandatory refund reason is required." });
+        }
+
         var payment = await _db.Payments
             .Include(p => p.Statement)
             .FirstOrDefaultAsync(p => p.Id == body.PaymentId && p.Statement.PatientId == TargetPatientId);

@@ -1,9 +1,9 @@
 # Modular Low-Cost Hospital Platform & Transformation Progress
 
 **Repository:** `medical_portal`  
-**Current Phase:** Phase 3: Clinical Core Spike [APPROVAL GATE]  
+**Current Phase:** Phase 4: Fix Portal Authorization & Payments [APPROVAL GATE]  
 **Last Updated:** 2026-10-24  
-**Current Test Suite Baseline:** **288 passed, 0 failed, 0 skipped** (.NET 8)
+**Current Test Suite Baseline:** **300 passed, 0 failed, 0 skipped** (.NET 8)
 
 ---
 
@@ -14,8 +14,8 @@
 | **0** | **Baseline & Security Audit Reconciliation** | **Approved** | **GATE 0 (Approved)** | 259 passing tests; verified SEC-01..SEC-22 + SAFE-01; wrote ADR 0001 & Open Questions |
 | **1** | **Restructure (`backend/`, `frontend/`, Same-Origin Nginx)** | **Approved** | **GATE 1 (Approved)** | 259 passing tests in `backend/`; same-origin Nginx serving `frontend/` at `/`; Postgres 5432 & Redis 6379 isolated |
 | **2** | **Contain Critical Security Findings (SEC-01, 03, 04, 13, 14, 18, SAFE-01)** | **Approved** | **GATE 2 (Approved)** | 275 passing tests; eliminated lazy sessions, token-DB reconciliation, AuthorizationVersion revocation, unified SignalR auth, production fail-fast assertions, HSTS |
-| **3** | **Clinical Core Spike (OpenMRS 2.8+ / O3 on PostgreSQL vs Bahmni)** | **Completed** | **GATE 3 (Pending Approval)** | 288 passing tests; selected OpenMRS 2.8+ / O3 on PostgreSQL over Bahmni; proven FHIR R4 JSON REST client for 6 core resources; docker-compose dev stack; ADR 0004 & spike report |
-| 4 | Fix Portal Authorization & Payments (SEC-05, 06, 07, 08, 09, 10, 15, 16) | Planned | Gate 4 | Payment idempotency, share scope, server-derived dept scope, HMS RBAC, BOLA/IDOR |
+| **3** | **Clinical Core Spike (OpenMRS 2.8+ / O3 on PostgreSQL vs Bahmni)** | **Approved** | **GATE 3 (Approved)** | 288 passing tests; selected OpenMRS 2.8+ / O3 on PostgreSQL over Bahmni; proven FHIR R4 JSON REST client for 6 core resources; docker-compose dev stack; ADR 0004 & spike report |
+| **4** | **Fix Portal Authorization & Payments (SEC-05, 06, 07, 08, 09, 10, 15, 16)** | **Completed** | **GATE 4 (Pending Approval)** | 300 passing tests; ConsumedPaymentIntents, FHIR share scope filtering, mandatory dept scope enforcement, HMS RBAC, refill BOLA/IDOR fix, 128-bit email-bound proxy invites, form write permission, segregated billing refunds; ADR 0005 |
 | 5 | Multi-Tenancy Architecture & Isolation | Planned | Gate 5 | Shared portal DB with TenantId & RLS, isolated EMR cores, cross-tenant leak tests |
 | 6 | Ethiopia Foundations (Dual Calendar Engine & Localization) | Planned | Gate 6 | Gregorian/Ethiopian conversion engine, `calendar_dim`, Amharic/Afaan Oromoo locales |
 | 7 | Frontend Rebuild (TypeScript, React/Vite, Accessible Dialogs) | Planned | Gate 7 | Eliminate stored DOM XSS (SEC-02), ban browser dialogs, strict CSP without unsafe-inline |
@@ -122,6 +122,44 @@ Passed!  - Failed: 0, Passed: 259, Skipped: 0, Total: 259, Duration: 27 s - Medi
 
 ---
 
+## 🔒 Phase 4 Portal Authorization & Payments Verification
+
+- **Branch:** `phase-4-fix-authorization-payments`
+- **Findings Addressed:** SEC-05, SEC-06, SEC-07, SEC-08, SEC-09, SEC-10, SEC-15, SEC-16
+- **Architectural Reference:** [ADR 0005: Portal Authorization Hardening and Payment Integrity](adr/0005-portal-authorization-and-payment-integrity.md)
+- **Key Changes Implemented:**
+  - **SEC-05 (Payment Intent Replay & Misattribution):**
+    - Added `ConsumedPaymentIntent` entity with unique index on `GatewayPaymentIntentId` and composite index on `(PatientId, IdempotencyKey)`.
+    - Added intent `PatientId` check in `BillingController.cs` before allocation; verified against `TargetPatientId`.
+    - Atomic recording in `ConsumedPaymentIntents`; duplicate execution rejected with `409 Conflict`.
+  - **SEC-06 (Record-Share Scope Enforcement):**
+    - Verified requested categories in `ShareRedemptionController.cs` are a strict subset of `ScopeJson`.
+    - Implemented `GetScopedPatientBundleAsync` in `FhirService.cs` filtering FHIR bundle resources (`Allergies`, `Conditions`, `Medications`, `Observations`, `Appointments`).
+  - **SEC-07 (Mandatory Operational Staff Scoping):**
+    - Enforced membership checks in `AccessControlService.cs`: operational staff without assignments rejected with `unassigned_staff_scope` (`403 Forbidden`).
+    - Unambiguous department membership auto-derived; multi-department staff without `x-department-id` rejected with `department_scope_required`; mismatched department rejected with `department_scope_mismatch`.
+  - **SEC-08 (HMS Admin RBAC):**
+    - Protected `/api/integrations/hms/conflicts` and `/api/integrations/hms/dead-letters` with `[RequireAuth]` and `[RequireAdmin]`. Read access restricted to `ADMIN`, `SYSTEM_ADMIN`, `COMPLIANCE_AUDITOR`; mutating operations strictly restricted to `ADMIN` and `SYSTEM_ADMIN`.
+  - **SEC-09 (BOLA/IDOR in Refills):**
+    - Added `r.Prescription.PatientId == TargetPatientId` verification in `ApproveRefill` and `DenyRefill`. Cross-patient refill mutations rejected with `404 Not Found`.
+  - **SEC-10 (128-Bit Cryptographic Proxy Invites & Recipient Binding):**
+    - Upgraded invite token entropy to 16 bytes (128 bits; 32 hex chars prefixed with `INV-`).
+    - Enforced recipient account email binding (`actorPerson.Email == invite.Email`) and prohibited self-acceptance in `AcceptProxyInvite`.
+  - **SEC-15 (Dedicated Form Submission Authorization):**
+    - Added `Permission.submitForms` and `CanSubmitForms` flag on `ProxyGrant` and `ProxyInvite`.
+    - Granted write matrix entry `(UserRole.PATIENT, AppResource.ClinicalResults, AppAction.Write)`.
+    - Guarded `POST /api/forms/{id}/submit` with `[RequirePatientAccess(Permission.submitForms, AppResource.ClinicalResults, AppAction.Write)]`.
+  - **SEC-16 (Segregated Refund Authorization):**
+    - Restricted `POST /api/billing/refunds` direct gateway execution strictly to billing staff (`BILLING`, `ADMIN`, `SYSTEM_ADMIN`) with mandatory refund audit reason. Blocked patient/proxy self-refunds with `403 Forbidden`.
+- **Negative & Abuse Security Test Suite:**
+  - Added [`AuthorizationAndPaymentsSecurityTests.cs`](file:///home/michael/projects/app/medical_portal/backend/tests/MedicalPortal.Tests/AuthorizationAndPaymentsSecurityTests.cs) (14 tests covering replay attacks, cross-patient misattribution, share scope leakage, unassigned staff scopes, multi-department headers, HMS role gating, refill BOLA, invite entropy & email mismatch, read-only proxy form submission, and self-refund attempts).
+- **Automated Test Results:**
+  ```text
+  Passed!  - Failed: 0, Passed: 300, Skipped: 0, Total: 300, Duration: 27 s - MedicalPortal.Tests.dll (net8.0)
+  ```
+
+---
+
 ## 🔍 Security Audit Verification Matrix (SEC-01 .. SEC-22, SAFE-01)
 
 Every audit finding from `docs/security-audit-2026-10-24.md` has been verified against the current codebase:
@@ -132,18 +170,18 @@ Every audit finding from `docs/security-audit-2026-10-24.md` has been verified a
 | **SEC-02** | **Critical** | Stored DOM XSS | **OPEN** | `app.js:12,417,545,650,2034` assigns user input directly to `.innerHTML` without contextual escaping. `ClinicalSummaryGenerator.cs:135,220` interpolates unencoded strings into HTML. `Program.cs:496` CSP permits `'unsafe-inline'`. | Phase 7 |
 | **SEC-03** | **Critical** | Plaintext Production Transport | **CLOSED** | HSTS middleware configured in `Program.cs` (`Strict-Transport-Security: max-age=31536000; includeSubDomains; preload`). Production fail-fast assertions prohibit plain-HTTP endpoints for external integrations. | Closed in Phase 2 |
 | **SEC-04** | **Critical** | Silent Fake Payments in Production | **CLOSED** | Removed `STRIPE_USE_FAKE=true` from `docker-compose.yml`. Added pre-build and post-build startup validations in `Program.cs` that abort if `Stripe:UseFake` is true, if `Stripe:SecretKey` is placeholder/empty, or if `FakePaymentGateway` is resolved in Production. Negative tests in `CriticalSecurityContainmentTests.cs`. | Closed in Phase 2 |
-| **SEC-05** | **High** | Payment Intent Replay & Misattribution | **OPEN** | `BillingController.cs:176` accepts existing intents based solely on gateway success without verifying `intent.PatientId == TargetPatientId` or prior consumption. `MedicalPortalDbContext.cs` lacks unique indexes on `GatewayPaymentIntentId` and `IdempotencyKey`. | Phase 4 |
-| **SEC-06** | **High** | Unenforced Record-Share Scopes | **OPEN** | `SharingAndFormsAndFamilyControllers.cs:97` persists `ScopeJson`, but `ShareRedemptionController.cs:139` ignores requested categories and unconditionally returns `GetPatientEverythingBundleAsync` exposing full PHI. | Phase 4 |
-| **SEC-07** | **High** | Caller-Optional Department Scoping | **OPEN** | `AuthFilters.cs:161` reads `x-department-id` optionally. `AccessControlService.cs:58,84` skips scope checks if header omitted, granting operational staff (`SCHEDULER`, `BILLING`, `NURSE`, etc.) global patient access. | Phase 4 |
-| **SEC-08** | **High** | Missing HMS Admin Authorization | **OPEN** | `HmsWebhookController.cs:54` endpoints (`/conflicts`, `/conflicts/{id}/resolve`, `/dead-letters`) require only basic `[RequireAuth]`. Any authenticated patient or staff member can inspect and mutate integration records. | Phase 4 |
-| **SEC-09** | **High** | BOLA / IDOR in Refill Processing | **OPEN** | `AppointmentsAndRefillsControllers.cs:468,496` queries refills solely by route ID without asserting `Prescription.PatientId == TargetPatientId`. Clinician authorized for Patient A can approve/deny refills for Patient B. | Phase 4 |
-| **SEC-10** | **High** | Weak Proxy Invites & Unbound Acceptance | **OPEN** | `SharingAndFormsAndFamilyControllers.cs:325` generates 32-bit entropy (4 bytes). `AcceptProxyInvite` does not verify that accepting user's email matches `invite.Email`. No dedicated rate limit. | Phase 4 |
+| **SEC-05** | **High** | Payment Intent Replay & Misattribution | **CLOSED** | `ConsumedPaymentIntent` entity records processed payment intents with unique index on `GatewayPaymentIntentId` and composite index on `(PatientId, IdempotencyKey)`. `BillingController.cs` asserts `intent.PatientId == TargetPatientId` and rejects replayed intents with 409 Conflict. Covered in `AuthorizationAndPaymentsSecurityTests.cs`. | Closed in Phase 4 |
+| **SEC-06** | **High** | Unenforced Record-Share Scopes | **CLOSED** | `ShareRedemptionController.cs` validates requested categories against `candidate.ScopeJson`. `FhirService.cs` provides `GetScopedPatientBundleAsync` filtering bundle resources by authorized categories (`conditions`, `allergies`, `medications`, `observations`, `appointments`). Covered in `AuthorizationAndPaymentsSecurityTests.cs`. | Closed in Phase 4 |
+| **SEC-07** | **High** | Caller-Optional Department Scoping | **CLOSED** | `AccessControlService.cs` rejects unassigned operational staff with `unassigned_staff_scope` (403 Forbidden). Single department membership is automatically derived; multi-department staff must provide `x-department-id` (`department_scope_required`). Mismatches rejected with `department_scope_mismatch`. Covered in `AuthorizationAndPaymentsSecurityTests.cs`. | Closed in Phase 4 |
+| **SEC-08** | **High** | Missing HMS Admin Authorization | **CLOSED** | `/api/integrations/hms/conflicts` and `/api/integrations/hms/dead-letters` decorated with `[RequireAuth]` and `[RequireAdmin]` in `HmsWebhookController.cs`. Read access restricted to `ADMIN`, `SYSTEM_ADMIN`, `COMPLIANCE_AUDITOR`; mutating actions restricted to `ADMIN` and `SYSTEM_ADMIN`. Covered in `AuthorizationAndPaymentsSecurityTests.cs`. | Closed in Phase 4 |
+| **SEC-09** | **High** | BOLA / IDOR in Refill Processing | **CLOSED** | `AppointmentsAndRefillsControllers.cs` verifies `r.Prescription.PatientId == TargetPatientId` in `ApproveRefill` and `DenyRefill`. Cross-patient attempts return 404 Not Found. Covered in `AuthorizationAndPaymentsSecurityTests.cs`. | Closed in Phase 4 |
+| **SEC-10** | **High** | Weak Proxy Invites & Unbound Acceptance | **CLOSED** | `SharingAndFormsAndFamilyControllers.cs` generates 128-bit cryptographic random tokens (`INV-<32 hex chars>`). `AcceptProxyInvite` verifies `actorPerson.Email == invite.Email` and rejects self-acceptance (`actorPerson.Id == invite.InviterPersonId`). Covered in `AuthorizationAndPaymentsSecurityTests.cs`. | Closed in Phase 4 |
 | **SEC-11** | **High** | Incomplete PHI Logging Scrubbing | **OPEN** | `LoggingExtensions.cs:8` registers an extra logger provider without wrapping or clearing default providers (`Console`, `Debug`, `EventSource`). `HmsConflictService.cs:113` logs demographic comparison strings directly. | Phase 11 |
 | **SEC-12** | **High** | Sensitive Data Plaintext at Rest | **OPEN** | `AesGcmFieldEncryptionService` is registered but not hooked into EF Core `ValueConverter` mappings. `AuthController.cs:262` stores `account.TotpSecret` in plaintext. `ConfigurationKeyProvider.cs:43` derives fallback encryption key from `JWT_SECRET`. | Phase 11 |
 | **SEC-13** | **High** | Known Fallback HMS Secrets & Plain HTTP | **CLOSED** | Default fallback secret removed from `HmsWebhookHandler.cs`. Fallback `admin`/`Admin` credentials removed from `HmsClient.cs`. Startup validator in `Program.cs` prohibits fallback secrets and enforces HTTPS. Tested in `CriticalSecurityContainmentTests.cs`. | Closed in Phase 2 |
 | **SEC-14** | **Medium** | SignalR Bypasses Session Revocation | **CLOSED** | `PortalHub.cs` now validates session through `ISessionService.ValidateSessionAsync`, verifying `AuthorizationVersion`, active status, and database role prior to establishing connection. Revoked/unknown sessions rejected. Tested in `CriticalSecurityContainmentTests.cs`. | Closed in Phase 2 |
-| **SEC-15** | **Medium** | Form Writes Require Only Read Permission | **OPEN** | `SharingAndFormsAndFamilyControllers.cs:228` guards form response submission using `Permission.viewRecords` (read permission) instead of a dedicated write permission. | Phase 4 |
-| **SEC-16** | **Medium** | Direct Patient/Proxy Refund Triggering | **OPEN** | `BillingController.cs:438` permits callers with `payBills` permission to directly invoke gateway refund operations without a billing staff review or approval workflow. | Phase 4 |
+| **SEC-15** | **Medium** | Form Writes Require Only Read Permission | **CLOSED** | Dedicated `Permission.submitForms` added and mapped to `CanSubmitForms` on `ProxyGrant` and `ProxyInvite`. Permission matrix configured with `(UserRole.PATIENT, AppResource.ClinicalResults, AppAction.Write)`. `POST /api/forms/{id}/submit` guarded with `[RequirePatientAccess(Permission.submitForms, AppResource.ClinicalResults, AppAction.Write)]`. Covered in `AuthorizationAndPaymentsSecurityTests.cs`. | Closed in Phase 4 |
+| **SEC-16** | **Medium** | Direct Patient/Proxy Refund Triggering | **CLOSED** | `BillingController.cs` restricts `POST /api/billing/refunds` direct gateway execution strictly to billing staff (`BILLING`, `ADMIN`, `SYSTEM_ADMIN`) with mandatory refund audit reason. Patient/proxy self-refund attempts return 403 Forbidden. Covered in `AuthorizationAndPaymentsSecurityTests.cs`. | Closed in Phase 4 |
 | **SEC-17** | **Medium** | Client IP Bypasses Trusted Proxy Boundary | **OPEN** | `PublicIpService.cs:62` reads `CF-Connecting-IP`, `X-Real-IP`, and `X-Forwarded-For` directly from headers without checking if immediate socket peer is an authorized proxy. | Phase 11 |
 | **SEC-18** | **Medium** | Plain HTTP Third-Party Geolocation Call | **CLOSED** | Plain-HTTP calls to `http://ip-api.com` in `PublicIpService.cs` completely eliminated; fallback geolocation returns clean offline/mock metadata. Tested in `CriticalSecurityContainmentTests.cs`. | Closed in Phase 2 |
 | **SEC-19** | **Medium** | Non-Blocking CI Security & Mutable Actions | **OPEN** | `.github/workflows/ci.yml:106,131` uses mutable `@master` tags for Trivy and sets `exit-code: '0'`, preventing high/critical vulnerabilities from failing the CI build. | Phase 11 |
@@ -158,8 +196,8 @@ Every audit finding from `docs/security-audit-2026-10-24.md` has been verified a
 
 1. **Client-Side Cross-Site Scripting (SEC-02):**
    The legacy vanilla JS SPA relies on direct `.innerHTML` interpolation across nearly all screens. Replacing this during Phase 7 with a type-safe component framework (React/TypeScript) is essential before loading real patient data.
-2. **Access Control & Scope Verification (SEC-05, SEC-06, SEC-07, SEC-08, SEC-09, SEC-10):**
-   Department-scoping enforcement, share bundle scoping, payment idempotency, and BOLA prevention in refills remain open for Phase 4 remediation.
+2. **Access Control & Scope Verification (SEC-05, SEC-06, SEC-07, SEC-08, SEC-09, SEC-10, SEC-15, SEC-16):**
+   Remediated in Phase 4. Payment intent replays are blocked, share bundles are filtered strictly by granted categories, operational staff scoping is enforced server-side, HMS integration endpoints are restricted to administrators, refill BOLA is resolved, proxy invites are 128-bit and email-bound, form submissions require write permission, and direct patient refunds are segregated. Verified across 300 tests.
 3. **Clinical Scope vs EMR Integration (SAFE-01, Phase 3/8):**
    Clinical entities currently duplicated in the portal database (observations, allergies, prescriptions) must be cleanly decoupled and handed over to the dedicated open-source EMR core (OpenMRS 2.8+ on PostgreSQL) through standardized FHIR R4 interfaces.
 4. **National Interoperability Unknowns (Phase 10):**

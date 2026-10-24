@@ -280,6 +280,15 @@ public class GranularRoleAndMatrixTests : IClassFixture<WebApplicationFactory<Pr
         };
         db.UserAccounts.Add(billingAccount);
 
+        var dept = await db.Departments.FirstAsync();
+        db.UserMemberships.Add(new UserMembership
+        {
+            UserAccountId = billingAccount.Id,
+            FacilityId = dept.FacilityId,
+            DepartmentId = dept.Id,
+            Role = "BILLING"
+        });
+
         var patientEmail = $"patient.{Guid.NewGuid():N}@patient.example";
         var patientPerson = new Person
         {
@@ -327,6 +336,15 @@ public class GranularRoleAndMatrixTests : IClassFixture<WebApplicationFactory<Pr
         };
         db.UserAccounts.Add(billingAccount);
 
+        var dept = await db.Departments.FirstAsync();
+        db.UserMemberships.Add(new UserMembership
+        {
+            UserAccountId = billingAccount.Id,
+            FacilityId = dept.FacilityId,
+            DepartmentId = dept.Id,
+            Role = "BILLING"
+        });
+
         var patientEmail = $"patient.{Guid.NewGuid():N}@patient.example";
         var patientPerson = new Person
         {
@@ -372,6 +390,15 @@ public class GranularRoleAndMatrixTests : IClassFixture<WebApplicationFactory<Pr
             }
         };
         db.UserAccounts.Add(schedAccount);
+
+        var dept = await db.Departments.FirstAsync();
+        db.UserMemberships.Add(new UserMembership
+        {
+            UserAccountId = schedAccount.Id,
+            FacilityId = dept.FacilityId,
+            DepartmentId = dept.Id,
+            Role = "SCHEDULER"
+        });
 
         var patientEmail = $"patient.{Guid.NewGuid():N}@patient.example";
         var patientPerson = new Person
@@ -419,6 +446,15 @@ public class GranularRoleAndMatrixTests : IClassFixture<WebApplicationFactory<Pr
             }
         };
         db.UserAccounts.Add(schedAccount);
+
+        var dept = await db.Departments.FirstAsync();
+        db.UserMemberships.Add(new UserMembership
+        {
+            UserAccountId = schedAccount.Id,
+            FacilityId = dept.FacilityId,
+            DepartmentId = dept.Id,
+            Role = "SCHEDULER"
+        });
 
         var patientEmail = $"patient.{Guid.NewGuid():N}@patient.example";
         var patientPerson = new Person

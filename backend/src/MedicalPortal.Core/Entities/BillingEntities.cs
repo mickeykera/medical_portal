@@ -46,6 +46,19 @@ public class ProcessedWebhookEvent
     public DateTime ProcessedAt { get; set; } = DateTime.UtcNow;
 }
 
+public class ConsumedPaymentIntent
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public string GatewayPaymentIntentId { get; set; } = string.Empty;
+    public Guid PatientId { get; set; }
+    public int AmountCents { get; set; }
+    public string Currency { get; set; } = "usd";
+    public string? IdempotencyKey { get; set; }
+    public DateTime ConsumedAt { get; set; } = DateTime.UtcNow;
+
+    public virtual Patient Patient { get; set; } = null!;
+}
+
 public class PaymentPlan
 {
     public Guid Id { get; set; } = Guid.NewGuid();

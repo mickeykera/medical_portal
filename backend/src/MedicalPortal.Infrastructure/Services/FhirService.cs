@@ -14,6 +14,7 @@ public interface IFhirService
     Task<object> GetPatientMedicationsAsync(Guid patientId);
     Task<object> GetPatientAppointmentsAsync(Guid patientId);
     Task<object?> GetPatientEverythingBundleAsync(Guid patientId);
+    Task<object?> GetScopedPatientBundleAsync(Guid patientId, IEnumerable<string> categories);
 }
 
 public class FhirService : IFhirService
@@ -144,6 +145,63 @@ public class FhirService : IFhirService
 
         var appointments = await _db.Appointments.AsNoTracking().Where(a => a.PatientId == patientId).ToListAsync();
         entries.AddRange(appointments.Select(MapAppointmentToFhir));
+
+        return CreateBundle("collection", entries);
+    }
+
+    public async Task<object?> GetScopedPatientBundleAsync(Guid patientId, IEnumerable<string> categories)
+    {
+        var patient = await _db.Patients
+            .AsNoTracking()
+            .Include(p => p.Person)
+            .FirstOrDefaultAsync(p => p.Id == patientId);
+
+        if (patient == null) return null;
+
+        var categorySet = new HashSet<string>(categories.Select(c => c.Trim().ToLowerInvariant()));
+
+        var entries = new List<object>
+        {
+            MapPatientToFhir(patient)
+        };
+
+        if (categorySet.Contains("vitals") || categorySet.Contains("labs") || categorySet.Contains("observations"))
+        {
+            var observations = await _db.Observations.AsNoTracking().Where(o => o.PatientId == patientId).ToListAsync();
+            if (categorySet.Contains("vitals") && !categorySet.Contains("labs") && !categorySet.Contains("observations"))
+            {
+                observations = observations.Where(o => o.Category.ToString().ToLowerInvariant().Contains("vital")).ToList();
+            }
+            else if (categorySet.Contains("labs") && !categorySet.Contains("vitals") && !categorySet.Contains("observations"))
+            {
+                observations = observations.Where(o => o.Category.ToString().ToLowerInvariant().Contains("lab")).ToList();
+            }
+            entries.AddRange(observations.Select(MapObservationToFhir));
+        }
+
+        if (categorySet.Contains("allergies"))
+        {
+            var allergies = await _db.Allergies.AsNoTracking().Where(a => a.PatientId == patientId && !a.Tombstone).ToListAsync();
+            entries.AddRange(allergies.Select(MapAllergyToFhir));
+        }
+
+        if (categorySet.Contains("conditions"))
+        {
+            var conditions = await _db.Conditions.AsNoTracking().Where(c => c.PatientId == patientId).ToListAsync();
+            entries.AddRange(conditions.Select(MapConditionToFhir));
+        }
+
+        if (categorySet.Contains("medications"))
+        {
+            var prescriptions = await _db.Prescriptions.AsNoTracking().Include(p => p.Medication).Where(p => p.PatientId == patientId).ToListAsync();
+            entries.AddRange(prescriptions.Select(MapPrescriptionToFhir));
+        }
+
+        if (categorySet.Contains("appointments"))
+        {
+            var appointments = await _db.Appointments.AsNoTracking().Where(a => a.PatientId == patientId).ToListAsync();
+            entries.AddRange(appointments.Select(MapAppointmentToFhir));
+        }
 
         return CreateBundle("collection", entries);
     }

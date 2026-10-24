@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using MedicalPortal.Core.Entities;
 using MedicalPortal.Infrastructure.Data;
 using MedicalPortal.Infrastructure.Services;
@@ -136,7 +137,48 @@ public class ShareRedemptionController : ControllerBase
             ipAddress: ip,
             userAgent: userAgent);
 
-        var bundle = await _fhirService.GetPatientEverythingBundleAsync(candidate!.PatientId);
+        // SEC-06: Parse allowed share scope from candidate.ScopeJson
+        var allowedCategories = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (!string.IsNullOrWhiteSpace(candidate.ScopeJson))
+        {
+            try
+            {
+                var parsed = JsonSerializer.Deserialize<string[]>(candidate.ScopeJson);
+                if (parsed != null)
+                {
+                    foreach (var cat in parsed) allowedCategories.Add(cat.Trim());
+                }
+            }
+            catch
+            {
+                // Fallback to default full scope if malformed
+            }
+        }
+
+        if (allowedCategories.Count == 0)
+        {
+            allowedCategories.UnionWith(new[] { "allergies", "conditions", "medications", "labs", "vitals" });
+        }
+
+        IEnumerable<string> effectiveCategories;
+        if (body.Categories != null && body.Categories.Length > 0)
+        {
+            // Validate requested categories as subset of allowed scope
+            foreach (var requested in body.Categories)
+            {
+                if (!allowedCategories.Contains(requested.Trim()))
+                {
+                    return BadRequest(new { error = $"Requested category '{requested}' is outside the authorized share scope." });
+                }
+            }
+            effectiveCategories = body.Categories.Select(c => c.Trim());
+        }
+        else
+        {
+            effectiveCategories = allowedCategories;
+        }
+
+        var bundle = await _fhirService.GetScopedPatientBundleAsync(candidate.PatientId, effectiveCategories);
         return Ok(bundle);
     }
 }

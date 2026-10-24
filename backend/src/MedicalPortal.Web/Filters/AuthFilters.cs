@@ -182,9 +182,13 @@ public class RequirePatientAccessFilter : IAsyncActionFilter
         {
             context.Result = new ObjectResult(new
             {
-                error = decision.Reason == "department_scope_mismatch"
-                    ? "Access denied: you do not have permission in this facility or department scope."
-                    : "You do not have permission to perform this action.",
+                error = decision.Reason switch
+                {
+                    "department_scope_mismatch" => "Access denied: you do not have permission in this facility or department scope.",
+                    "department_scope_required" => "Access denied: operational staff must supply an explicit x-department-id scope.",
+                    "unassigned_staff_scope" => "Access denied: your staff account does not have an active department or facility assignment.",
+                    _ => "You do not have permission to perform this action."
+                },
                 reason = decision.Reason
             })
             { StatusCode = 403 };

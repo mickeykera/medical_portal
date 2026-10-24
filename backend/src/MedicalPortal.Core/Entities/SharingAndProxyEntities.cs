@@ -11,6 +11,7 @@ public class ProxyGrant
     public bool CanRequestRefills { get; set; } = true;
     public bool CanPayBills { get; set; } = false;
     public bool CanManageSharing { get; set; } = false;
+    public bool CanSubmitForms { get; set; } = false;
     public DateTime ConsentGivenAt { get; set; } = DateTime.UtcNow;
     public DateTime? ConsentExpiresAt { get; set; }
     public DateTime? RevokedAt { get; set; }
@@ -32,6 +33,7 @@ public class ProxyInvite
     public bool CanManageAppointments { get; set; } = true;
     public bool CanRequestRefills { get; set; } = true;
     public bool CanPayBills { get; set; } = false;
+    public bool CanSubmitForms { get; set; } = false;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime ExpiresAt { get; set; }
     public DateTime? AcceptedAt { get; set; }

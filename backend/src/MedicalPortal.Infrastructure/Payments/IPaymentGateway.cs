@@ -15,7 +15,8 @@ public record PaymentIntentResponse(
     int AmountCents,
     string Currency,
     string Status,
-    string? ErrorMessage = null);
+    string? ErrorMessage = null,
+    Guid? PatientId = null);
 
 public record ConfirmPaymentRequest(
     string PaymentIntentId,
@@ -31,7 +32,9 @@ public record PaymentResult(
     string? Last4,
     string? CardBrand,
     string? ErrorMessage = null,
-    string? FailureReason = null);
+    string? FailureReason = null,
+    string? Currency = null,
+    Guid? PatientId = null);
 
 public record RefundRequest(
     string PaymentIntentId,

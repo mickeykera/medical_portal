@@ -83,6 +83,63 @@ public class AccessControlService : IAccessControlService
         // 5. Operational staff roles (SCHEDULER, BILLING, LAB, PHARMACIST, DEPT_ADMIN, NURSE)
         if (actor.Role is UserRole.SCHEDULER or UserRole.BILLING or UserRole.LAB or UserRole.PHARMACIST or UserRole.DEPT_ADMIN or UserRole.NURSE)
         {
+            var memberships = await _db.UserMemberships
+                .AsNoTracking()
+                .Where(m => m.UserAccountId == actor.UserAccountId)
+                .ToListAsync();
+
+            var providerDepts = await _db.Providers
+                .AsNoTracking()
+                .Where(pr => pr.AccountId == actor.UserAccountId)
+                .SelectMany(pr => pr.ProviderDepartments)
+                .Select(pd => pd.DepartmentId)
+                .ToListAsync();
+
+            // SEC-07: Unassigned staff member has no organizational grant
+            if (memberships.Count == 0 && providerDepts.Count == 0)
+            {
+                return new AccessDecision(false, patientId, false, "unassigned_staff_scope", target.PersonId);
+            }
+
+            // Enterprise-wide grant allows access across all facilities
+            var hasEnterprise = memberships.Any(m => m.FacilityId == null && m.DepartmentId == null);
+            if (hasEnterprise)
+            {
+                return new AccessDecision(true, patientId, false, null, target.PersonId);
+            }
+
+            // Derive scope if unambiguous or reject if caller omitted required scope
+            if (!departmentId.HasValue)
+            {
+                var distinctDepts = memberships.Where(m => m.DepartmentId.HasValue).Select(m => m.DepartmentId!.Value)
+                    .Concat(providerDepts)
+                    .Distinct()
+                    .ToList();
+
+                var hasFacilityWide = memberships.Any(m => m.DepartmentId == null);
+
+                if (!hasFacilityWide)
+                {
+                    if (distinctDepts.Count == 1)
+                    {
+                        departmentId = distinctDepts[0];
+                    }
+                    else
+                    {
+                        return new AccessDecision(false, patientId, false, "department_scope_required", target.PersonId);
+                    }
+                }
+            }
+
+            if (departmentId.HasValue)
+            {
+                var inScope = await HasDepartmentScopeAsync(actor.UserAccountId, departmentId.Value);
+                if (!inScope)
+                {
+                    return new AccessDecision(false, patientId, false, "department_scope_mismatch", target.PersonId);
+                }
+            }
+
             return new AccessDecision(true, patientId, false, null, target.PersonId);
         }
 
@@ -155,6 +212,7 @@ public class AccessControlService : IAccessControlService
             Permission.requestRefills => grant.CanRequestRefills,
             Permission.payBills => grant.CanPayBills,
             Permission.manageSharing => grant.CanManageSharing,
+            Permission.submitForms => grant.CanSubmitForms,
             _ => false
         };
 
@@ -190,8 +248,8 @@ public class AccessControlService : IAccessControlService
                 return providerDepts.Contains(departmentId.Value);
             }
 
-            // Unscoped staff member
-            return true;
+            // Unassigned staff member has no department scope
+            return false;
         }
 
         // Direct department membership

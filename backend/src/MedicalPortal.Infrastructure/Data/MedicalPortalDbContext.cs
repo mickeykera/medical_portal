@@ -28,6 +28,7 @@ public class MedicalPortalDbContext : DbContext
     public DbSet<HealthSnapshot> HealthSnapshots => Set<HealthSnapshot>();
     public DbSet<Statement> Statements => Set<Statement>();
     public DbSet<Payment> Payments => Set<Payment>();
+    public DbSet<ConsumedPaymentIntent> ConsumedPaymentIntents => Set<ConsumedPaymentIntent>();
     public DbSet<PaymentPlan> PaymentPlans => Set<PaymentPlan>();
     public DbSet<PaymentInstallment> PaymentInstallments => Set<PaymentInstallment>();
     public DbSet<ProcessedWebhookEvent> ProcessedWebhookEvents => Set<ProcessedWebhookEvent>();
@@ -350,6 +351,17 @@ public class MedicalPortalDbContext : DbContext
         modelBuilder.Entity<ProcessedWebhookEvent>()
             .HasIndex(e => e.EventId)
             .IsUnique();
+
+        modelBuilder.Entity<ConsumedPaymentIntent>(entity =>
+        {
+            entity.HasIndex(e => e.GatewayPaymentIntentId)
+                .IsUnique();
+            entity.HasIndex(e => new { e.PatientId, e.IdempotencyKey });
+            entity.HasOne(e => e.Patient)
+                .WithMany()
+                .HasForeignKey(e => e.PatientId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
 
         modelBuilder.Entity<PaymentPlan>()
             .Property(pp => pp.Status)

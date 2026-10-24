@@ -98,5 +98,6 @@ public enum Permission
     manageAppointments,
     requestRefills,
     payBills,
-    manageSharing
+    manageSharing,
+    submitForms
 }
