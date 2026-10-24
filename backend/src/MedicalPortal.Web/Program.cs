@@ -7,6 +7,10 @@ using MedicalPortal.Infrastructure.Data;
 using MedicalPortal.Infrastructure.DistributedLock;
 using MedicalPortal.Infrastructure.Fhir;
 using MedicalPortal.Infrastructure.Hms;
+using MedicalPortal.Infrastructure.Interoperability.Dhis2;
+using MedicalPortal.Infrastructure.Interoperability.Echis;
+using MedicalPortal.Infrastructure.Interoperability.Mfr;
+using MedicalPortal.Infrastructure.Interoperability.Mpi;
 using MedicalPortal.Infrastructure.Localization;
 using MedicalPortal.Infrastructure.Logging;
 using MedicalPortal.Infrastructure.Notifications;
@@ -517,6 +521,48 @@ else
 builder.Services.AddScoped<IOutboxSyncDispatcher, OutboxSyncDispatcher>();
 builder.Services.AddScoped<IReferenceDataService, ReferenceDataService>();
 builder.Services.AddHostedService<OutboxSyncWorker>();
+
+// National Interoperability: DHIS2 HMIS, eCHIS Community Referrals, MFR, and MPI Deduplication
+builder.Services.Configure<Dhis2Options>(builder.Configuration.GetSection(Dhis2Options.SectionName));
+var dhis2Options = builder.Configuration.GetSection(Dhis2Options.SectionName).Get<Dhis2Options>() ?? new Dhis2Options();
+builder.Services.AddSingleton<FakeDhis2Client>();
+if (builder.Environment.IsProduction() && !dhis2Options.UseFake)
+{
+    builder.Services.AddHttpClient<IDhis2Client, Dhis2Client>();
+}
+else
+{
+    builder.Services.AddSingleton<IDhis2Client>(sp => sp.GetRequiredService<FakeDhis2Client>());
+}
+builder.Services.AddScoped<IDhis2AggregateService, Dhis2AggregateService>();
+
+builder.Services.Configure<EchisOptions>(builder.Configuration.GetSection(EchisOptions.SectionName));
+var echisOptions = builder.Configuration.GetSection(EchisOptions.SectionName).Get<EchisOptions>() ?? new EchisOptions();
+builder.Services.AddSingleton<FakeEchisClient>();
+if (builder.Environment.IsProduction() && !echisOptions.UseFake)
+{
+    builder.Services.AddHttpClient<IEchisClient, EchisClient>();
+}
+else
+{
+    builder.Services.AddSingleton<IEchisClient>(sp => sp.GetRequiredService<FakeEchisClient>());
+}
+builder.Services.AddScoped<IEchisReferralService, EchisReferralService>();
+
+builder.Services.Configure<MfrOptions>(builder.Configuration.GetSection(MfrOptions.SectionName));
+var mfrOptions = builder.Configuration.GetSection(MfrOptions.SectionName).Get<MfrOptions>() ?? new MfrOptions();
+builder.Services.AddSingleton<FakeMfrClient>();
+if (builder.Environment.IsProduction() && !mfrOptions.UseFake)
+{
+    builder.Services.AddHttpClient<IMfrClient, MfrClient>();
+}
+else
+{
+    builder.Services.AddSingleton<IMfrClient>(sp => sp.GetRequiredService<FakeMfrClient>());
+}
+builder.Services.AddScoped<IMfrSyncService, MfrSyncService>();
+
+builder.Services.AddScoped<IPatientDeduplicationService, PatientDeduplicationService>();
 
 // Automated Background Workers
 builder.Services.AddHostedService<AppointmentReminderWorker>();

@@ -28,6 +28,13 @@ public class Facility : ITenantScoped
     public string? State { get; set; }
     public string? PostalCode { get; set; }
     public string? Phone { get; set; }
+    public string? MfrCode { get; set; }
+    public string? FacilityType { get; set; }
+    public string? Region { get; set; }
+    public string? Zone { get; set; }
+    public string? Woreda { get; set; }
+    public string OperationalStatus { get; set; } = "Operational";
+    public DateTime? MfrLastSyncedAtUtc { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public virtual Organization Organization { get; set; } = null!;

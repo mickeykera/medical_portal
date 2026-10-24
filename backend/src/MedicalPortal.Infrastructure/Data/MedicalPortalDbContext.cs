@@ -75,6 +75,9 @@ public class MedicalPortalDbContext : DbContext
     public DbSet<CalendarDim> CalendarDimensions => Set<CalendarDim>();
     public DbSet<SyncOutboxMessage> OutboxMessages => Set<SyncOutboxMessage>();
     public DbSet<ReferencePackage> ReferencePackages => Set<ReferencePackage>();
+    public DbSet<Dhis2ReportDataset> Dhis2Reports => Set<Dhis2ReportDataset>();
+    public DbSet<EchisReferral> EchisReferrals => Set<EchisReferral>();
+    public DbSet<PatientDuplicateCandidate> PatientDuplicateCandidates => Set<PatientDuplicateCandidate>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -642,6 +645,54 @@ public class MedicalPortalDbContext : DbContext
             b.HasIndex(r => new { r.TenantId, r.PackageId, r.VersionOrdinal }).IsUnique();
             b.HasIndex(r => new { r.TenantId, r.PackageId, r.IsActive });
         });
+
+        // National Interoperability: DHIS2 HMIS Aggregate Reports
+        modelBuilder.Entity<Dhis2ReportDataset>(b =>
+        {
+            b.Property(d => d.Status).HasConversion<string>();
+            b.HasIndex(d => new { d.TenantId, d.DataSetId, d.Period, d.OrgUnitId });
+            b.HasIndex(d => new { d.TenantId, d.Status });
+        });
+
+        // National Interoperability: eCHIS Community Referrals
+        modelBuilder.Entity<EchisReferral>(b =>
+        {
+            b.Property(e => e.Direction).HasConversion<string>();
+            b.Property(e => e.Status).HasConversion<string>();
+            b.HasIndex(e => new { e.TenantId, e.ReferralNumber }).IsUnique();
+            b.HasIndex(e => new { e.TenantId, e.Status });
+            b.HasOne(e => e.Patient)
+                .WithMany()
+                .HasForeignKey(e => e.PatientId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // National Interoperability: Master Patient Index (MPI) Duplicate Candidate
+        modelBuilder.Entity<PatientDuplicateCandidate>(b =>
+        {
+            b.Property(p => p.Status).HasConversion<string>();
+            b.HasIndex(p => new { p.TenantId, p.PrimaryPatientId, p.CandidateDuplicatePatientId });
+            b.HasOne(p => p.PrimaryPatient)
+                .WithMany()
+                .HasForeignKey(p => p.PrimaryPatientId)
+                .OnDelete(DeleteBehavior.Restrict);
+            b.HasOne(p => p.CandidateDuplicatePatient)
+                .WithMany()
+                .HasForeignKey(p => p.CandidateDuplicatePatientId)
+                .OnDelete(DeleteBehavior.Restrict);
+            b.HasOne(p => p.ResolvedByUser)
+                .WithMany()
+                .HasForeignKey(p => p.ResolvedByUserId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // Facility Master Registry Index
+        modelBuilder.Entity<Facility>()
+            .HasIndex(f => new { f.TenantId, f.MfrCode });
+
+        // Patient National Identifier Index
+        modelBuilder.Entity<Patient>()
+            .HasIndex(p => new { p.TenantId, p.NationalPatientId });
 
         // Configure tenant scoping and global query filters
         foreach (var entityType in modelBuilder.Model.GetEntityTypes())

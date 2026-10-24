@@ -1,9 +1,9 @@
 # Modular Low-Cost Hospital Platform & Transformation Progress
 
 **Repository:** `medical_portal`  
-**Current Phase:** Phase 9: Offline-First Facility Stack & LAN Operations [APPROVAL GATE 9]  
+**Current Phase:** Phase 10: National Interoperability (DHIS2, eCHIS, MFR) [APPROVAL GATE 10]  
 **Last Updated:** 2026-10-24  
-**Current Test Suite Baseline:** **353 passed, 0 failed, 0 skipped** (.NET 8)
+**Current Test Suite Baseline:** **363 passed, 0 failed, 0 skipped** (.NET 8)
 
 ---
 
@@ -20,8 +20,8 @@
 | **6** | **Ethiopia Foundations (Dual Calendar Engine & Localization)** | **Approved** | **GATE 6 (Approved)** | 328 passing tests; Pure Ethiopian<->Gregorian engine (73,414 days verified), `calendar_dim` SQL table, DHIS2 period formats, En/Am/Om localization catalogs, local vendored offline assets, zero browser dialogs; ADR 0007 |
 | **7** | **Frontend Rebuild & XSS Containment (SEC-02)** | **Approved** | **GATE 7 (Approved)** | 333 passing tests; Stored DOM XSS eliminated, escapeHtml encoder, textContent DOM assignment, strict CSP without unsafe-inline or remote CDNs, ClinicalSummaryGenerator encoding, print script; ADR 0008 |
 | **8** | **Clinical Core Integration & EMR Sync** | **Approved** | **GATE 8 (Approved)** | 342 passing tests; OpenMRS FHIR R4 client integration (`IClinicalCoreSyncService`), deprecation of duplicated clinical tables as read-through cache/offline snapshot, clinician O3 charting cutover & deep linking, decoupled CDS notice; ADR 0009 |
-| **9** | **Offline-First Facility Stack & LAN Operations** | **Completed** | **GATE 9 (Pending Approval)** | 353 passing tests; Transactional outbox in PostgreSQL (`ITenantScoped`), per-patient strict FIFO ordering, exponential backoff with jitter, HMAC-SHA256 signed reference packages with anti-downgrade, 24h network cut chaos tests, facility backup script; ADR 0010 |
-| 10 | National Interoperability (DHIS2, eCHIS, MFR) | Planned | Gate 10 | DHIS2 aggregate push for HMIS, eCHIS referral interface/fake, MFR sync |
+| **9** | **Offline-First Facility Stack & LAN Operations** | **Approved** | **GATE 9 (Approved)** | 353 passing tests; Transactional outbox in PostgreSQL (`ITenantScoped`), per-patient strict FIFO ordering, exponential backoff with jitter, HMAC-SHA256 signed reference packages with anti-downgrade, 24h network cut chaos tests, facility backup script; ADR 0010 |
+| **10** | **National Interoperability (DHIS2, eCHIS, MFR)** | **Completed** | **GATE 10 (Pending Approval)** | 363 passing tests; DHIS2 aggregate HMIS extraction, dry-run validation & facility approval gate, signed offline JSON export, eCHIS community referrals with clinician triage, MFR reconciliation, MPI Fayya ID & demographic deduplication with atomic merge; ADR 0011 |
 | 11 | Data Protection & Hardening (SEC-11, 12, 17, 19, 20, 21, 22) | Planned | Gate 11 | Complete logging scrubber, authenticated field encryption, non-root containers, CI gates |
 | 12 | Productization & Tenant Provisioning | Planned | Gate 12 | Tenant configuration schema, module gating at API level, handover docs, compliance notes |
 | 13 | Final Proof, Verification & Delivery Checklist | Planned | Gate 13 | Negative tests for all findings, OWASP ZAP baseline, penetration test and delivery checklist |
@@ -323,6 +323,36 @@ Passed!  - Failed: 0, Passed: 259, Skipped: 0, Total: 259, Duration: 27 s - Medi
 
 ---
 
+## 🌐 Phase 10 National Interoperability Verification
+
+- **Branch:** `phase-10-national-interoperability`
+- **Architectural Reference:** [ADR 0011: National Interoperability (DHIS2 HMIS, eCHIS Referrals, Master Facility Registry, and Patient Deduplication)](adr/0011-national-interoperability-dhis2-echis-mfr.md)
+- **Key Deliverables & Architectural Implementations:**
+  - **DHIS2 Aggregate HMIS Integration:**
+    - Indicator extraction engine (`Dhis2AggregateService`) computing aggregate indicators from local database records (`DE-OPD-TOTAL`, `DE-PATIENT-NEW`, `DE-RX-TOTAL`, `DE-LAB-TOTAL`, `DE-FORMS-SUBMITTED`) parameterized by reporting period (monthly `201902`, quarterly `2019Q1`).
+    - Two-phase submission workflow: Mandatory dry-run validation (`/api/dataValueSets?dryRun=true`) followed by an explicit facility approval gate (`FacilityApproved`) before final submission.
+    - Idempotent re-submission handling: Re-sending existing aggregate datasets updates reports in place with DHIS2 idempotency confirmation.
+    - Cryptographically signed offline export fallback: Generates an air-gapped HMAC-SHA256 signed JSON export bundle with SHA-256 content checksums for manual transport to Woreda health offices during prolonged WAN cuts.
+  - **eCHIS Community Health Referral Integration:**
+    - Feature-flagged behind `Echis:Enabled` to prevent runtime failures in standalone facilities.
+    - Bi-directional referral entity (`EchisReferral`) managing community-to-hospital inbound referrals and hospital-to-community counter-referrals.
+    - Clinician triage workflow (`POST /api/interop/echis/referrals/{id}/triage`) allowing clinical staff to review, accept, reject, or complete community referrals with clinical notes.
+    - Testable abstraction via `IEchisClient` and `FakeEchisClient`.
+  - **Master Facility Registry (MFR) Directory Sync:**
+    - Enriched `Facility` entity with national registry attributes (`MfrCode`, `FacilityType`, `Region`, `Zone`, `Woreda`, `OperationalStatus`, `MfrLastSyncedAtUtc`).
+    - Automated reconciliation service (`MfrSyncService`) synchronizing official facility codes, administrative hierarchy, and operational status from `IMfrClient`.
+  - **National Patient Identity (MPI) & Demographic Deduplication:**
+    - Enriched `Patient` entity with `NationalPatientId` (Fayya ID), `NationalPatientIdUri` (`http://moh.gov.et/national-id`), and `FacilityMrnUri` (`http://hospital.et/mrn/{FacilityCode}`).
+    - Demographic duplicate scanner (`PatientDeduplicationService`) computing probabilistic match confidence (exact Fayya ID = 1.0, Phone + DOB = 0.95, Phone + Name = 0.80) and queuing duplicate candidates.
+    - Atomic database merge transaction re-keying appointments, encounters, forms, lab orders, prescriptions, and billing records to the master patient record, soft-deleting the duplicate, and writing an immutable audit log entry.
+  - **RBAC Policy Enforcement:**
+    - Interoperability endpoints secured with role-based policies (`FacilityAdmin`, `ClinicalDirector`, `Doctor`, `Nurse`).
+- **Automated Test Results:**
+  - Added [`NationalInteroperabilityTests.cs`](file:///home/michael/projects/app/medical_portal/backend/tests/MedicalPortal.Tests/NationalInteroperabilityTests.cs) (10 tests covering DHIS2 indicator extraction, dry-run validation, approval gate enforcement, idempotent re-submission, HMAC-SHA256 offline bundle export, eCHIS feature flag gating, inbound triage workflow, MFR directory reconciliation, MPI demographic merge with audit log verification, and RBAC authorization).
+  - Total solution tests passing: **363 passed, 0 failed, 0 skipped**.
+
+---
+
 ## 🔍 Security Audit Verification Matrix (SEC-01 .. SEC-22, SAFE-01)
 
 Every audit finding from `docs/security-audit-2026-10-24.md` has been verified against the current codebase:
@@ -366,4 +396,4 @@ Every audit finding from `docs/security-audit-2026-10-24.md` has been verified a
 4. **Offline LAN Stack & Outbox Store-and-Forward (Phase 9):**
    Remediated in Phase 9. Local facility servers operate as the primary authoritative system of record. Outbound data is queued atomically in a PostgreSQL transactional outbox with per-patient FIFO ordering, exponential backoff with jitter, idempotency deduplication, HMAC-SHA256 signed reference packages, and automated database dumps with 30-day rotation. Verified across 353 tests.
 5. **National Interoperability Unknowns (Phase 10):**
-   Critical Ethiopian health informatics specifications (DHIS2 Ethiopian calendar period encoding, eCHIS referral payloads, Master Facility Registry synchronization) must remain decoupled behind interfaces with fakes until official Ministry guidelines are confirmed.
+   Remediated in Phase 10. DHIS2 aggregate HMIS extraction, dry-run validation, facility approval gating, and HMAC-SHA256 signed offline export bundles implemented; eCHIS community referrals with clinician triage workflow abstracted behind `IEchisClient`/`FakeEchisClient`; MFR directory reconciliation integrated via `IMfrClient`; national Fayya ID and demographic deduplication scanner with atomic merge transactions implemented. Verified across 363 tests.

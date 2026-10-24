@@ -543,6 +543,152 @@ namespace MedicalPortal.Infrastructure.Migrations
                     b.ToTable("Departments");
                 });
 
+            modelBuilder.Entity("MedicalPortal.Core.Entities.Dhis2ReportDataset", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("ApprovedAtUtc")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("ApprovedBy")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("DataSetId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("DataValuesJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("DryRunSummaryJson")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ExportPayloadJson")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ExportSignature")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ImportSummaryJson")
+                        .HasColumnType("text");
+
+                    b.Property<string>("OrgUnitId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Period")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("SubmittedAtUtc")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<Guid>("TenantId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValue(new Guid("00000000-0000-0000-0000-000000000001"));
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "Status");
+
+                    b.HasIndex("TenantId", "DataSetId", "Period", "OrgUnitId");
+
+                    b.ToTable("Dhis2Reports");
+                });
+
+            modelBuilder.Entity("MedicalPortal.Core.Entities.EchisReferral", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ClinicalSummaryJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("Direction")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("NationalPatientId")
+                        .HasColumnType("text");
+
+                    b.Property<string>("PatientFullName")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid?>("PatientId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("PatientPhone")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("ReasonForReferral")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("ReceivingUnit")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("ReferralNumber")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("ReferringUnit")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("TenantId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValue(new Guid("00000000-0000-0000-0000-000000000001"));
+
+                    b.Property<string>("TriageNotes")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("TriagedAtUtc")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("Urgency")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PatientId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "ReferralNumber")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "Status");
+
+                    b.ToTable("EchisReferrals");
+                });
+
             modelBuilder.Entity("MedicalPortal.Core.Entities.Facility", b =>
                 {
                     b.Property<Guid>("Id")
@@ -565,7 +711,20 @@ namespace MedicalPortal.Infrastructure.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp without time zone");
 
+                    b.Property<string>("FacilityType")
+                        .HasColumnType("text");
+
+                    b.Property<string>("MfrCode")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("MfrLastSyncedAtUtc")
+                        .HasColumnType("timestamp without time zone");
+
                     b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("OperationalStatus")
                         .IsRequired()
                         .HasColumnType("text");
 
@@ -578,6 +737,9 @@ namespace MedicalPortal.Infrastructure.Migrations
                     b.Property<string>("PostalCode")
                         .HasColumnType("text");
 
+                    b.Property<string>("Region")
+                        .HasColumnType("text");
+
                     b.Property<string>("State")
                         .HasColumnType("text");
 
@@ -586,12 +748,20 @@ namespace MedicalPortal.Infrastructure.Migrations
                         .HasColumnType("uuid")
                         .HasDefaultValue(new Guid("00000000-0000-0000-0000-000000000001"));
 
+                    b.Property<string>("Woreda")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Zone")
+                        .HasColumnType("text");
+
                     b.HasKey("Id");
 
                     b.HasIndex("TenantId");
 
                     b.HasIndex("OrganizationId", "Code")
                         .IsUnique();
+
+                    b.HasIndex("TenantId", "MfrCode");
 
                     b.ToTable("Facilities");
                 });
@@ -1341,6 +1511,10 @@ namespace MedicalPortal.Infrastructure.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp without time zone");
 
+                    b.Property<string>("FacilityMrnUri")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.Property<string>("FhirPatientId")
                         .HasColumnType("text");
 
@@ -1354,6 +1528,13 @@ namespace MedicalPortal.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.Property<string>("Mrn")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("NationalPatientId")
+                        .HasColumnType("text");
+
+                    b.Property<string>("NationalPatientIdUri")
                         .IsRequired()
                         .HasColumnType("text");
 
@@ -1381,6 +1562,8 @@ namespace MedicalPortal.Infrastructure.Migrations
                     b.HasIndex("PrimaryProviderId");
 
                     b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "NationalPatientId");
 
                     b.ToTable("Patients");
                 });
@@ -1419,6 +1602,61 @@ namespace MedicalPortal.Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("CareTeams");
+                });
+
+            modelBuilder.Entity("MedicalPortal.Core.Entities.PatientDuplicateCandidate", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CandidateDuplicatePatientId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("ConfidenceScore")
+                        .HasColumnType("numeric");
+
+                    b.Property<DateTime>("DetectedAtUtc")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("MatchReasonsJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("PrimaryPatientId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ResolutionNotes")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("ResolvedAtUtc")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<Guid?>("ResolvedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("TenantId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValue(new Guid("00000000-0000-0000-0000-000000000001"));
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CandidateDuplicatePatientId");
+
+                    b.HasIndex("PrimaryPatientId");
+
+                    b.HasIndex("ResolvedByUserId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "PrimaryPatientId", "CandidateDuplicatePatientId");
+
+                    b.ToTable("PatientDuplicateCandidates");
                 });
 
             modelBuilder.Entity("MedicalPortal.Core.Entities.Payment", b =>
@@ -2813,6 +3051,16 @@ namespace MedicalPortal.Infrastructure.Migrations
                     b.Navigation("Facility");
                 });
 
+            modelBuilder.Entity("MedicalPortal.Core.Entities.EchisReferral", b =>
+                {
+                    b.HasOne("MedicalPortal.Core.Entities.Patient", "Patient")
+                        .WithMany()
+                        .HasForeignKey("PatientId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Patient");
+                });
+
             modelBuilder.Entity("MedicalPortal.Core.Entities.Facility", b =>
                 {
                     b.HasOne("MedicalPortal.Core.Entities.Organization", "Organization")
@@ -3008,6 +3256,32 @@ namespace MedicalPortal.Infrastructure.Migrations
                     b.Navigation("Patient");
 
                     b.Navigation("Provider");
+                });
+
+            modelBuilder.Entity("MedicalPortal.Core.Entities.PatientDuplicateCandidate", b =>
+                {
+                    b.HasOne("MedicalPortal.Core.Entities.Patient", "CandidateDuplicatePatient")
+                        .WithMany()
+                        .HasForeignKey("CandidateDuplicatePatientId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MedicalPortal.Core.Entities.Patient", "PrimaryPatient")
+                        .WithMany()
+                        .HasForeignKey("PrimaryPatientId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MedicalPortal.Core.Entities.UserAccount", "ResolvedByUser")
+                        .WithMany()
+                        .HasForeignKey("ResolvedByUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("CandidateDuplicatePatient");
+
+                    b.Navigation("PrimaryPatient");
+
+                    b.Navigation("ResolvedByUser");
                 });
 
             modelBuilder.Entity("MedicalPortal.Core.Entities.Payment", b =>

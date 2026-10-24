@@ -80,6 +80,9 @@ public class Patient : ITenantScoped
     public Guid? PrimaryProviderId { get; set; }
     public string? HmsMrn { get; set; }
     public string? FhirPatientId { get; set; }
+    public string? NationalPatientId { get; set; }
+    public string NationalPatientIdUri { get; set; } = "http://moh.gov.et/national-id";
+    public string FacilityMrnUri { get; set; } = "http://hospital.et/mrn/ADOT";
     public DateTime? HmsLastSync { get; set; }
     public string? LastSyncedDemographicsJson { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
