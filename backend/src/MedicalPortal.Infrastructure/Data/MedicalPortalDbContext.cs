@@ -72,10 +72,22 @@ public class MedicalPortalDbContext : DbContext
     public DbSet<HmsDeadLetterRecord> HmsDeadLetterRecords => Set<HmsDeadLetterRecord>();
     public DbSet<HmsDemographicConflict> HmsDemographicConflicts => Set<HmsDemographicConflict>();
     public DbSet<HmsProcessedWebhookEvent> HmsProcessedWebhookEvents => Set<HmsProcessedWebhookEvent>();
+    public DbSet<CalendarDim> CalendarDimensions => Set<CalendarDim>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+
+        // Calendar Dimension Table (calendar_dim precalculated dimension)
+        modelBuilder.Entity<CalendarDim>(b =>
+        {
+            b.ToTable("calendar_dim");
+            b.HasKey(c => c.Date);
+            b.HasIndex(c => new { c.EthiopianYear, c.EthiopianMonth });
+            b.HasIndex(c => new { c.EthiopianFiscalYear, c.EthiopianFiscalQuarter });
+            b.HasIndex(c => c.Dhis2MonthlyPeriod);
+            b.HasIndex(c => c.Dhis2QuarterlyPeriod);
+        });
 
         // Tenant configuration
         modelBuilder.Entity<Tenant>()
