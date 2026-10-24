@@ -35,8 +35,8 @@ public class SendGridEmailSender : INotificationSender
                 IsTransientError: false);
         }
 
-        var fromEmail = _config["SendGrid:FromEmail"] ?? _config["Notifications:FromEmail"] ?? "no-reply@springfieldhealth.org";
-        var fromName = _config["SendGrid:FromName"] ?? "Springfield Health System";
+        var fromEmail = _config["SendGrid:FromEmail"] ?? _config["Notifications:FromEmail"] ?? "no-reply@addiscarehealth.org";
+        var fromName = _config["SendGrid:FromName"] ?? "Addis Care Health Network (DEMO)";
 
         var payload = new
         {

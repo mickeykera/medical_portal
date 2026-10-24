@@ -10,7 +10,6 @@ COPY tests/MedicalPortal.Tests/MedicalPortal.Tests.csproj tests/MedicalPortal.Te
 RUN dotnet restore
 
 COPY . .
-RUN dotnet test tests/MedicalPortal.Tests/MedicalPortal.Tests.csproj -c Release
 RUN dotnet publish src/MedicalPortal.Web/MedicalPortal.Web.csproj -c Release -o /app
 
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime

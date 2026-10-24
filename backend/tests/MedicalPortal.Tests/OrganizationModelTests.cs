@@ -28,19 +28,19 @@ public class OrganizationModelTests : IClassFixture<WebApplicationFactory<Progra
             .FirstOrDefaultAsync(o => o.Code == "SHS");
 
         Assert.NotNull(org);
-        Assert.Equal("Springfield Health System", org.Name);
+        Assert.Equal("Addis Care Health Network (DEMO)", org.Name);
         Assert.Equal(2, org.Facilities.Count);
 
         var srmc = org.Facilities.FirstOrDefault(f => f.Code == "SRMC");
         Assert.NotNull(srmc);
-        Assert.Equal("Springfield Regional Medical Center", srmc.Name);
+        Assert.Equal("Addis Central General Hospital (DEMO)", srmc.Name);
         Assert.Equal(2, srmc.Departments.Count);
         Assert.Contains(srmc.Departments, d => d.Code == "FAM-MED" && d.Specialty == "Family Medicine");
         Assert.Contains(srmc.Departments, d => d.Code == "CARD-INT" && d.Specialty == "Cardiology");
 
         var rop = org.Facilities.FirstOrDefault(f => f.Code == "ROP");
         Assert.NotNull(rop);
-        Assert.Equal("Riverside Outpatient Pavilion", rop.Name);
+        Assert.Equal("Bole Outpatient Pavilion (DEMO)", rop.Name);
         Assert.Equal(2, rop.Departments.Count);
         Assert.Contains(rop.Departments, d => d.Code == "PEDS" && d.Specialty == "Pediatrics");
         Assert.Contains(rop.Departments, d => d.Code == "URG-CARE" && d.Specialty == "Urgent Care");
@@ -85,7 +85,7 @@ public class OrganizationModelTests : IClassFixture<WebApplicationFactory<Progra
         // Check Location linkages
         var clinic = await db.Locations
             .Include(l => l.Department)
-            .FirstOrDefaultAsync(l => l.Name == "Riverside Family Clinic");
+            .FirstOrDefaultAsync(l => l.Name == "Bole Family Health Clinic (DEMO)");
 
         Assert.NotNull(clinic);
         Assert.NotNull(clinic.Department);
@@ -93,7 +93,7 @@ public class OrganizationModelTests : IClassFixture<WebApplicationFactory<Progra
 
         var northBranch = await db.Locations
             .Include(l => l.Department)
-            .FirstOrDefaultAsync(l => l.Name == "Northside Pediatrics");
+            .FirstOrDefaultAsync(l => l.Name == "Yeka Pediatric Clinic (DEMO)");
 
         Assert.NotNull(northBranch);
         Assert.NotNull(northBranch.Department);
@@ -165,7 +165,7 @@ public class OrganizationModelTests : IClassFixture<WebApplicationFactory<Progra
         var facility = new Facility
         {
             Organization = newOrg,
-            Name = "Metro Downtown Clinic",
+            Name = "Arada Specialty Center (DEMO)",
             Code = "MDC"
         };
         db.Facilities.Add(facility);
@@ -208,7 +208,7 @@ public class OrganizationModelTests : IClassFixture<WebApplicationFactory<Progra
             .FirstOrDefaultAsync(d => d.Id == department.Id);
 
         Assert.NotNull(queriedDept);
-        Assert.Equal("Metro Downtown Clinic", queriedDept.Facility.Name);
+        Assert.Equal("Arada Specialty Center (DEMO)", queriedDept.Facility.Name);
         Assert.Equal(newOrg.Name, queriedDept.Facility.Organization.Name);
         Assert.Single(queriedDept.ProviderDepartments);
         Assert.Equal("Dr. Sarah Chen", $"Dr. {queriedDept.ProviderDepartments.First().Provider.FirstName} {queriedDept.ProviderDepartments.First().Provider.LastName}");

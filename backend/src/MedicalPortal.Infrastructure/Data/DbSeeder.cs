@@ -1,3 +1,5 @@
+#pragma warning disable CS0618 // Type or member is obsolete
+
 using MedicalPortal.Core.Entities;
 using MedicalPortal.Core.Enums;
 using MedicalPortal.Infrastructure.Auth;
@@ -9,9 +11,14 @@ namespace MedicalPortal.Infrastructure.Data;
 public static class DbSeeder
 {
     public const string DemoPassword = "ChangeMe!Demo2024";
+    public const string DevClinicianTotpSecret = "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP";
 
-    public static async Task SeedAsync(MedicalPortalDbContext db, IPasswordHasher hasher)
+    public static async Task SeedAsync(MedicalPortalDbContext db, IPasswordHasher hasher, bool isProduction = false)
     {
+        if (isProduction)
+        {
+            throw new InvalidOperationException("Production startup failed: Seeding is strictly prohibited in production.");
+        }
         if (!await db.Tenants.AnyAsync())
         {
             var defaultTenant = new Tenant
@@ -19,11 +26,11 @@ public static class DbSeeder
                 Id = TenantConstants.DefaultTenantId,
                 Name = TenantConstants.DefaultTenantName,
                 Slug = TenantConstants.DefaultTenantSlug,
-                Region = "US: Illinois, Springfield",
-                TimeZone = "America/Chicago",
+                Region = "Ethiopia, Addis Ababa",
+                TimeZone = "Africa/Addis_Ababa",
                 LanguagesJson = "[\"en\"]",
                 IsActive = true,
-                MasterKeyFingerprint = "fp_springfield_default",
+                MasterKeyFingerprint = "fp_addis_default",
                 AuditChainHash = "0000000000000000000000000000000000000000000000000000000000000000"
             };
             defaultTenant.SetSettings(new TenantSettings
@@ -32,7 +39,23 @@ public static class DbSeeder
                 Modules = new TenantModuleSettings(),
                 Hosting = new TenantHostingSettings { Isolation = "Shared database" },
                 Integrations = new TenantIntegrationSettings { Ehr = "HMS" },
-                Security = new TenantSecuritySettings()
+                Security = new TenantSecuritySettings(),
+                Currency = new TenantCurrencySettings
+                {
+                    Code = "ETB",
+                    Symbol = "Br",
+                    MinorUnitDigits = 2,
+                    Locale = "en-ET",
+                    MinPaymentPlanAmountMinorUnits = 50000
+                },
+                Location = new TenantLocationSettings
+                {
+                    Country = "Ethiopia",
+                    City = "Addis Ababa",
+                    TimeZone = "Africa/Addis_Ababa",
+                    Latitude = 9.0054,
+                    Longitude = 38.7636
+                }
             });
             db.Tenants.Add(defaultTenant);
             await db.SaveChangesAsync();
@@ -51,6 +74,211 @@ public static class DbSeeder
                 foreach (var a in accountsToFix) a.TenantId = TenantConstants.DefaultTenantId;
                 await db.SaveChangesAsync();
             }
+
+            var devPatel = await db.UserAccounts.FirstOrDefaultAsync(u => u.Email == "apatel@clinic.example");
+            if (devPatel != null && (!devPatel.MfaEnabled || devPatel.MfaSecret != DevClinicianTotpSecret))
+            {
+                devPatel.MfaEnabled = true;
+                devPatel.MfaSecret = DevClinicianTotpSecret;
+                devPatel.MfaEnrolledAt = DateTime.UtcNow;
+                await db.SaveChangesAsync();
+            }
+
+            var defTenant = await db.Tenants.FirstOrDefaultAsync(t => t.Id == TenantConstants.DefaultTenantId);
+            if (defTenant != null)
+            {
+                defTenant.Name = TenantConstants.DefaultTenantName;
+                defTenant.Region = "Ethiopia, Addis Ababa";
+                defTenant.TimeZone = "Africa/Addis_Ababa";
+                var ts = defTenant.GetParsedSettings();
+                ts.Location = new TenantLocationSettings
+                {
+                    Country = "Ethiopia",
+                    City = "Addis Ababa",
+                    TimeZone = "Africa/Addis_Ababa",
+                    Latitude = 9.0054,
+                    Longitude = 38.7636
+                };
+                defTenant.SetSettings(ts);
+            }
+
+            var oldOrg = await db.Organizations.FirstOrDefaultAsync(o => o.Code == "SHS");
+            if (oldOrg != null && oldOrg.Name == "Springfield Health System")
+            {
+                oldOrg.Name = "Addis Care Health Network (DEMO)";
+                oldOrg.TaxId = "ET-1234567";
+                oldOrg.Website = "https://addiscare.example.org";
+                oldOrg.Phone = "+251 11 661 0199";
+            }
+            var srmc = await db.Facilities.FirstOrDefaultAsync(f => f.Code == "SRMC");
+            if (srmc != null && srmc.Name == "Springfield Regional Medical Center")
+            {
+                srmc.Name = "Addis Central General Hospital (DEMO)";
+                srmc.AddressLine1 = "Bole Road, Olympia Area";
+                srmc.City = "Addis Ababa";
+                srmc.State = "Addis Ababa";
+                srmc.PostalCode = "1000";
+                srmc.Phone = "+251 11 661 0200";
+            }
+            var rop = await db.Facilities.FirstOrDefaultAsync(f => f.Code == "ROP");
+            if (rop != null && rop.Name == "Riverside Outpatient Pavilion")
+            {
+                rop.Name = "Bole Outpatient Pavilion (DEMO)";
+                rop.AddressLine1 = "Airport Road, Bole";
+                rop.City = "Addis Ababa";
+                rop.State = "Addis Ababa";
+                rop.PostalCode = "1000";
+                rop.Phone = "+251 11 661 0100";
+            }
+            var clinicLoc = await db.Locations.FirstOrDefaultAsync(l => l.Name == "Riverside Family Clinic");
+            if (clinicLoc != null)
+            {
+                clinicLoc.Name = "Bole Family Health Clinic (DEMO)";
+                clinicLoc.AddressLine1 = "Bole Subcity, Woreda 03, House 400";
+                clinicLoc.City = "Addis Ababa";
+                clinicLoc.State = "Addis Ababa";
+                clinicLoc.PostalCode = "1000";
+                clinicLoc.Phone = "+251 11 661 0100";
+                clinicLoc.Latitude = 8.9950;
+                clinicLoc.Longitude = 38.7850;
+                clinicLoc.TimeZoneId = "Africa/Addis_Ababa";
+            }
+            var northLoc = await db.Locations.FirstOrDefaultAsync(l => l.Name == "Northside Pediatrics");
+            if (northLoc != null)
+            {
+                northLoc.Name = "Yeka Pediatric Clinic (DEMO)";
+                northLoc.AddressLine1 = "Yeka Subcity, Megenagna Area";
+                northLoc.City = "Addis Ababa";
+                northLoc.State = "Addis Ababa";
+                northLoc.PostalCode = "1000";
+                northLoc.Phone = "+251 11 661 0110";
+                northLoc.Latitude = 9.0300;
+                northLoc.Longitude = 38.8000;
+                northLoc.TimeZoneId = "Africa/Addis_Ababa";
+            }
+
+            var dana = await db.Persons.FirstOrDefaultAsync(p => p.Email == "dana@example.com");
+            if (dana != null && (dana.City == "Springfield" || dana.City != "Addis Ababa"))
+            {
+                dana.AddressLine1 = "Bole Subcity, Woreda 04, House 88";
+                dana.City = "Addis Ababa";
+                dana.State = "Addis Ababa";
+                dana.PostalCode = "1000";
+                dana.Phone = "+251 91 155 0123";
+                dana.PreferredPharmacy = "Bole Medhanealem Pharmacy (DEMO), Bole Road";
+                dana.EmergencyContactPhone = "+251 91 155 0199";
+            }
+
+            var oldHospital = await db.Locations.FirstOrDefaultAsync(l => l.Name == "Springfield Community Hospital");
+            if (oldHospital != null)
+            {
+                oldHospital.Name = "Kirkos Community Hospital (DEMO)";
+                oldHospital.AddressLine1 = "Kirkos Subcity, Meskel Flower Area";
+                oldHospital.City = "Addis Ababa";
+                oldHospital.State = "Addis Ababa";
+                oldHospital.PostalCode = "1000";
+                oldHospital.Phone = "+251 11 661 0200";
+                oldHospital.Website = "https://example.org/kirkos-hospital";
+                oldHospital.Latitude = 9.0110;
+                oldHospital.Longitude = 38.7620;
+                oldHospital.TimeZoneId = "Africa/Addis_Ababa";
+            }
+            var oldUrgent = await db.Locations.FirstOrDefaultAsync(l => l.Name == "Memorial Urgent Care");
+            if (oldUrgent != null)
+            {
+                oldUrgent.Name = "Arada Urgent Care Center (DEMO)";
+                oldUrgent.AddressLine1 = "Arada Subcity, Piazza Area";
+                oldUrgent.City = "Addis Ababa";
+                oldUrgent.State = "Addis Ababa";
+                oldUrgent.PostalCode = "1000";
+                oldUrgent.Phone = "+251 11 661 0210";
+                oldUrgent.Latitude = 9.0380;
+                oldUrgent.Longitude = 38.7520;
+                oldUrgent.TimeZoneId = "Africa/Addis_Ababa";
+            }
+            var oldPharm1 = await db.Locations.FirstOrDefaultAsync(l => l.Name == "Riverside Pharmacy");
+            if (oldPharm1 != null)
+            {
+                oldPharm1.Name = "Bole Medhanealem Pharmacy (DEMO)";
+                oldPharm1.AddressLine1 = "Bole Subcity, Medhanealem Mall";
+                oldPharm1.City = "Addis Ababa";
+                oldPharm1.State = "Addis Ababa";
+                oldPharm1.PostalCode = "1000";
+                oldPharm1.Phone = "+251 11 661 0220";
+                oldPharm1.Latitude = 8.9970;
+                oldPharm1.Longitude = 38.7880;
+                oldPharm1.TimeZoneId = "Africa/Addis_Ababa";
+            }
+            var oldPharm2 = await db.Locations.FirstOrDefaultAsync(l => l.Name == "Oak Street Drugs");
+            if (oldPharm2 != null)
+            {
+                oldPharm2.Name = "Lideta Community Pharmacy (DEMO)";
+                oldPharm2.AddressLine1 = "Lideta Subcity, Balcha Area";
+                oldPharm2.City = "Addis Ababa";
+                oldPharm2.State = "Addis Ababa";
+                oldPharm2.PostalCode = "1000";
+                oldPharm2.Phone = "+251 11 661 0221";
+                oldPharm2.Latitude = 9.0120;
+                oldPharm2.Longitude = 38.7380;
+                oldPharm2.TimeZoneId = "Africa/Addis_Ababa";
+            }
+            var oldPharm3 = await db.Locations.FirstOrDefaultAsync(l => l.Name == "Northside Pharmacy");
+            if (oldPharm3 != null)
+            {
+                oldPharm3.Name = "Yeka Hill Pharmacy (DEMO)";
+                oldPharm3.AddressLine1 = "Yeka Subcity, Signal Area";
+                oldPharm3.City = "Addis Ababa";
+                oldPharm3.State = "Addis Ababa";
+                oldPharm3.PostalCode = "1000";
+                oldPharm3.Phone = "+251 11 661 0222";
+                oldPharm3.Latitude = 9.0280;
+                oldPharm3.Longitude = 38.7950;
+                oldPharm3.TimeZoneId = "Africa/Addis_Ababa";
+            }
+            var oldLab = await db.Locations.FirstOrDefaultAsync(l => l.Name == "Sangamon Valley Diagnostics");
+            if (oldLab != null)
+            {
+                oldLab.Name = "Nifas Silk Diagnostic Laboratory (DEMO)";
+                oldLab.AddressLine1 = "Nifas Silk-Lafto Subcity, Gotera Area";
+                oldLab.City = "Addis Ababa";
+                oldLab.State = "Addis Ababa";
+                oldLab.PostalCode = "1000";
+                oldLab.Phone = "+251 11 661 0230";
+                oldLab.Latitude = 8.9700;
+                oldLab.Longitude = 38.7400;
+                oldLab.TimeZoneId = "Africa/Addis_Ababa";
+            }
+            var oldRehab = await db.Locations.FirstOrDefaultAsync(l => l.Name == "Springfield Physical Therapy");
+            if (oldRehab != null)
+            {
+                oldRehab.Name = "Kolfe Rehabilitation Center (DEMO)";
+                oldRehab.AddressLine1 = "Kolfe Keranio Subcity, Total Area";
+                oldRehab.City = "Addis Ababa";
+                oldRehab.State = "Addis Ababa";
+                oldRehab.PostalCode = "1000";
+                oldRehab.Phone = "+251 11 661 0240";
+                oldRehab.Latitude = 9.0200;
+                oldRehab.Longitude = 38.7100;
+                oldRehab.TimeZoneId = "Africa/Addis_Ababa";
+            }
+            var oldPharm4 = await db.Locations.FirstOrDefaultAsync(l => l.Name == "Westside Pharmacy");
+            if (oldPharm4 != null)
+            {
+                oldPharm4.Name = "Gullele Health Pharmacy (DEMO)";
+                oldPharm4.AddressLine1 = "Gullele Subcity, Semien Mazegaja Area";
+                oldPharm4.City = "Addis Ababa";
+                oldPharm4.State = "Addis Ababa";
+                oldPharm4.PostalCode = "1000";
+                oldPharm4.Phone = "+251 11 661 0223";
+                oldPharm4.Latitude = 9.0600;
+                oldPharm4.Longitude = 38.7300;
+                oldPharm4.TimeZoneId = "Africa/Addis_Ababa";
+            }
+
+            var chicagoLocs = await db.Locations.Where(l => l.TimeZoneId == "America/Chicago").ToListAsync();
+            foreach (var cl in chicagoLocs) cl.TimeZoneId = "Africa/Addis_Ababa";
+
+            await db.SaveChangesAsync();
 
             if (!await db.Organizations.AnyAsync())
             {
@@ -103,7 +331,10 @@ public static class DbSeeder
             Person = patelPerson,
             Email = "apatel@clinic.example",
             PasswordHash = passwordHash,
-            Role = UserRole.CLINICIAN
+            Role = UserRole.CLINICIAN,
+            MfaEnabled = true,
+            MfaSecret = DevClinicianTotpSecret,
+            MfaEnrolledAt = DateTime.UtcNow
         };
         db.UserAccounts.Add(patelAccount);
         drPatel.Account = patelAccount;
@@ -111,37 +342,37 @@ public static class DbSeeder
         // --- Organizations, Facilities & Departments ------------------------
         var org = new Organization
         {
-            Name = "Springfield Health System",
+            Name = "Addis Care Health Network (DEMO)",
             Code = "SHS",
-            TaxId = "37-1234567",
-            Website = "https://springfieldhealth.example.org",
-            Phone = "555-0199"
+            TaxId = "ET-1234567",
+            Website = "https://addiscare.example.org",
+            Phone = "+251 11 661 0199"
         };
         db.Organizations.Add(org);
 
         var facilitySrmc = new Facility
         {
             Organization = org,
-            Name = "Springfield Regional Medical Center",
+            Name = "Addis Central General Hospital (DEMO)",
             Code = "SRMC",
-            AddressLine1 = "701 Main Street",
-            City = "Springfield",
-            State = "IL",
-            PostalCode = "62701",
-            Phone = "555-0200"
+            AddressLine1 = "Bole Road, Olympia Area",
+            City = "Addis Ababa",
+            State = "Addis Ababa",
+            PostalCode = "1000",
+            Phone = "+251 11 661 0200"
         };
         db.Facilities.Add(facilitySrmc);
 
         var facilityRop = new Facility
         {
             Organization = org,
-            Name = "Riverside Outpatient Pavilion",
+            Name = "Bole Outpatient Pavilion (DEMO)",
             Code = "ROP",
-            AddressLine1 = "400 Riverside Drive",
-            City = "Springfield",
-            State = "IL",
-            PostalCode = "62701",
-            Phone = "555-0100"
+            AddressLine1 = "Airport Road, Bole",
+            City = "Addis Ababa",
+            State = "Addis Ababa",
+            PostalCode = "1000",
+            Phone = "+251 11 661 0100"
         };
         db.Facilities.Add(facilityRop);
 
@@ -151,7 +382,7 @@ public static class DbSeeder
             Name = "Family Medicine & Primary Care",
             Code = "FAM-MED",
             Specialty = "Family Medicine",
-            Phone = "555-0201"
+            Phone = "+251 11 661 0201"
         };
         db.Departments.Add(deptFamMed);
 
@@ -161,7 +392,7 @@ public static class DbSeeder
             Name = "Cardiology & Internal Medicine",
             Code = "CARD-INT",
             Specialty = "Cardiology",
-            Phone = "555-0202"
+            Phone = "+251 11 661 0202"
         };
         db.Departments.Add(deptCardiology);
 
@@ -171,7 +402,7 @@ public static class DbSeeder
             Name = "Pediatrics & Adolescent Medicine",
             Code = "PEDS",
             Specialty = "Pediatrics",
-            Phone = "555-0111"
+            Phone = "+251 11 661 0111"
         };
         db.Departments.Add(deptPeds);
 
@@ -181,7 +412,7 @@ public static class DbSeeder
             Name = "Urgent Care & Occupational Health",
             Code = "URG-CARE",
             Specialty = "Urgent Care",
-            Phone = "555-0112"
+            Phone = "+251 11 661 0112"
         };
         db.Departments.Add(deptUrgentCare);
 
@@ -198,14 +429,15 @@ public static class DbSeeder
         var clinic = new Location
         {
             Department = deptFamMed,
-            Name = "Riverside Family Clinic",
-            AddressLine1 = "400 Riverside Drive",
-            City = "Springfield",
-            State = "IL",
-            PostalCode = "62701",
-            Phone = "555-0100",
-            Latitude = 39.7983,
-            Longitude = -89.6437,
+            Name = "Bole Family Health Clinic (DEMO)",
+            AddressLine1 = "Bole Subcity, Woreda 03, House 400",
+            City = "Addis Ababa",
+            State = "Addis Ababa",
+            PostalCode = "1000",
+            Phone = "+251 11 661 0100",
+            Latitude = 8.9950,
+            Longitude = 38.7850,
+            TimeZoneId = "Africa/Addis_Ababa",
             Type = LocationType.CLINIC
         };
         db.Locations.Add(clinic);
@@ -213,14 +445,15 @@ public static class DbSeeder
         var northBranch = new Location
         {
             Department = deptPeds,
-            Name = "Northside Pediatrics",
-            AddressLine1 = "12 Birch Avenue",
-            City = "Springfield",
-            State = "IL",
-            PostalCode = "62702",
-            Phone = "555-0110",
-            Latitude = 39.85,
-            Longitude = -89.65,
+            Name = "Yeka Pediatric Clinic (DEMO)",
+            AddressLine1 = "Yeka Subcity, Megenagna Area",
+            City = "Addis Ababa",
+            State = "Addis Ababa",
+            PostalCode = "1000",
+            Phone = "+251 11 661 0110",
+            Latitude = 9.0300,
+            Longitude = 38.8000,
+            TimeZoneId = "Africa/Addis_Ababa",
             Type = LocationType.CLINIC
         };
         db.Locations.Add(northBranch);
@@ -297,108 +530,116 @@ public static class DbSeeder
         {
             new Location
             {
-                Name = "Springfield Community Hospital",
+                Name = "Kirkos Community Hospital (DEMO)",
                 Type = LocationType.HOSPITAL,
-                AddressLine1 = "701 Main Street",
-                City = "Springfield",
-                State = "IL",
-                PostalCode = "62701",
-                Phone = "555-0200",
-                Website = "https://example.org/springfield-hospital",
+                AddressLine1 = "Kirkos Subcity, Meskel Flower Area",
+                City = "Addis Ababa",
+                State = "Addis Ababa",
+                PostalCode = "1000",
+                Phone = "+251 11 661 0200",
+                Website = "https://example.org/kirkos-hospital",
                 Hours = "Emergency department open 24 hours",
-                Latitude = 39.8117,
-                Longitude = -89.6503
+                Latitude = 9.0110,
+                Longitude = 38.7620,
+                TimeZoneId = "Africa/Addis_Ababa"
             },
             new Location
             {
-                Name = "Memorial Urgent Care",
+                Name = "Arada Urgent Care Center (DEMO)",
                 Type = LocationType.URGENT_CARE,
-                AddressLine1 = "2200 East Cook Street",
-                City = "Springfield",
-                State = "IL",
-                PostalCode = "62703",
-                Phone = "555-0210",
+                AddressLine1 = "Arada Subcity, Piazza Area",
+                City = "Addis Ababa",
+                State = "Addis Ababa",
+                PostalCode = "1000",
+                Phone = "+251 11 661 0210",
                 Hours = "Mon-Fri 8am-8pm, Sat-Sun 9am-5pm",
-                Latitude = 39.7935,
-                Longitude = -89.6512
+                Latitude = 9.0380,
+                Longitude = 38.7520,
+                TimeZoneId = "Africa/Addis_Ababa"
             },
             new Location
             {
-                Name = "Riverside Pharmacy",
+                Name = "Bole Medhanealem Pharmacy (DEMO)",
                 Type = LocationType.PHARMACY,
-                AddressLine1 = "455 Riverside Drive",
-                City = "Springfield",
-                State = "IL",
-                PostalCode = "62701",
-                Phone = "555-0220",
+                AddressLine1 = "Bole Subcity, Medhanealem Mall",
+                City = "Addis Ababa",
+                State = "Addis Ababa",
+                PostalCode = "1000",
+                Phone = "+251 11 661 0220",
                 Hours = "Mon-Sat 9am-8pm, Sun 10am-6pm",
-                Latitude = 39.7995,
-                Longitude = -89.6455
+                Latitude = 8.9970,
+                Longitude = 38.7880,
+                TimeZoneId = "Africa/Addis_Ababa"
             },
             new Location
             {
-                Name = "Oak Street Drugs",
+                Name = "Lideta Community Pharmacy (DEMO)",
                 Type = LocationType.PHARMACY,
-                AddressLine1 = "812 Oak Street",
-                City = "Springfield",
-                State = "IL",
-                PostalCode = "62702",
-                Phone = "555-0221",
+                AddressLine1 = "Lideta Subcity, Balcha Area",
+                City = "Addis Ababa",
+                State = "Addis Ababa",
+                PostalCode = "1000",
+                Phone = "+251 11 661 0221",
                 Hours = "Daily 8am-10pm",
-                Latitude = 39.808,
-                Longitude = -89.632
+                Latitude = 9.0120,
+                Longitude = 38.7380,
+                TimeZoneId = "Africa/Addis_Ababa"
             },
             new Location
             {
-                Name = "Northside Pharmacy",
+                Name = "Yeka Hill Pharmacy (DEMO)",
                 Type = LocationType.PHARMACY,
-                AddressLine1 = "90 Birch Avenue",
-                City = "Springfield",
-                State = "IL",
-                PostalCode = "62702",
-                Phone = "555-0222",
+                AddressLine1 = "Yeka Subcity, Signal Area",
+                City = "Addis Ababa",
+                State = "Addis Ababa",
+                PostalCode = "1000",
+                Phone = "+251 11 661 0222",
                 Hours = "Mon-Fri 9am-7pm",
-                Latitude = 39.8495,
-                Longitude = -89.6488
+                Latitude = 9.0280,
+                Longitude = 38.7950,
+                TimeZoneId = "Africa/Addis_Ababa"
             },
             new Location
             {
-                Name = "Sangamon Valley Diagnostics",
+                Name = "Nifas Silk Diagnostic Laboratory (DEMO)",
                 Type = LocationType.LAB,
-                AddressLine1 = "1200 North Grand Avenue",
-                City = "Springfield",
-                State = "IL",
-                PostalCode = "62702",
-                Phone = "555-0230",
+                AddressLine1 = "Nifas Silk-Lafto Subcity, Gotera Area",
+                City = "Addis Ababa",
+                State = "Addis Ababa",
+                PostalCode = "1000",
+                Phone = "+251 11 661 0230",
                 Hours = "Mon-Fri 7am-5pm",
-                Latitude = 39.818,
-                Longitude = -89.663
+                Latitude = 8.9700,
+                Longitude = 38.7400,
+                TimeZoneId = "Africa/Addis_Ababa"
             },
             new Location
             {
-                Name = "Springfield Physical Therapy",
+                Name = "Kolfe Rehabilitation Center (DEMO)",
                 Type = LocationType.REHAB,
-                AddressLine1 = "3400 West Lawrence Avenue",
-                City = "Springfield",
-                State = "IL",
-                PostalCode = "62704",
-                Phone = "555-0240",
+                AddressLine1 = "Kolfe Keranio Subcity, Total Area",
+                City = "Addis Ababa",
+                State = "Addis Ababa",
+                PostalCode = "1000",
+                Phone = "+251 11 661 0240",
                 Hours = "Mon-Fri 7am-6pm",
-                Latitude = 39.781,
-                Longitude = -89.708
+                Latitude = 9.0200,
+                Longitude = 38.7100,
+                TimeZoneId = "Africa/Addis_Ababa"
             },
             new Location
             {
-                Name = "Westside Pharmacy",
+                Name = "Gullele Health Pharmacy (DEMO)",
                 Type = LocationType.PHARMACY,
-                AddressLine1 = "5000 West Lawrence Avenue",
-                City = "Springfield",
-                State = "IL",
-                PostalCode = "62704",
-                Phone = "555-0223",
+                AddressLine1 = "Gullele Subcity, Semien Mazegaja Area",
+                City = "Addis Ababa",
+                State = "Addis Ababa",
+                PostalCode = "1000",
+                Phone = "+251 11 661 0223",
                 Hours = "Mon-Sat 9am-8pm",
-                Latitude = 39.779,
-                Longitude = -89.72
+                Latitude = 9.0600,
+                Longitude = 38.7300,
+                TimeZoneId = "Africa/Addis_Ababa"
             }
         });
 
@@ -410,14 +651,14 @@ public static class DbSeeder
             DateOfBirth = new DateTime(1986, 6, 20, 0, 0, 0, DateTimeKind.Utc),
             SexAtBirth = "F",
             Email = "dana@example.com",
-            Phone = "555-0123",
-            AddressLine1 = "88 Oak Street",
-            City = "Springfield",
-            State = "IL",
-            PostalCode = "62703",
-            PreferredPharmacy = "Springfield Pharmacy, 500 Main St",
+            Phone = "+251 91 155 0123",
+            AddressLine1 = "Bole Subcity, Woreda 04, House 88",
+            City = "Addis Ababa",
+            State = "Addis Ababa",
+            PostalCode = "1000",
+            PreferredPharmacy = "Bole Medhanealem Pharmacy (DEMO), Bole Road",
             EmergencyContactName = "Luis Rivera",
-            EmergencyContactPhone = "555-0199"
+            EmergencyContactPhone = "+251 91 155 0199"
         };
         db.Persons.Add(parentPerson);
 
@@ -636,9 +877,9 @@ public static class DbSeeder
 
         db.Procedures.AddRange(new[]
         {
-            new Procedure { Patient = parentPatient, Code = "274031008", Name = "Routine physical examination", PerformedAt = daysAgo(120), PerformedBy = "Amara Patel, MD", Facility = "Riverside Family Clinic" },
-            new Procedure { Patient = parentPatient, Code = "168594001", Name = "Upper endoscopy", PerformedAt = daysAgo(500), PerformedBy = "Amara Patel, MD", Facility = "Riverside Family Clinic" },
-            new Procedure { Patient = patientA, Code = "185349003", Name = "Routine pediatric check-up", PerformedAt = daysAgo(180), PerformedBy = "Joon Kim, DO", Facility = "Northside Pediatrics" }
+            new Procedure { Patient = parentPatient, Code = "274031008", Name = "Routine physical examination", PerformedAt = daysAgo(120), PerformedBy = "Amara Patel, MD", Facility = "Bole Family Health Clinic (DEMO)" },
+            new Procedure { Patient = parentPatient, Code = "168594001", Name = "Upper endoscopy", PerformedAt = daysAgo(500), PerformedBy = "Amara Patel, MD", Facility = "Bole Family Health Clinic (DEMO)" },
+            new Procedure { Patient = patientA, Code = "185349003", Name = "Routine pediatric check-up", PerformedAt = daysAgo(180), PerformedBy = "Joon Kim, DO", Facility = "Yeka Pediatric Clinic (DEMO)" }
         });
 
         // Medications & Prescriptions
@@ -688,30 +929,30 @@ public static class DbSeeder
         var st1 = new Statement
         {
             Patient = parentPatient,
-            TotalCents = 18500,
-            AmountPaidCents = 5000,
-            BalanceCents = 13500,
-            Description = "Office visit and lab work",
+            TotalCents = 250000,
+            AmountPaidCents = 50000,
+            BalanceCents = 200000,
+            Description = "Outpatient general medical consultation and comprehensive laboratory work",
             DueAt = inDays(30),
             Status = StatementStatus.PARTIALLY_PAID
         };
         var st2 = new Statement
         {
             Patient = parentPatient,
-            TotalCents = 7500,
+            TotalCents = 150000,
             AmountPaidCents = 0,
-            BalanceCents = 7500,
-            Description = "Specialist consultation (overdue)",
+            BalanceCents = 150000,
+            Description = "Cardiology specialist consultation (overdue)",
             DueAt = daysAgo(20),
             Status = StatementStatus.OPEN
         };
         var st3 = new Statement
         {
             Patient = patientB,
-            TotalCents = 4000,
+            TotalCents = 85000,
             AmountPaidCents = 0,
-            BalanceCents = 4000,
-            Description = "Pediatric wellness visit",
+            BalanceCents = 85000,
+            Description = "Pediatric wellness visit & immunizations",
             DueAt = inDays(15),
             Status = StatementStatus.OPEN
         };
@@ -720,7 +961,7 @@ public static class DbSeeder
         db.Payments.Add(new Payment
         {
             Statement = st1,
-            AmountCents = 5000,
+            AmountCents = 50000,
             PaymentToken = "pi_seed_001",
             GatewayPaymentIntentId = "pi_seed_001",
             GatewayChargeId = "ch_seed_001",
@@ -757,37 +998,37 @@ public static class DbSeeder
     {
         var org = new Organization
         {
-            Name = "Springfield Health System",
+            Name = "Addis Care Health Network (DEMO)",
             Code = "SHS",
-            TaxId = "37-1234567",
-            Website = "https://springfieldhealth.example.org",
-            Phone = "555-0199"
+            TaxId = "ET-1234567",
+            Website = "https://addiscare.example.org",
+            Phone = "+251 11 661 0199"
         };
         db.Organizations.Add(org);
 
         var facilitySrmc = new Facility
         {
             Organization = org,
-            Name = "Springfield Regional Medical Center",
+            Name = "Addis Central General Hospital (DEMO)",
             Code = "SRMC",
-            AddressLine1 = "701 Main Street",
-            City = "Springfield",
-            State = "IL",
-            PostalCode = "62701",
-            Phone = "555-0200"
+            AddressLine1 = "Bole Road, Olympia Area",
+            City = "Addis Ababa",
+            State = "Addis Ababa",
+            PostalCode = "1000",
+            Phone = "+251 11 661 0200"
         };
         db.Facilities.Add(facilitySrmc);
 
         var facilityRop = new Facility
         {
             Organization = org,
-            Name = "Riverside Outpatient Pavilion",
+            Name = "Bole Outpatient Pavilion (DEMO)",
             Code = "ROP",
-            AddressLine1 = "400 Riverside Drive",
-            City = "Springfield",
-            State = "IL",
-            PostalCode = "62701",
-            Phone = "555-0100"
+            AddressLine1 = "Airport Road, Bole",
+            City = "Addis Ababa",
+            State = "Addis Ababa",
+            PostalCode = "1000",
+            Phone = "+251 11 661 0100"
         };
         db.Facilities.Add(facilityRop);
 
@@ -797,7 +1038,7 @@ public static class DbSeeder
             Name = "Family Medicine & Primary Care",
             Code = "FAM-MED",
             Specialty = "Family Medicine",
-            Phone = "555-0201"
+            Phone = "+251 11 661 0201"
         };
         db.Departments.Add(deptFamMed);
 
@@ -807,7 +1048,7 @@ public static class DbSeeder
             Name = "Cardiology & Internal Medicine",
             Code = "CARD-INT",
             Specialty = "Cardiology",
-            Phone = "555-0202"
+            Phone = "+251 11 661 0202"
         };
         db.Departments.Add(deptCardiology);
 
@@ -817,7 +1058,7 @@ public static class DbSeeder
             Name = "Pediatrics & Adolescent Medicine",
             Code = "PEDS",
             Specialty = "Pediatrics",
-            Phone = "555-0111"
+            Phone = "+251 11 661 0111"
         };
         db.Departments.Add(deptPeds);
 
@@ -827,7 +1068,7 @@ public static class DbSeeder
             Name = "Urgent Care & Occupational Health",
             Code = "URG-CARE",
             Specialty = "Urgent Care",
-            Phone = "555-0112"
+            Phone = "+251 11 661 0112"
         };
         db.Departments.Add(deptUrgentCare);
 
@@ -846,10 +1087,10 @@ public static class DbSeeder
             db.ProviderDepartments.Add(new ProviderDepartment { Provider = drKim, Department = deptUrgentCare, IsPrimary = false });
         }
 
-        var clinic = await db.Locations.FirstOrDefaultAsync(l => l.Name == "Riverside Family Clinic");
+        var clinic = await db.Locations.FirstOrDefaultAsync(l => l.Name == "Bole Family Health Clinic (DEMO)");
         if (clinic != null) clinic.Department = deptFamMed;
 
-        var northBranch = await db.Locations.FirstOrDefaultAsync(l => l.Name == "Northside Pediatrics");
+        var northBranch = await db.Locations.FirstOrDefaultAsync(l => l.Name == "Yeka Pediatric Clinic (DEMO)");
         if (northBranch != null) northBranch.Department = deptPeds;
 
         var patelAccount = await db.UserAccounts.FirstOrDefaultAsync(u => u.Email == "apatel@clinic.example");
@@ -887,14 +1128,14 @@ public static class DbSeeder
         };
         db.AppointmentTypes.AddRange(apptTypes);
 
-        var clinic = await db.Locations.FirstOrDefaultAsync(l => l.Name == "Riverside Family Clinic");
-        var northBranch = await db.Locations.FirstOrDefaultAsync(l => l.Name == "Northside Pediatrics");
+        var clinic = await db.Locations.FirstOrDefaultAsync(l => l.Name == "Bole Family Health Clinic (DEMO)");
+        var northBranch = await db.Locations.FirstOrDefaultAsync(l => l.Name == "Yeka Pediatric Clinic (DEMO)");
         var drPatel = await db.Providers.FirstOrDefaultAsync(p => p.Email == "apatel@clinic.example");
         var drKim = await db.Providers.FirstOrDefaultAsync(p => p.Email == "jkim@clinic.example");
 
         if (clinic != null)
         {
-            clinic.TimeZoneId = "America/Chicago";
+            clinic.TimeZoneId = "Africa/Addis_Ababa";
             var r1 = new RoomResource { Location = clinic, Name = "Exam Room 1", Code = "EXAM-1" };
             var r2 = new RoomResource { Location = clinic, Name = "Exam Room 2", Code = "EXAM-2" };
             var r3 = new RoomResource { Location = clinic, Name = "Procedure Suite", Code = "PROC-1" };
@@ -929,7 +1170,7 @@ public static class DbSeeder
 
         if (northBranch != null)
         {
-            northBranch.TimeZoneId = "America/Chicago";
+            northBranch.TimeZoneId = "Africa/Addis_Ababa";
             var nr1 = new RoomResource { Location = northBranch, Name = "Peds Exam Room 1", Code = "PEDS-1" };
             var nr2 = new RoomResource { Location = northBranch, Name = "Peds Exam Room 2", Code = "PEDS-2" };
             db.RoomResources.AddRange(nr1, nr2);

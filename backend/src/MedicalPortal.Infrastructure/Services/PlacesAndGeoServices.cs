@@ -146,12 +146,12 @@ public class GeocodingService : IGeocodingService
     {
         var info = await _publicIpService.ResolveIpLocationAsync(ipAddress, cancellationToken);
         var label = !string.IsNullOrWhiteSpace(info.City) && !string.IsNullOrWhiteSpace(info.Region)
-            ? $"{info.City}, {info.Region}, {info.Country ?? "US"}"
-            : (info.City ?? "Springfield, Illinois");
+            ? $"{info.City}, {info.Region}, {info.Country ?? "ET"}"
+            : (info.City ?? "Addis Ababa, Ethiopia");
 
         return new ApproximateLocationDto(
-            Latitude: info.Latitude ?? 39.7983,
-            Longitude: info.Longitude ?? -89.6437,
+            Latitude: info.Latitude ?? 9.0054,
+            Longitude: info.Longitude ?? 38.7636,
             Label: label,
             Precision: info.IsPublic ? "public-ip" : "default-fallback",
             Source: info.Source,
@@ -174,16 +174,16 @@ public class GeocodingService : IGeocodingService
         catch
         {
             return new ApproximateLocationDto(
-                39.7983,
-                -89.6437,
-                "Springfield, Illinois",
+                9.0054,
+                38.7636,
+                "Addis Ababa, Ethiopia",
                 "default",
                 "fallback",
                 ipAddress ?? "127.0.0.1",
                 false,
-                "Springfield",
-                "IL",
-                "US",
+                "Addis Ababa",
+                "Addis Ababa",
+                "ET",
                 "Local Network"
             );
         }
@@ -193,11 +193,18 @@ public class GeocodingService : IGeocodingService
     {
         var list = new List<GeocodeResultDto>
         {
-            new(39.7983, -89.6437, "Springfield, IL", "Sangamon County, Illinois, United States"),
-            new(39.8117, -89.6503, "Downtown Springfield", "Springfield, IL 62701"),
-            new(39.85, -89.65, "Northside, Springfield", "Springfield, IL 62702"),
-            new(39.781, -89.708, "Westside, Springfield", "Springfield, IL 62704"),
-            new(39.7935, -89.6512, "East Springfield", "Springfield, IL 62703")
+            new(9.0054, 38.7636, "Addis Ababa Central", "Addis Ababa, Ethiopia"),
+            new(8.9950, 38.7850, "Bole, Addis Ababa", "Bole Subcity, Addis Ababa, Ethiopia"),
+            new(9.0110, 38.7620, "Kirkos, Addis Ababa", "Kirkos Subcity, Addis Ababa, Ethiopia"),
+            new(9.0300, 38.8000, "Yeka, Addis Ababa", "Yeka Subcity, Addis Ababa, Ethiopia"),
+            new(9.0380, 38.7520, "Arada, Addis Ababa", "Arada Subcity, Addis Ababa, Ethiopia"),
+            new(9.0120, 38.7380, "Lideta, Addis Ababa", "Lideta Subcity, Addis Ababa, Ethiopia"),
+            new(8.9700, 38.7400, "Nifas Silk-Lafto, Addis Ababa", "Nifas Silk-Lafto Subcity, Addis Ababa, Ethiopia"),
+            new(9.0200, 38.7100, "Kolfe Keranio, Addis Ababa", "Kolfe Keranio Subcity, Addis Ababa, Ethiopia"),
+            new(9.0600, 38.7300, "Gullele, Addis Ababa", "Gullele Subcity, Addis Ababa, Ethiopia"),
+            new(9.0350, 38.7350, "Addis Ketema, Addis Ababa", "Addis Ketema Subcity, Addis Ababa, Ethiopia"),
+            new(8.9000, 38.7650, "Akaki Kaliti, Addis Ababa", "Akaki Kaliti Subcity, Addis Ababa, Ethiopia"),
+            new(9.0150, 38.8350, "Lemi Kura, Addis Ababa", "Lemi Kura Subcity, Addis Ababa, Ethiopia")
         };
 
         if (string.IsNullOrWhiteSpace(query))

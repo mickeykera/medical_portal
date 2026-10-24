@@ -146,7 +146,7 @@ public class ProductionReadinessTests : IClassFixture<WebApplicationFactory<Prog
         var tokens = scope.ServiceProvider.GetRequiredService<ITokenService>();
         var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
 
-        var org = new Organization { Name = "Springfield Health System", Code = $"ORG-{Guid.NewGuid():N}"[..10] };
+        var org = new Organization { Name = "Addis Care Health Network (DEMO)", Code = $"ORG-{Guid.NewGuid():N}"[..10] };
         db.Organizations.Add(org);
         var facility = new Facility { OrganizationId = org.Id, Name = "Main Hospital", Code = $"FAC-{Guid.NewGuid():N}"[..10] };
         var deptA = new Department { Facility = facility, Name = "Cardiology", Code = $"DEPTA-{Guid.NewGuid():N}"[..10] };
@@ -224,24 +224,24 @@ public class ProductionReadinessTests : IClassFixture<WebApplicationFactory<Prog
 
         var statements = new List<Statement> { inv3, inv1, inv2 }; // unsorted
 
-        // Pay $150.00 (15,000 cents)
+        // Pay 150.00 ETB (15,000 cents)
         var allocations = BillingLogic.AllocatePaymentFifo(statements, 15000);
 
         Assert.Equal(3, allocations.Count);
 
-        // Inv 1 ($50.00) fully paid
+        // Inv 1 (50.00 ETB) fully paid
         Assert.Equal(inv1.Id, allocations[0].StatementId);
         Assert.Equal(5000, allocations[0].AllocatedCents);
         Assert.Equal(0, allocations[0].RemainingStatementBalanceCents);
         Assert.Equal(StatementStatus.PAID, allocations[0].NewStatus);
 
-        // Inv 2 ($75.00) fully paid
+        // Inv 2 (75.00 ETB) fully paid
         Assert.Equal(inv2.Id, allocations[1].StatementId);
         Assert.Equal(7500, allocations[1].AllocatedCents);
         Assert.Equal(0, allocations[1].RemainingStatementBalanceCents);
         Assert.Equal(StatementStatus.PAID, allocations[1].NewStatus);
 
-        // Inv 3 ($100.00) gets remaining $25.00 (2,500 cents)
+        // Inv 3 (100.00 ETB) gets remaining 25.00 ETB (2,500 cents)
         Assert.Equal(inv3.Id, allocations[2].StatementId);
         Assert.Equal(2500, allocations[2].AllocatedCents);
         Assert.Equal(7500, allocations[2].RemainingStatementBalanceCents);
@@ -253,7 +253,7 @@ public class ProductionReadinessTests : IClassFixture<WebApplicationFactory<Prog
     {
         var inv = new Statement { Id = Guid.NewGuid(), TotalCents = 6000, AmountPaidCents = 0, BalanceCents = 6000, DueAt = DateTime.UtcNow.AddDays(5) };
 
-        // Pay $100.00 (10,000 cents) against $60.00 balance
+        // Pay 100.00 ETB (10,000 cents) against 60.00 ETB balance
         var allocations = BillingLogic.AllocatePaymentFifo(new[] { inv }, 10000);
 
         Assert.Single(allocations);
@@ -275,7 +275,7 @@ public class ProductionReadinessTests : IClassFixture<WebApplicationFactory<Prog
     [Fact]
     public void BillingMath_InstallmentSchedule_UnevenCents_MatchesExactTotal()
     {
-        // $100.00 (10,000 cents) split into 3 installments
+        // 100.00 ETB (10,000 cents) split into 3 installments
         var schedule = BillingLogic.BuildSchedule(10000, 3, new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc));
 
         Assert.Equal(3, schedule.Count);
@@ -290,7 +290,7 @@ public class ProductionReadinessTests : IClassFixture<WebApplicationFactory<Prog
     [Fact]
     public void BillingMath_InstallmentSchedule_SevenInstallments_PreservesTotalExactly()
     {
-        // $350.50 (35,050 cents) split into 7 installments
+        // 350.50 ETB (35,050 cents) split into 7 installments
         var schedule = BillingLogic.BuildSchedule(35050, 7, new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc));
 
         Assert.Equal(7, schedule.Count);
@@ -303,14 +303,14 @@ public class ProductionReadinessTests : IClassFixture<WebApplicationFactory<Prog
     {
         var inv = new Statement { TotalCents = 10000, AmountPaidCents = 10000, BalanceCents = 0, Status = StatementStatus.PAID };
 
-        // Partial refund of $30.00 (3,000 cents)
+        // Partial refund of 30.00 ETB (3,000 cents)
         BillingLogic.RevertAllocation(inv, 3000);
 
         Assert.Equal(7000, inv.AmountPaidCents);
         Assert.Equal(3000, inv.BalanceCents);
         Assert.Equal(StatementStatus.PARTIALLY_PAID, inv.Status);
 
-        // Full remaining refund of $70.00 (7,000 cents)
+        // Full remaining refund of 70.00 ETB (7,000 cents)
         BillingLogic.RevertAllocation(inv, 7000);
         Assert.Equal(0, inv.AmountPaidCents);
         Assert.Equal(10000, inv.BalanceCents);

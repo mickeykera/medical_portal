@@ -21,3 +21,10 @@ out/
 ## OS
 .DS_Store
 Thumbs.db
+
+## Environments & local secrets
+.env
+.env.*
+!.env.example
+!.env.adot.example
+

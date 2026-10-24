@@ -1,0 +1,12 @@
+**/.git
+**/.github
+**/bin/
+**/obj/
+**/node_modules/
+docs/
+TestResults/
+**/TestResults/
+*.trx
+*.md
+.vscode/
+.idea/

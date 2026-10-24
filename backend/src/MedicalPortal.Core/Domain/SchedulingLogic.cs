@@ -30,22 +30,30 @@ public static class SchedulingLogic
         string LocalStart,
         string LocalEnd);
 
+    public const string DefaultTimeZoneId = "Africa/Addis_Ababa";
+
     public static TimeZoneInfo ResolveTimeZone(string? timeZoneId)
     {
-        if (string.IsNullOrWhiteSpace(timeZoneId))
-            return TimeZoneInfo.Utc;
+        var tzId = string.IsNullOrWhiteSpace(timeZoneId) ? DefaultTimeZoneId : timeZoneId;
 
         try
         {
-            return TimeZoneInfo.FindSystemTimeZoneById(timeZoneId);
+            return TimeZoneInfo.FindSystemTimeZoneById(tzId);
         }
         catch
         {
-            if (TimeZoneInfo.TryConvertIanaIdToWindowsId(timeZoneId, out var winId))
+            if (TimeZoneInfo.TryConvertIanaIdToWindowsId(tzId, out var winId))
             {
                 try { return TimeZoneInfo.FindSystemTimeZoneById(winId); } catch { }
             }
-            return TimeZoneInfo.Utc;
+            try
+            {
+                return TimeZoneInfo.FindSystemTimeZoneById(DefaultTimeZoneId);
+            }
+            catch
+            {
+                return TimeZoneInfo.Utc;
+            }
         }
     }
 

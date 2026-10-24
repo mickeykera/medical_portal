@@ -307,7 +307,7 @@ public class SchedulingRebuildTests : IClassFixture<WebApplicationFactory<Progra
 
         var doc = await response.Content.ReadFromJsonAsync<JsonElement>();
         Assert.True(doc.TryGetProperty("timeZone", out var tzProp));
-        Assert.Equal("America/Chicago", tzProp.GetString());
+        Assert.Equal("Africa/Addis_Ababa", tzProp.GetString());
         Assert.True(doc.TryGetProperty("days", out var daysProp));
     }
 
@@ -321,7 +321,7 @@ public class SchedulingRebuildTests : IClassFixture<WebApplicationFactory<Progra
         var patientUser = await db.UserAccounts.Include(u => u.Person).FirstAsync(u => u.Email == "dana@example.com");
         var patient = await db.Patients.FirstAsync(p => p.PersonId == patientUser.PersonId);
         var drPatel = await db.Providers.FirstAsync(p => p.Email == "apatel@clinic.example");
-        var clinic = await db.Locations.FirstAsync(l => l.Name == "Riverside Family Clinic");
+        var clinic = await db.Locations.FirstAsync(l => l.Name == "Bole Family Health Clinic (DEMO)");
 
         var token = db.CreateAuthenticatedSession(tokenService, patientUser, patientUser.PersonId);
         var client = _factory.CreateClient();
@@ -383,7 +383,7 @@ public class SchedulingRebuildTests : IClassFixture<WebApplicationFactory<Progra
         var patient = await db.Patients.FirstAsync(p => p.PersonId == patientUser.PersonId);
         var drPatel = await db.Providers.FirstAsync(p => p.Email == "apatel@clinic.example");
         var drKim = await db.Providers.FirstAsync(p => p.Email == "jkim@clinic.example");
-        var clinic = await db.Locations.FirstAsync(l => l.Name == "Riverside Family Clinic");
+        var clinic = await db.Locations.FirstAsync(l => l.Name == "Bole Family Health Clinic (DEMO)");
         var room = await db.RoomResources.FirstAsync(r => r.LocationId == clinic.Id);
 
         // Ensure patient is on care team for drKim as well for this test
@@ -453,7 +453,7 @@ public class SchedulingRebuildTests : IClassFixture<WebApplicationFactory<Progra
         var patientUser = await db.UserAccounts.Include(u => u.Person).FirstAsync(u => u.Email == "dana@example.com");
         var patient = await db.Patients.FirstAsync(p => p.PersonId == patientUser.PersonId);
         var drPatel = await db.Providers.FirstAsync(p => p.Email == "apatel@clinic.example");
-        var clinic = await db.Locations.FirstAsync(l => l.Name == "Riverside Family Clinic");
+        var clinic = await db.Locations.FirstAsync(l => l.Name == "Bole Family Health Clinic (DEMO)");
 
         // Add a block on day 78
         var blockStart = DateTime.UtcNow.Date.AddDays(78).AddHours(13);
@@ -501,7 +501,7 @@ public class SchedulingRebuildTests : IClassFixture<WebApplicationFactory<Progra
         var patientUser = await db.UserAccounts.Include(u => u.Person).FirstAsync(u => u.Email == "dana@example.com");
         var patient = await db.Patients.FirstAsync(p => p.PersonId == patientUser.PersonId);
         var drPatel = await db.Providers.FirstAsync(p => p.Email == "apatel@clinic.example");
-        var clinic = await db.Locations.FirstAsync(l => l.Name == "Riverside Family Clinic");
+        var clinic = await db.Locations.FirstAsync(l => l.Name == "Bole Family Health Clinic (DEMO)");
         var wellnessType = await db.AppointmentTypes.FirstAsync(at => at.Code == "WELLNESS"); // 45 minutes
 
         var token = db.CreateAuthenticatedSession(tokenService, patientUser, patientUser.PersonId);

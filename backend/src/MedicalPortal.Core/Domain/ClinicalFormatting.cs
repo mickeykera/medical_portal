@@ -18,8 +18,11 @@ public static class ClinicalFormatting
     public static string ToIsoDate(DateTime? dt) =>
         dt.HasValue ? dt.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) : string.Empty;
 
-    public static string FormatCents(int cents) =>
-        (cents / 100.0m).ToString("C2", CultureInfo.GetCultureInfo("en-US"));
+    public static string FormatCents(int cents, string? locale = "en-ET") =>
+        CurrencyFormatter.Format(cents, locale);
+
+    public static string FormatSantim(int santim, string? locale = "en-ET") =>
+        CurrencyFormatter.Format(santim, locale);
 
     public static string ToneFor(string status)
     {

@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # Relational Database: PostgreSQL 17 Alpine (isolated on internal Docker network)
   postgres:
@@ -21,7 +19,10 @@ services:
     networks:
       - portal-internal
 
-  # Single-instance standalone development deployment (default)
+  # ---------------------------------------------------------------------------
+  # Development Profile (docker compose up -d or docker compose --profile dev up -d)
+  # Standalone single-instance deployment enabling fake external service providers explicitly.
+  # ---------------------------------------------------------------------------
   medical-portal:
     build:
       context: .
@@ -30,12 +31,19 @@ services:
     restart: unless-stopped
     security_opt:
       - "no-new-privileges:true"
+    profiles: ["dev"]
     # Host port 5000 removed; traffic enters via the same-origin Nginx proxy
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_FORWARDEDHEADERS_ENABLED=true
+      - Kestrel__Endpoints__Http__Url=http://+:8080
       - FORWARDED_HEADERS_TRUSTED_NETWORKS=172.16.0.0/12,10.0.0.0/8,127.0.0.1/32
       - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=medical_portal;Username=postgres;Password=postgres;
+      # Fake providers enabled explicitly for safe offline / local development
+      - Stripe__UseFake=true
+      - STRIPE_USE_FAKE=true
+      - Hms__UseFake=true
+      - HMS_USE_FAKE=true
     depends_on:
       postgres:
         condition: service_healthy
@@ -46,14 +54,15 @@ services:
         aliases:
           - backend
 
-  # -------------------------------------------------------------
-  # Multi-Instance Clustered Profile (docker compose --profile cluster up)
-  # -------------------------------------------------------------
+  # ---------------------------------------------------------------------------
+  # Multi-Instance Clustered Production Profile (docker compose --profile cluster up -d)
+  # Enforces fail-closed production guards, real Redis state, and required secrets.
+  # ---------------------------------------------------------------------------
   redis:
     image: redis:7-alpine
     container_name: medical-portal-redis
     restart: unless-stopped
-    profiles: ["cluster"]
+    profiles: ["cluster", "production"]
     # Host port 6379 removed to prevent external cache access; reachable only within portal-internal
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
@@ -71,17 +80,18 @@ services:
     restart: unless-stopped
     security_opt:
       - "no-new-privileges:true"
-    profiles: ["cluster"]
+    profiles: ["cluster", "production"]
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
       - ASPNETCORE_FORWARDEDHEADERS_ENABLED=true
+      - Kestrel__Endpoints__Http__Url=http://+:8080
       - FORWARDED_HEADERS_TRUSTED_NETWORKS=172.16.0.0/12,10.0.0.0/8,127.0.0.1/32
       - REDIS_CONNECTION_STRING=redis:6379
       - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=medical_portal;Username=postgres;Password=postgres;
-      - JWT_SECRET=${JWT_SECRET}
-      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
-      - HMS_WEBHOOK_SECRET=${HMS_WEBHOOK_SECRET}
-      - HMS_BASE_URL=${HMS_BASE_URL}
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET is required in production profile}
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY:?STRIPE_SECRET_KEY is required in production profile}
+      - HMS_WEBHOOK_SECRET=${HMS_WEBHOOK_SECRET:?HMS_WEBHOOK_SECRET is required in production profile}
+      - HMS_BASE_URL=${HMS_BASE_URL:?HMS_BASE_URL is required in production profile}
     depends_on:
       postgres:
         condition: service_healthy
@@ -102,17 +112,18 @@ services:
     restart: unless-stopped
     security_opt:
       - "no-new-privileges:true"
-    profiles: ["cluster"]
+    profiles: ["cluster", "production"]
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
       - ASPNETCORE_FORWARDEDHEADERS_ENABLED=true
+      - Kestrel__Endpoints__Http__Url=http://+:8080
       - FORWARDED_HEADERS_TRUSTED_NETWORKS=172.16.0.0/12,10.0.0.0/8,127.0.0.1/32
       - REDIS_CONNECTION_STRING=redis:6379
       - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=medical_portal;Username=postgres;Password=postgres;
-      - JWT_SECRET=${JWT_SECRET}
-      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
-      - HMS_WEBHOOK_SECRET=${HMS_WEBHOOK_SECRET}
-      - HMS_BASE_URL=${HMS_BASE_URL}
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET is required in production profile}
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY:?STRIPE_SECRET_KEY is required in production profile}
+      - HMS_WEBHOOK_SECRET=${HMS_WEBHOOK_SECRET:?HMS_WEBHOOK_SECRET is required in production profile}
+      - HMS_BASE_URL=${HMS_BASE_URL:?HMS_BASE_URL is required in production profile}
     depends_on:
       postgres:
         condition: service_healthy

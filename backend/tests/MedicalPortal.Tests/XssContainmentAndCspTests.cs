@@ -162,23 +162,7 @@ public class XssContainmentAndCspTests : IClassFixture<WebApplicationFactory<Pro
     [Fact]
     public void FrontendAppJs_DefinesAndUsesEscapeHtml_ForDynamicRendering()
     {
-        var frontendDir = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../frontend"));
-        if (!Directory.Exists(frontendDir) || !File.Exists(Path.Combine(frontendDir, "index.html")))
-        {
-            var dir = new DirectoryInfo(AppContext.BaseDirectory);
-            while (dir != null)
-            {
-                var candidate = Path.Combine(dir.FullName, "frontend");
-                if (Directory.Exists(candidate) && File.Exists(Path.Combine(candidate, "index.html")))
-                {
-                    frontendDir = candidate;
-                    break;
-                }
-                dir = dir.Parent;
-            }
-        }
-
-        var appJsPath = Path.Combine(frontendDir, "js/app.js");
+        var appJsPath = Path.Combine(RepoPaths.Frontend, "js", "app.js");
         Assert.True(File.Exists(appJsPath), $"app.js not found at {appJsPath}");
 
         var content = File.ReadAllText(appJsPath);
@@ -211,23 +195,7 @@ public class XssContainmentAndCspTests : IClassFixture<WebApplicationFactory<Pro
     [Fact]
     public void Frontend_PrintScript_ExistsAndHasZeroBrowserDialogs()
     {
-        var frontendDir = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../frontend"));
-        if (!Directory.Exists(frontendDir) || !File.Exists(Path.Combine(frontendDir, "index.html")))
-        {
-            var dir = new DirectoryInfo(AppContext.BaseDirectory);
-            while (dir != null)
-            {
-                var candidate = Path.Combine(dir.FullName, "frontend");
-                if (Directory.Exists(candidate) && File.Exists(Path.Combine(candidate, "index.html")))
-                {
-                    frontendDir = candidate;
-                    break;
-                }
-                dir = dir.Parent;
-            }
-        }
-
-        var printJsPath = Path.Combine(frontendDir, "js/print.js");
+        var printJsPath = Path.Combine(RepoPaths.Frontend, "js", "print.js");
         Assert.True(File.Exists(printJsPath), $"print.js not found at {printJsPath}");
 
         var content = File.ReadAllText(printJsPath);

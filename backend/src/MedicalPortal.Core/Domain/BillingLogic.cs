@@ -12,7 +12,8 @@ public class BillingException : Exception
 
 public static class BillingLogic
 {
-    public const int MinBalanceForPlanCents = 5000; // $50.00
+    public const int MinBalanceForPlanSantim = 50000; // 500.00 ETB
+    public const int MinBalanceForPlanCents = MinBalanceForPlanSantim;
     public const int MinPayments = 2;
     public const int MaxPayments = 12;
 
@@ -21,24 +22,34 @@ public static class BillingLogic
         if (string.IsNullOrWhiteSpace(input))
             throw new BillingException("Enter a payment amount.", "invalid_amount");
 
-        var cleaned = input.Trim().TrimStart('$');
-        if (!decimal.TryParse(cleaned, NumberStyles.Number, CultureInfo.InvariantCulture, out var dollars))
+        var cleaned = input.Trim()
+            .Replace("ETB", "", StringComparison.OrdinalIgnoreCase)
+            .Replace("Br", "", StringComparison.OrdinalIgnoreCase)
+            .Replace("ብር", "")
+            .TrimStart('$')
+            .Trim();
+
+        if (!decimal.TryParse(cleaned, NumberStyles.Number, CultureInfo.InvariantCulture, out var units))
             throw new BillingException("Enter a valid payment amount.", "invalid_amount");
 
-        if (dollars <= 0)
+        if (units <= 0)
             throw new BillingException("Payment amount must be greater than zero.", "invalid_amount");
 
-        var cents = (int)Math.Round(dollars * 100m, MidpointRounding.AwayFromZero);
-        return cents;
+        var santim = (int)Math.Round(units * 100m, MidpointRounding.AwayFromZero);
+        return santim;
     }
 
-    public static void AssertPlanAllowed(int balanceCents, int numberOfPayments, bool existingActivePlan)
+    public static void AssertPlanAllowed(int balanceCents, int numberOfPayments, bool existingActivePlan, int? minBalanceSantim = null, string? locale = "en-ET")
     {
         if (existingActivePlan)
             throw new BillingException("An active payment plan already exists for this statement.", "already_active");
 
-        if (balanceCents < MinBalanceForPlanCents)
-            throw new BillingException($"Payment plans require an outstanding balance of at least ${MinBalanceForPlanCents / 100}.", "balance_too_low");
+        var minRequired = minBalanceSantim ?? MinBalanceForPlanSantim;
+        if (balanceCents < minRequired)
+        {
+            var formattedMin = CurrencyFormatter.Format(minRequired, locale);
+            throw new BillingException($"Payment plans require an outstanding balance of at least {formattedMin}.", "balance_too_low");
+        }
 
         if (numberOfPayments < MinPayments || numberOfPayments > MaxPayments)
             throw new BillingException($"Number of payments must be between {MinPayments} and {MaxPayments}.", "invalid_installments");

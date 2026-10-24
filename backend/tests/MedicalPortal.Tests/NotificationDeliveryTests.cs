@@ -36,7 +36,7 @@ public class NotificationDeliveryTests : IClassFixture<WebApplicationFactory<Pro
         var fakeSender = new FakeNotificationSender();
         var configDict = new Dictionary<string, string?>
         {
-            ["Notifications:PortalBaseUrl"] = "https://portal.springfieldhealth.org",
+            ["Notifications:PortalBaseUrl"] = "https://portal.addiscarehealth.org",
             ["Notifications:MaxRetryAttempts"] = maxAttempts.ToString(),
             ["Notifications:InitialBackoffMs"] = initialBackoffMs.ToString()
         };
@@ -227,8 +227,8 @@ public class NotificationDeliveryTests : IClassFixture<WebApplicationFactory<Pro
         var sms = fakeSender.SentSms.Single();
 
         // 1. Must link to portal
-        Assert.Contains("https://portal.springfieldhealth.org/appointments", email.BodyText);
-        Assert.Contains("https://portal.springfieldhealth.org/appointments", sms.Message);
+        Assert.Contains("https://portal.addiscarehealth.org/appointments", email.BodyText);
+        Assert.Contains("https://portal.addiscarehealth.org/appointments", sms.Message);
 
         // 2. Must NOT contain ReasonForVisit, Provider Specialty, or PatientNotes
         Assert.DoesNotContain("Major depressive disorder", email.BodyText, StringComparison.OrdinalIgnoreCase);
@@ -259,7 +259,7 @@ public class NotificationDeliveryTests : IClassFixture<WebApplicationFactory<Pro
         fakeSender.EmailFailIsTransient = true;
         fakeSender.SimulatedErrorMessage = "HTTP 429 Too Many Requests";
 
-        var record = await service.DispatchEmailAsync(person, "Billing", "Invoice Reminder", "Please visit https://portal.springfieldhealth.org/billing");
+        var record = await service.DispatchEmailAsync(person, "Billing", "Invoice Reminder", "Please visit https://portal.addiscarehealth.org/billing");
 
         Assert.Equal(NotificationDeliveryStatus.DELIVERED, record.Status);
         Assert.Equal(3, record.AttemptCount);
@@ -283,7 +283,7 @@ public class NotificationDeliveryTests : IClassFixture<WebApplicationFactory<Pro
         {
             FirstName = "Fiona",
             LastName = "Gallagher",
-            Phone = "+15557778899"
+            Phone = "+251911778899"
         };
         db.Persons.Add(person);
         await db.SaveChangesAsync();
@@ -293,7 +293,7 @@ public class NotificationDeliveryTests : IClassFixture<WebApplicationFactory<Pro
         fakeSender.SmsFailIsTransient = true;
         fakeSender.SimulatedErrorMessage = "HTTP 503 Service Unavailable";
 
-        var record = await service.DispatchSmsAsync(person, "Appointments", "Reminder: https://portal.springfieldhealth.org/appointments");
+        var record = await service.DispatchSmsAsync(person, "Appointments", "Reminder: https://portal.addiscarehealth.org/appointments");
 
         Assert.Equal(NotificationDeliveryStatus.FAILED, record.Status);
         Assert.Equal(3, record.AttemptCount);
@@ -324,7 +324,7 @@ public class NotificationDeliveryTests : IClassFixture<WebApplicationFactory<Pro
         fakeSender.EmailFailIsTransient = false;
         fakeSender.SimulatedErrorMessage = "HTTP 400 Bad Request: Invalid Recipient";
 
-        var record = await service.DispatchEmailAsync(person, "General", "Update", "https://portal.springfieldhealth.org");
+        var record = await service.DispatchEmailAsync(person, "General", "Update", "https://portal.addiscarehealth.org");
 
         Assert.Equal(NotificationDeliveryStatus.FAILED, record.Status);
         Assert.Equal(1, record.AttemptCount);
@@ -341,7 +341,7 @@ public class NotificationDeliveryTests : IClassFixture<WebApplicationFactory<Pro
             FirstName = "Hannah",
             LastName = "Abbott",
             Email = "hannah@example.com",
-            Phone = "+15553332211"
+            Phone = "+251911332211"
         };
         var patientId = Guid.NewGuid();
         db.Persons.Add(person);
@@ -356,12 +356,14 @@ public class NotificationDeliveryTests : IClassFixture<WebApplicationFactory<Pro
         var email = fakeSender.SentEmails.Single();
         var sms = fakeSender.SentSms.Single();
 
-        // Check amount formatting ($75.00) and portal link
-        Assert.Contains("$75.00", email.BodyText);
-        Assert.Contains("https://portal.springfieldhealth.org/billing", email.BodyText);
+        // Check amount formatting (ETB 75.00) and portal link
+        Assert.Contains("75.00", email.BodyText);
+        Assert.Contains("ETB", email.BodyText);
+        Assert.Contains("https://portal.addiscarehealth.org/billing", email.BodyText);
 
-        Assert.Contains("$75.00", sms.Message);
-        Assert.Contains("https://portal.springfieldhealth.org/billing", sms.Message);
+        Assert.Contains("75.00", sms.Message);
+        Assert.Contains("ETB", sms.Message);
+        Assert.Contains("https://portal.addiscarehealth.org/billing", sms.Message);
     }
 
     [Fact]
@@ -377,7 +379,7 @@ public class NotificationDeliveryTests : IClassFixture<WebApplicationFactory<Pro
 
         var configDict = new Dictionary<string, string?>
         {
-            ["Notifications:PortalBaseUrl"] = "https://portal.springfieldhealth.org",
+            ["Notifications:PortalBaseUrl"] = "https://portal.addiscarehealth.org",
             ["Notifications:MaxRetryAttempts"] = "3",
             ["Notifications:InitialBackoffMs"] = "1"
         };
@@ -462,7 +464,7 @@ public class NotificationDeliveryTests : IClassFixture<WebApplicationFactory<Pro
 
         var configDict = new Dictionary<string, string?>
         {
-            ["Notifications:PortalBaseUrl"] = "https://portal.springfieldhealth.org",
+            ["Notifications:PortalBaseUrl"] = "https://portal.addiscarehealth.org",
             ["Notifications:MaxRetryAttempts"] = "3",
             ["Notifications:InitialBackoffMs"] = "1"
         };

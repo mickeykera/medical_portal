@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using MedicalPortal.Infrastructure.Tenancy;
 using Microsoft.Extensions.Configuration;
 
 namespace MedicalPortal.Infrastructure.Payments;
@@ -10,6 +11,10 @@ public class FakePaymentGateway : IPaymentGateway
 {
     private readonly IConfiguration? _config;
     public const string DefaultTestWebhookSecret = "whsec_test_secret_for_unit_tests_123456";
+
+    public string ProviderName => "FakePaymentGateway";
+    public bool SupportsEtb => true;
+    public bool SupportsCurrency(string currencyCode) => true;
 
     public bool SimulateFailure { get; set; } = false;
     public string DefaultLast4 { get; set; } = "9876";
@@ -24,6 +29,12 @@ public class FakePaymentGateway : IPaymentGateway
         _config = config;
     }
 
+    private string ResolveCurrency(string? requested = null)
+    {
+        if (!string.IsNullOrWhiteSpace(requested)) return requested;
+        return "ETB";
+    }
+
     public string GetWebhookSecret()
     {
         return _config?["Stripe:WebhookSecret"] ?? _config?["STRIPE_WEBHOOK_SECRET"] ?? DefaultTestWebhookSecret;
@@ -33,12 +44,13 @@ public class FakePaymentGateway : IPaymentGateway
     {
         var id = "pi_fake_" + Guid.NewGuid().ToString("N");
         var clientSecret = $"{id}_secret_{Guid.NewGuid():N}";
+        var currency = ResolveCurrency(request.Currency);
         var response = new PaymentIntentResponse(
             true,
             id,
             clientSecret,
             request.AmountCents,
-            request.Currency,
+            currency,
             "requires_payment_method",
             PatientId: request.PatientId);
 
@@ -79,7 +91,7 @@ public class FakePaymentGateway : IPaymentGateway
         var chargeId = "ch_fake_" + Guid.NewGuid().ToString("N");
         var amountCents = CreatedIntents.TryGetValue(request.PaymentIntentId, out var intent) ? intent.AmountCents : 5000;
         var patientId = CreatedIntents.TryGetValue(request.PaymentIntentId, out var pIntent) ? pIntent.PatientId : null;
-        var currency = CreatedIntents.TryGetValue(request.PaymentIntentId, out var cIntent) ? cIntent.Currency : "usd";
+        var currency = CreatedIntents.TryGetValue(request.PaymentIntentId, out var cIntent) ? cIntent.Currency : ResolveCurrency();
 
         var successResult = new PaymentResult(
             true,
@@ -105,7 +117,7 @@ public class FakePaymentGateway : IPaymentGateway
 
         var amountCents = CreatedIntents.TryGetValue(paymentIntentId, out var intent) ? intent.AmountCents : 5000;
         var patientId = CreatedIntents.TryGetValue(paymentIntentId, out var pIntent) ? pIntent.PatientId : null;
-        var currency = CreatedIntents.TryGetValue(paymentIntentId, out var cIntent) ? cIntent.Currency : "usd";
+        var currency = CreatedIntents.TryGetValue(paymentIntentId, out var cIntent) ? cIntent.Currency : ResolveCurrency();
 
         var result = new PaymentResult(
             true,

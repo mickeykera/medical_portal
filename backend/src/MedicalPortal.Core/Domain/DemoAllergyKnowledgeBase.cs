@@ -18,7 +18,7 @@ public class DemoAllergyKnowledgeBase : IAllergyKnowledgeBase
     public const string DemoVersion = "demo-allergies-2024.1-sample";
 
     public string Version => DemoVersion;
-    public string ProviderName => "Springfield Reference Allergy Knowledge Base (DEMO ONLY)";
+    public string ProviderName => "Addis Reference Allergy Knowledge Base (DEMO ONLY)";
     public string Disclaimer => "DEMO DATA ONLY: This dataset contains limited sample cross-reactivity rules for demonstration and automated testing. It does NOT claim clinical completeness or exhaustiveness. Always use an accredited clinical pharmacology database for production.";
 
     private static readonly Dictionary<string, string[]> RelatedClassMap = new(StringComparer.OrdinalIgnoreCase)

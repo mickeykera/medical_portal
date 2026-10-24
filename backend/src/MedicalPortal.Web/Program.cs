@@ -118,7 +118,9 @@ if (!string.IsNullOrWhiteSpace(redisConnectionString))
 builder.Services.AddSingleton<IPortalNotificationService, SignalRNotificationService>();
 
 // Validate JWT secret early at startup (fail fast if missing or shorter than 32 bytes)
-var jwtSecret = builder.Configuration["Jwt:Secret"] ?? builder.Configuration["JWT_SECRET"];
+var jwtSecret = !string.IsNullOrWhiteSpace(builder.Configuration["JWT_SECRET"])
+    ? builder.Configuration["JWT_SECRET"]
+    : builder.Configuration["Jwt:Secret"];
 if (string.IsNullOrWhiteSpace(jwtSecret))
 {
     throw new InvalidOperationException(
@@ -139,6 +141,13 @@ if (builder.Environment.IsProduction())
     {
         throw new InvalidOperationException(
             "Production startup failed: Default or placeholder JWT secret is strictly prohibited in production.");
+    }
+
+    if (builder.Configuration.GetValue<bool>("Auth:AllowDevTotpShortcut") ||
+        builder.Configuration.GetValue<bool>("AUTH_ALLOW_DEV_TOTP_SHORTCUT"))
+    {
+        throw new InvalidOperationException(
+            "Production startup failed: Dev clinician shortcut is strictly prohibited in production.");
     }
 }
 
@@ -679,6 +688,16 @@ if (args.Contains("--migrate"))
     return;
 }
 
+// Support dedicated CLI commands: dotnet run -- --totp
+if (args.Contains("--totp") || args.Contains("totp") || args.Contains("--clinician-totp"))
+{
+    var totpService = app.Services.GetRequiredService<ITotpService>();
+    var code = totpService.GenerateTotpCode(DbSeeder.DevClinicianTotpSecret);
+    Console.WriteLine($"Dev Clinician Current TOTP Code: {code}");
+    Console.WriteLine(code);
+    return;
+}
+
 // In Development, apply migrations for PostgreSQL (or Migrate/EnsureCreated for SQLite) and seed automatically
 if (app.Environment.IsDevelopment())
 {
@@ -747,6 +766,32 @@ else
     {
         throw new InvalidOperationException(
             "Production startup failed: Fake clinical core FHIR client is registered in production.");
+    }
+
+    var db = scope.ServiceProvider.GetService<MedicalPortalDbContext>();
+    if (db != null)
+    {
+        try
+        {
+            if (db.Database.CanConnect())
+            {
+                var devClinicianWithDevSecret = db.UserAccounts
+                    .Any(u => u.MfaSecret == DbSeeder.DevClinicianTotpSecret);
+                if (devClinicianWithDevSecret)
+                {
+                    throw new InvalidOperationException(
+                        "Production startup failed: Dev clinician TOTP secret is strictly prohibited in production.");
+                }
+            }
+        }
+        catch (InvalidOperationException)
+        {
+            throw;
+        }
+        catch
+        {
+            // Database might not be connected or migrated in certain test scenarios
+        }
     }
 }
 

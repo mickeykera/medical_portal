@@ -14,11 +14,36 @@ permissions:
 
 jobs:
   # =========================================================================
-  # 1. BUILD & AUTOMATED TEST SUITE WITH CODE COVERAGE
+  # 1. BUILD SOLUTION
   # =========================================================================
-  build-and-test:
-    name: Build & Test (.NET 8)
+  build:
+    name: Build Solution (.NET 8)
     runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET 8 SDK
+        uses: actions/setup-dotnet@3951f33f4647c50a233b857401174bcd54d45fa0 # v4.1.0
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore NuGet Packages
+        run: dotnet restore backend/MedicalPortal.sln
+
+      - name: Build Solution (Release)
+        run: dotnet build backend/MedicalPortal.sln --configuration Release --no-restore
+
+  # =========================================================================
+  # 2. FULL AUTOMATED TEST SUITE (COMPLETE CHECKOUT REQUIRED CHECK)
+  # =========================================================================
+  test:
+    name: Full Test Suite (.NET 8 - Complete Checkout)
+    runs-on: ubuntu-latest
+    needs: build
 
     services:
       postgres:
@@ -46,7 +71,7 @@ jobs:
           --health-retries 5
 
     steps:
-      - name: Checkout Source Code
+      - name: Checkout Source Code (Complete Checkout)
         uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
         with:
           fetch-depth: 0
@@ -59,10 +84,7 @@ jobs:
       - name: Restore NuGet Packages
         run: dotnet restore backend/MedicalPortal.sln
 
-      - name: Build Solution (Release)
-        run: dotnet build backend/MedicalPortal.sln --configuration Release --no-restore
-
-      - name: Run Unit & Integration Tests with Coverage
+      - name: Run Full Unit & Integration Test Suite with Coverage
         env:
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/medical_portal_test
           REDIS_CONNECTION_STRING: localhost:6379
@@ -71,7 +93,6 @@ jobs:
         run: >
           dotnet test backend/tests/MedicalPortal.Tests/MedicalPortal.Tests.csproj
           --configuration Release
-          --no-build
           --collect:"XPlat Code Coverage"
           --results-directory ./TestResults
           --logger "trx;LogFileName=test_results.trx"
@@ -84,12 +105,12 @@ jobs:
           path: ./TestResults
 
   # =========================================================================
-  # 2. DEPENDENCY VULNERABILITY SCAN
+  # 3. DEPENDENCY VULNERABILITY SCAN
   # =========================================================================
   dependency-scan:
     name: Dependency Vulnerability Scan
     runs-on: ubuntu-latest
-    needs: build-and-test
+    needs: [build, test]
 
     steps:
       - name: Checkout Source Code
@@ -119,12 +140,12 @@ jobs:
           exit-code: '1'
 
   # =========================================================================
-  # 3. CONTAINER IMAGE SECURITY SCAN
+  # 4. CONTAINER IMAGE SECURITY SCAN
   # =========================================================================
   container-scan:
     name: Container Image Build & Security Scan
     runs-on: ubuntu-latest
-    needs: build-and-test
+    needs: [build, test]
 
     steps:
       - name: Checkout Source Code
@@ -142,11 +163,12 @@ jobs:
           exit-code: '1'
 
   # =========================================================================
-  # 4. SECRET SCANNING (ZERO CREDENTIAL LEAKS)
+  # 5. SECRET SCANNING (ZERO CREDENTIAL LEAKS)
   # =========================================================================
   secret-scan:
     name: Secret & Credential Leak Scan
     runs-on: ubuntu-latest
+    needs: [build, test]
 
     steps:
       - name: Checkout Source Code

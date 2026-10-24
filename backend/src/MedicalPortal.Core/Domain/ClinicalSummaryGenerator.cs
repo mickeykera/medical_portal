@@ -108,8 +108,8 @@ public static class ClinicalSummaryGenerator
 
   <div class=""header"">
     <div>
-      <div class=""clinic-title"">🏥 Riverside Family Medicine & Health Network</div>
-      <div class=""clinic-sub"">400 Riverside Drive, Springfield, IL 62701 • Phone: (217) 555-0100</div>
+      <div class=""clinic-title"">🏥 Bole Family Health Network (DEMO)</div>
+      <div class=""clinic-sub"">Bole Subcity, Woreda 03, House 400, Addis Ababa • Phone: +251 11 661 0100</div>
     </div>
     <div style=""text-align: right;"">
       <div class=""doc-badge"">Official Health Summary</div>

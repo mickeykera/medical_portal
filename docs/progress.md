@@ -3,7 +3,7 @@
 **Repository:** `medical_portal`  
 **Current Phase:** Phase 13: Final Proof, Verification & Delivery Checklist [RELEASE CANDIDATE GA]  
 **Last Updated:** 2026-10-25  
-**Current Test Suite Baseline:** **382 passed, 0 failed, 0 skipped** (.NET 8)
+**Current Test Suite Baseline:** **393 passed, 0 failed, 0 skipped** (.NET 8)
 
 ---
 
@@ -24,7 +24,7 @@
 | **10** | **National Interoperability (DHIS2, eCHIS, MFR)** | **Approved** | **GATE 10 (Approved)** | 363 passing tests; DHIS2 aggregate HMIS extraction, dry-run validation & facility approval gate, signed offline JSON export, eCHIS community referrals with clinician triage, MFR reconciliation, MPI Fayya ID & demographic deduplication with atomic merge; ADR 0011 |
 | **11** | **Data Protection & Hardening (SEC-11, 12, 17, 19, 20, 21, 22)** | **Approved** | **GATE 11 (Approved)** | 372 passing tests; Cleared default logger providers with national/regional regex scrubbing (SEC-11); transparent authenticated field encryption for MfaSecret/PatientNotes/conflicts with fail-fast production key separation (SEC-12); trusted proxy IP boundary enforcement (SEC-17); immutable CI actions with blocking exit codes (SEC-19); OpenTelemetry upgraded to 1.15.3 resolving NU1902 (SEC-20); non-root USER app and no-new-privileges containers (SEC-21); no-store PHI cache control, 1MB bounded webhook streams, and MFA challenge rate limiting (SEC-22); ADR 0012 |
 | **12** | **Productization & Tenant Provisioning** | **Approved** | **GATE 12 (Approved)** | 382 passing tests; Tenant configuration validator & schema with WCAG 2.1 AA enforcement; hierarchical module gating across 14 modules (including interop); dynamic admin APIs (settings, module toggles, dry-run validation, export); Adot dedicated on-premises Docker Compose stack & DB init; turnkey CLI provisioning script; operational runbook & updated handover; ADR 0013 |
-| **13** | **Final Proof, Verification & Delivery Checklist** | **Completed** | **GATE 13 (Final Delivery)** | 382 passing tests; Comprehensive regression & threat verification across all 23 findings (SEC-01..SEC-22, SAFE-01); OWASP ZAP baseline audit with zero high/medium issues; penetration test report; production delivery checklist; Adot Internal Medicine GA sign-off; ADR 0014 |
+| **13** | **Final Proof, Verification & Delivery Checklist** | **Completed** | **GATE 13 (Final Delivery)** | 393 passing tests; Comprehensive regression & threat verification across all 23 findings (SEC-01..SEC-22, SAFE-01); OWASP ZAP baseline audit with zero high/medium issues; penetration test report; production delivery checklist; Adot Internal Medicine GA sign-off; ADR 0014 |
 
 ---
 
@@ -433,7 +433,7 @@ Passed!  - Failed: 0, Passed: 259, Skipped: 0, Total: 259, Duration: 27 s - Medi
     - Authored [`docs/delivery-checklist.md`](file:///home/michael/projects/app/medical_portal/docs/delivery-checklist.md) validating all functional, clinical, operational, localization, and compliance requirements across all 13 phases.
     - Confirmed Adot Internal Medicine dedicated on-premises onboarding package (`docker-compose.adot.yml`, `scripts/init-adot-db.sql`, `scripts/provision-tenant.sh`, `.env.adot.example`, `runbook.md`, `compliance-notes.md`).
   - **Automated Test Suite Regression & Coverage:**
-    - Executed full test suite: **382 passed, 0 failed, 0 skipped** across all test categories.
+    - Executed full test suite: **393 passed, 0 failed, 0 skipped** across all test categories.
     - Confirmed zero vulnerable packages via `dotnet list package --vulnerable`.
 - **Status:** **APPROVED FOR PRODUCTION RELEASE (GA)**.
 

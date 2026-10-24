@@ -350,13 +350,13 @@ public class AdminConsoleTests : IClassFixture<WebApplicationFactory<Program>>
         createFacReq.Content = JsonContent.Create(new
         {
             organizationId = testOrg.Id,
-            name = "West Campus Clinic",
+            name = "Lideta Specialty Clinic (DEMO)",
             code = facCode,
-            addressLine1 = "500 West Ave",
-            city = "Springfield",
-            state = "IL",
-            postalCode = "62701",
-            phone = "555-5000"
+            addressLine1 = "Lideta Subcity, House 500",
+            city = "Addis Ababa",
+            state = "Addis Ababa",
+            postalCode = "1000",
+            phone = "+251 11 555 5000"
         });
 
         var createFacRes = await client.SendAsync(createFacReq);
@@ -374,7 +374,7 @@ public class AdminConsoleTests : IClassFixture<WebApplicationFactory<Program>>
             name = "Neurology Division",
             code = deptCode,
             specialty = "Neurology",
-            phone = "555-5010"
+            phone = "+251 11 555 5010"
         });
 
         var createDeptRes = await client.SendAsync(createDeptReq);
@@ -387,7 +387,7 @@ public class AdminConsoleTests : IClassFixture<WebApplicationFactory<Program>>
         var verifyDb = verifyScope.ServiceProvider.GetRequiredService<MedicalPortalDbContext>();
         var fac = await verifyDb.Facilities.FindAsync(facilityId);
         Assert.NotNull(fac);
-        Assert.Equal("West Campus Clinic", fac.Name);
+        Assert.Equal("Lideta Specialty Clinic (DEMO)", fac.Name);
 
         var dept = await verifyDb.Departments.FindAsync(deptId);
         Assert.NotNull(dept);

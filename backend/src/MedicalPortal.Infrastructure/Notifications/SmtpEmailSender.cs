@@ -22,7 +22,7 @@ public class SmtpEmailSender : INotificationSender
         var username = _config["Smtp:Username"];
         var password = _config["Smtp:Password"];
         var enableSsl = _config.GetValue<bool>("Smtp:EnableSsl", true);
-        var fromEmail = _config["Smtp:FromEmail"] ?? _config["Notifications:FromEmail"] ?? "no-reply@springfieldhealth.org";
+        var fromEmail = _config["Smtp:FromEmail"] ?? _config["Notifications:FromEmail"] ?? "no-reply@addiscarehealth.org";
 
         try
         {

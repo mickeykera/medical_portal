@@ -33,7 +33,7 @@ public class AwsSesEmailSender : INotificationSender
                 IsTransientError: false);
         }
 
-        var fromEmail = _config["Aws:Ses:FromEmail"] ?? _config["Notifications:FromEmail"] ?? "no-reply@springfieldhealth.org";
+        var fromEmail = _config["Aws:Ses:FromEmail"] ?? _config["Notifications:FromEmail"] ?? "no-reply@addiscarehealth.org";
 
         var payload = new
         {

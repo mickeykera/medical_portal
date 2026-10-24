@@ -7,7 +7,7 @@ public static class TenantConstants
 {
     public static readonly Guid DefaultTenantId = Guid.Parse("00000000-0000-0000-0000-000000000001");
     public const string DefaultTenantSlug = "springfield";
-    public const string DefaultTenantName = "Springfield Health System";
+    public const string DefaultTenantName = "Addis Care Health Network (DEMO)";
     public const string TenantSlugHeader = "X-Tenant-Slug";
     public const string TenantIdHeader = "X-Tenant-Id";
 }
@@ -23,8 +23,8 @@ public class Tenant
     public string Name { get; set; } = string.Empty;
     public string Slug { get; set; } = string.Empty;
     public string? HostDomain { get; set; }
-    public string Region { get; set; } = "Other: Ethiopia, Addis Ababa";
-    public string TimeZone { get; set; } = "UTC";
+    public string Region { get; set; } = "Ethiopia, Addis Ababa";
+    public string TimeZone { get; set; } = "Africa/Addis_Ababa";
     public string LanguagesJson { get; set; } = "[\"en\"]";
     public bool IsActive { get; set; } = true;
 
@@ -79,6 +79,26 @@ public class TenantSettings
     public TenantHostingSettings Hosting { get; set; } = new();
     public TenantIntegrationSettings Integrations { get; set; } = new();
     public TenantSecuritySettings Security { get; set; } = new();
+    public TenantCurrencySettings Currency { get; set; } = new();
+    public TenantLocationSettings Location { get; set; } = new();
+}
+
+public class TenantCurrencySettings
+{
+    public string Code { get; set; } = "ETB";
+    public string Symbol { get; set; } = "Br";
+    public int MinorUnitDigits { get; set; } = 2;
+    public string Locale { get; set; } = "en-ET";
+    public int MinPaymentPlanAmountMinorUnits { get; set; } = 50000; // 500 ETB in santim
+}
+
+public class TenantLocationSettings
+{
+    public string Country { get; set; } = "Ethiopia";
+    public string City { get; set; } = "Addis Ababa";
+    public string TimeZone { get; set; } = "Africa/Addis_Ababa";
+    public double Latitude { get; set; } = 9.0054;
+    public double Longitude { get; set; } = 38.7636;
 }
 
 public class TenantBrandingSettings

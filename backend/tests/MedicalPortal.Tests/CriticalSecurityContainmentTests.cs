@@ -517,7 +517,7 @@ public class CriticalSecurityContainmentTests : IClassFixture<WebApplicationFact
 
         Assert.NotNull(location);
         Assert.Equal("default-fallback", location.Source);
-        Assert.Equal("US", location.CountryCode);
+        Assert.Equal("ET", location.CountryCode);
     }
 
     [Fact]

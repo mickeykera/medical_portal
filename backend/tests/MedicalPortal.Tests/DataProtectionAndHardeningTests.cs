@@ -79,22 +79,6 @@ public class DataProtectionAndHardeningTests : IClassFixture<WebApplicationFacto
         Assert.Contains("JWT_SECRET", ex.Message);
     }
 
-    private static string FindRepoRoot()
-    {
-        var dir = AppContext.BaseDirectory;
-        while (!string.IsNullOrEmpty(dir))
-        {
-            if (File.Exists(Path.Combine(dir, "docker-compose.yml")))
-            {
-                return dir;
-            }
-            var parent = Directory.GetParent(dir);
-            if (parent == null) break;
-            dir = parent.FullName;
-        }
-        return Directory.GetCurrentDirectory();
-    }
-
     [Fact]
     public async Task Sec12_MfaSecretAndPatientNotes_StoredEncryptedInDatabaseAtRest()
     {
@@ -188,8 +172,7 @@ public class DataProtectionAndHardeningTests : IClassFixture<WebApplicationFacto
     [Fact]
     public void Sec19_CiWorkflow_PinsActionsAndEnforcesNonZeroVulnerabilityExitCode()
     {
-        var repoRoot = FindRepoRoot();
-        var ciPath = Path.Combine(repoRoot, ".github/workflows/ci.yml");
+        var ciPath = RepoPaths.CiWorkflow;
 
         Assert.True(File.Exists(ciPath), $"ci.yml not found at {ciPath}");
         var ciContent = File.ReadAllText(ciPath);
@@ -202,19 +185,23 @@ public class DataProtectionAndHardeningTests : IClassFixture<WebApplicationFacto
 
         // Must run vulnerable package check that fails if vulnerabilities exist
         Assert.Contains("has the following vulnerable packages", ciContent);
+
+        // Required check: Separate test job runs full suite on complete checkout
+        Assert.Contains("test:", ciContent);
+        Assert.Contains("fetch-depth: 0", ciContent);
     }
 
     [Fact]
     public void Sec21_Containers_ConfiguredWithNonRootUserAndNoNewPrivileges()
     {
-        var repoRoot = FindRepoRoot();
-        var dockerfilePath = Path.Combine(repoRoot, "Dockerfile");
+        var dockerfilePath = RepoPaths.Dockerfile;
 
         Assert.True(File.Exists(dockerfilePath), $"Dockerfile not found at {dockerfilePath}");
         var dockerfileContent = File.ReadAllText(dockerfilePath);
         Assert.Contains("USER app", dockerfileContent);
+        Assert.DoesNotContain("RUN dotnet test", dockerfileContent);
 
-        var composePath = Path.Combine(repoRoot, "docker-compose.yml");
+        var composePath = RepoPaths.DockerCompose;
 
         Assert.True(File.Exists(composePath), $"docker-compose.yml not found at {composePath}");
         var composeContent = File.ReadAllText(composePath);

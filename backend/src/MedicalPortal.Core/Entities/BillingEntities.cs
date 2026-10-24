@@ -56,7 +56,7 @@ public class ConsumedPaymentIntent : ITenantScoped
     public string GatewayPaymentIntentId { get; set; } = string.Empty;
     public Guid PatientId { get; set; }
     public int AmountCents { get; set; }
-    public string Currency { get; set; } = "usd";
+    public string Currency { get; set; } = "ETB";
     public string? IdempotencyKey { get; set; }
     public DateTime ConsumedAt { get; set; } = DateTime.UtcNow;
 

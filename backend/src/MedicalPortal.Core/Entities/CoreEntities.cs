@@ -141,7 +141,7 @@ public class Location : ITenantScoped
     public string? Phone { get; set; }
     public string? Website { get; set; }
     public string? Hours { get; set; }
-    public string TimeZoneId { get; set; } = "America/Chicago";
+    public string TimeZoneId { get; set; } = "Africa/Addis_Ababa";
     public double? Latitude { get; set; }
     public double? Longitude { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

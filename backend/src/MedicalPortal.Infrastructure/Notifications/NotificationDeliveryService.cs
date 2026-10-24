@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using MedicalPortal.Core.Domain;
 using MedicalPortal.Core.Entities;
 using MedicalPortal.Core.Enums;
 using MedicalPortal.Infrastructure.Data;
@@ -33,7 +34,7 @@ public class NotificationDeliveryService : INotificationDeliveryService
         var url = _config["Notifications:PortalBaseUrl"] ?? _config["PORTAL_BASE_URL"];
         if (string.IsNullOrWhiteSpace(url))
         {
-            url = "https://portal.springfieldhealth.org";
+            url = "https://portal.addiscarehealth.org";
         }
         return url.TrimEnd('/');
     }
@@ -70,11 +71,11 @@ public class NotificationDeliveryService : INotificationDeliveryService
 
         // Generic non-clinical reminder linking to portal (HIPAA compliance)
         var dateFormatted = appointment.StartAt.ToString("dddd, MMMM d, yyyy 'at' h:mm tt 'UTC'");
-        var emailSubject = "Springfield Health System - Appointment Reminder";
-        var emailBody = $"Hello {person.FirstName},\n\nYou have an upcoming appointment scheduled on {dateFormatted}.\n\nTo view your appointment details, complete pre-visit check-in, or get directions, please sign in to your secure patient portal:\n{portalUrl}\n\nThank you,\nSpringfield Health System";
+        var emailSubject = "Addis Care Health Network (DEMO) - Appointment Reminder";
+        var emailBody = $"Hello {person.FirstName},\n\nYou have an upcoming appointment scheduled on {dateFormatted}.\n\nTo view your appointment details, complete pre-visit check-in, or get directions, please sign in to your secure patient portal:\n{portalUrl}\n\nThank you,\nAddis Care Health Network (DEMO)";
 
         var smsDateFormatted = appointment.StartAt.ToString("MMM d 'at' h:mm tt 'UTC'");
-        var smsMessage = $"Springfield Health System: You have an upcoming appointment on {smsDateFormatted}. Sign in to your patient portal for details: {portalUrl}";
+        var smsMessage = $"Addis Care Health Network (DEMO): You have an upcoming appointment on {smsDateFormatted}. Sign in to your patient portal for details: {portalUrl}";
 
         // Scrub to guarantee no clinical details
         AssertNoClinicalDetails(emailBody, appointment.ReasonForVisit, appointment.PatientNotes);
@@ -117,13 +118,13 @@ public class NotificationDeliveryService : INotificationDeliveryService
     {
         var records = new List<NotificationDeliveryRecord>();
         var portalUrl = $"{GetPortalBaseUrl()}/billing";
-        var amountStr = $"${(amountCents / 100.0):F2}";
+        var amountStr = CurrencyFormatter.Format(amountCents);
         var dueStr = dueAt.HasValue ? dueAt.Value.ToString("MMMM d, yyyy") : "immediately";
 
-        var emailSubject = "Springfield Health System - Billing Notice";
-        var emailBody = $"Hello {person.FirstName},\n\nYou have an overdue payment installment or balance of {amountStr} due on {dueStr}.\n\nTo view your statement details, update payment options, or make a secure payment, please sign in to your patient portal:\n{portalUrl}\n\nThank you,\nSpringfield Health System";
+        var emailSubject = "Addis Care Health Network (DEMO) - Billing Notice";
+        var emailBody = $"Hello {person.FirstName},\n\nYou have an overdue payment installment or balance of {amountStr} due on {dueStr}.\n\nTo view your statement details, update payment options, or make a secure payment, please sign in to your patient portal:\n{portalUrl}\n\nThank you,\nAddis Care Health Network (DEMO)";
 
-        var smsMessage = $"Springfield Health System: You have a payment installment of {amountStr} due {dueStr}. Review and pay securely via the patient portal: {portalUrl}";
+        var smsMessage = $"Addis Care Health Network (DEMO): You have a payment installment of {amountStr} due {dueStr}. Review and pay securely via the patient portal: {portalUrl}";
 
         var refType = "PaymentInstallment";
         var refId = referenceId;
@@ -160,12 +161,12 @@ public class NotificationDeliveryService : INotificationDeliveryService
     {
         var records = new List<NotificationDeliveryRecord>();
         var portalUrl = $"{GetPortalBaseUrl()}/billing";
-        var amountStr = $"${(amountCents / 100.0):F2}";
+        var amountStr = CurrencyFormatter.Format(amountCents);
 
-        var emailSubject = "Springfield Health System - Payment Confirmation";
-        var emailBody = $"Hello {person.FirstName},\n\nWe received your payment of {amountStr}. Thank you.\n\nTo view your updated balance and payment history, please sign in to your patient portal:\n{portalUrl}\n\nSpringfield Health System";
+        var emailSubject = "Addis Care Health Network (DEMO) - Payment Confirmation";
+        var emailBody = $"Hello {person.FirstName},\n\nWe received your payment of {amountStr}. Thank you.\n\nTo view your updated balance and payment history, please sign in to your patient portal:\n{portalUrl}\n\nAddis Care Health Network (DEMO)";
 
-        var smsMessage = $"Springfield Health System: We received your payment of {amountStr}. View your receipt in the patient portal: {portalUrl}";
+        var smsMessage = $"Addis Care Health Network (DEMO): We received your payment of {amountStr}. View your receipt in the patient portal: {portalUrl}";
 
         var refType = "Payment";
         var refId = referenceId;

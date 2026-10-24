@@ -466,8 +466,7 @@ public class ProductizationAndProvisioningTests : IClassFixture<WebApplicationFa
     [Fact]
     public void AdotHospitalTenantConfig_MatchesFormalSpecification()
     {
-        var repoRoot = FindRepoRoot();
-        var configPath = Path.Combine(repoRoot, "docs", "tenants", "Adot-Hospital", "tenant-config.json");
+        var configPath = RepoPaths.AdotTenantConfig;
         Assert.True(File.Exists(configPath), $"File not found: {configPath}");
 
         var json = File.ReadAllText(configPath);
@@ -489,21 +488,5 @@ public class ProductizationAndProvisioningTests : IClassFixture<WebApplicationFa
         Assert.Contains("en", languages);
         Assert.Contains("am", languages);
         Assert.Contains("om", languages);
-    }
-
-    private static string FindRepoRoot()
-    {
-        var current = AppContext.BaseDirectory;
-        while (!string.IsNullOrEmpty(current))
-        {
-            if (File.Exists(Path.Combine(current, "docker-compose.yml")))
-            {
-                return current;
-            }
-            var parent = Directory.GetParent(current);
-            if (parent == null) break;
-            current = parent.FullName;
-        }
-        return Directory.GetCurrentDirectory();
     }
 }

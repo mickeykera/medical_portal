@@ -15,7 +15,7 @@ public class DemoInteractionKnowledgeBase : IInteractionKnowledgeBase
     public const string DemoVersion = "demo-interactions-2024.1-sample";
 
     public string Version => DemoVersion;
-    public string ProviderName => "Springfield Reference Knowledge Base (DEMO ONLY)";
+    public string ProviderName => "Addis Reference Knowledge Base (DEMO ONLY)";
     public string Disclaimer => "DEMO DATA ONLY: This dataset contains limited sample interaction rules for demonstration and automated testing. It does NOT claim clinical completeness or exhaustiveness. Always use an accredited clinical pharmacology database for production.";
 
     public record DemoInteractionRule(

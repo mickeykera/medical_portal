@@ -2,6 +2,8 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.Configuration;
 using MedicalPortal.Core.Entities;
 using MedicalPortal.Core.Enums;
 using MedicalPortal.Infrastructure.Auth;
@@ -70,12 +72,33 @@ public class MfaAndSessionTests : IClassFixture<WebApplicationFactory<Program>>
     [Fact]
     public async Task Login_ClinicianWithoutMfa_RequiresMfaSetup()
     {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<MedicalPortalDbContext>();
+        var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
+
+        var testEmail = $"clinician.nomfa.{Guid.NewGuid():N}@clinic.example";
+        var account = new UserAccount
+        {
+            Email = testEmail,
+            PasswordHash = hasher.HashPassword(DbSeeder.DemoPassword),
+            Role = UserRole.CLINICIAN,
+            MfaEnabled = false,
+            Person = new Person
+            {
+                FirstName = "Unenrolled",
+                LastName = "Clinician",
+                Email = testEmail,
+                DateOfBirth = new DateTime(1985, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+            }
+        };
+        db.UserAccounts.Add(account);
+        await db.SaveChangesAsync();
+
         var client = _factory.CreateClient();
 
-        // Seeded clinician Dr. Patel
         var loginResponse = await client.PostAsJsonAsync("/api/auth/login", new
         {
-            email = "apatel@clinic.example",
+            email = testEmail,
             password = DbSeeder.DemoPassword
         });
 
@@ -569,5 +592,75 @@ public class MfaAndSessionTests : IClassFixture<WebApplicationFactory<Program>>
         req2.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
         var res2 = await client.SendAsync(req2);
         Assert.Equal(HttpStatusCode.Unauthorized, res2.StatusCode);
+    }
+
+    [Fact]
+    public async Task Clinician_SeededAccount_CanCompleteFullLoginFlow_WithDevTotpSecret()
+    {
+        var client = _factory.CreateClient();
+
+        // 1. Password login step
+        var loginRes = await client.PostAsJsonAsync("/api/auth/login", new
+        {
+            email = "apatel@clinic.example",
+            password = DbSeeder.DemoPassword
+        });
+
+        Assert.Equal(HttpStatusCode.OK, loginRes.StatusCode);
+        var loginBody = await loginRes.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.True(loginBody.GetProperty("mfaRequired").GetBoolean());
+        var mfaToken = loginBody.GetProperty("mfaToken").GetString();
+        Assert.False(string.IsNullOrWhiteSpace(mfaToken));
+
+        // 2. Generate current TOTP code using the fixed dev secret
+        var totp = _factory.Services.GetRequiredService<ITotpService>();
+        var currentCode = totp.GenerateTotpCode(DbSeeder.DevClinicianTotpSecret);
+
+        // 3. Verify MFA step
+        var verifyRes = await client.PostAsJsonAsync("/api/auth/mfa/verify", new
+        {
+            mfaToken,
+            code = currentCode
+        });
+
+        Assert.Equal(HttpStatusCode.OK, verifyRes.StatusCode);
+        var verifyBody = await verifyRes.Content.ReadFromJsonAsync<JsonElement>();
+        var accessToken = verifyBody.GetProperty("accessToken").GetString();
+        Assert.False(string.IsNullOrWhiteSpace(accessToken));
+
+        // 4. Verify access to authenticated clinician session
+        using var meReq = new HttpRequestMessage(HttpMethod.Get, "/api/auth/me");
+        meReq.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        var meRes = await client.SendAsync(meReq);
+
+        Assert.Equal(HttpStatusCode.OK, meRes.StatusCode);
+        var meBody = await meRes.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("CLINICIAN", meBody.GetProperty("user").GetProperty("role").GetString());
+        Assert.Equal("apatel@clinic.example", meBody.GetProperty("user").GetProperty("email").GetString());
+    }
+
+    [Fact]
+    public void Production_StartupGuard_RejectsDevTotpShortcutOrDevSecret()
+    {
+        using var customFactory = new WebApplicationFactory<Program>()
+            .WithWebHostBuilder(builder =>
+            {
+                builder.UseEnvironment("Production");
+                builder.UseSetting("ConnectionStrings:DefaultConnection", "Host=localhost;Database=test;Username=postgres;Password=postgres;");
+                builder.UseSetting("Jwt:Secret", "a-strong-production-ready-jwt-secret-key-at-least-32-bytes!");
+                builder.UseSetting("Stripe:UseFake", "false");
+                builder.UseSetting("Stripe:SecretKey", "sk_live_valid_production_stripe_key_12345");
+                builder.UseSetting("Hms:UseFake", "false");
+                builder.UseSetting("Hms:BaseUrl", "https://hms.internal");
+                builder.UseSetting("Hms:WebhookSecret", "prod-webhook-secret-value-12345");
+                builder.UseSetting("Auth:AllowDevTotpShortcut", "true");
+            });
+
+        var ex = Assert.Throws<InvalidOperationException>(() =>
+        {
+            _ = customFactory.Server;
+        });
+
+        Assert.Contains("Production startup failed: Dev clinician", ex.Message);
     }
 }

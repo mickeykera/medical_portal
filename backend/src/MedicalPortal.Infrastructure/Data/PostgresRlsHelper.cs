@@ -70,7 +70,7 @@ public static class PostgresRlsHelper
             sb.AppendLine($"    DROP POLICY IF EXISTS \"{table}_tenant_isolation\" ON \"{table}\";");
             sb.AppendLine($"    CREATE POLICY \"{table}_tenant_isolation\" ON \"{table}\"");
             sb.AppendLine($"      FOR ALL");
-            sb.AppendLine($"      USING (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid);");
+            sb.AppendLine($"      USING (\"TenantId\" = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid);");
             sb.AppendLine($"  END IF;");
             sb.AppendLine($"END $$;");
         }

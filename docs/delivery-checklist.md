@@ -72,7 +72,7 @@ All 23 findings from `docs/security-audit-2026-10-24.md` are closed, hardened, a
 
 ## 4. Test Suite Summary
 
-- **Total Solution Unit & Integration Tests:** **382 tests passing** (0 failures, 0 skipped).
+- **Total Solution Unit & Integration Tests:** **393 tests passing** (0 failures, 0 skipped).
 - **Execution Time:** ~35 seconds on .NET 8 runtime.
 - **Coverage Highlights:**
   - `MedicalPortal.Core`: 85%+ line coverage on domain rules, calendar algorithms, WCAG contrast, and permissions.

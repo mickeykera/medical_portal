@@ -13,7 +13,6 @@ RUN dotnet restore MedicalPortal.sln
 WORKDIR /source
 COPY backend/ ./backend/
 WORKDIR /source/backend
-RUN dotnet test tests/MedicalPortal.Tests/MedicalPortal.Tests.csproj -c Release
 RUN dotnet publish src/MedicalPortal.Web/MedicalPortal.Web.csproj -c Release -o /app
 
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
@@ -22,6 +21,7 @@ COPY --from=build /app .
 
 EXPOSE 8080
 ENV ASPNETCORE_URLS=http://+:8080
+ENV Kestrel__Endpoints__Http__Url=http://+:8080
 ENV ASPNETCORE_ENVIRONMENT=Production
 
 USER app

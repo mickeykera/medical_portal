@@ -3,6 +3,7 @@
   'use strict';
 
   let currentSession = null;
+  let currentTenant = null;
   let activePatientId = null;
   let activeBreakGlass = null;
   let currentTab = 'overview';
@@ -218,9 +219,44 @@
     logout: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>'
   };
 
-  function fmtMoney(cents) {
-    return '$' + (cents / 100).toFixed(2);
+  function getTenantCurrency() {
+    return (currentTenant && currentTenant.currency) ? currentTenant.currency : {
+      code: 'ETB',
+      symbol: 'Br',
+      minorUnitDigits: 2,
+      locale: 'en-ET',
+      minPaymentPlanAmountMinorUnits: 50000
+    };
   }
+
+  function getActiveLocale() {
+    const lang = (window.i18n && typeof window.i18n.getLanguage === 'function') ? window.i18n.getLanguage() : 'en';
+    if (lang === 'am') return 'am-ET';
+    if (lang === 'om') return 'om-ET';
+    return getTenantCurrency().locale || 'en-ET';
+  }
+
+  function fmtMoney(cents, customCurrency, customLocale) {
+    if (cents == null || isNaN(cents)) return '—';
+    const cfg = getTenantCurrency();
+    const curr = customCurrency || cfg.code || 'ETB';
+    const digits = cfg.minorUnitDigits ?? 2;
+    const loc = customLocale || getActiveLocale();
+    const divisor = Math.pow(10, digits);
+    const amount = cents / divisor;
+
+    try {
+      return new Intl.NumberFormat(loc, {
+        style: 'currency',
+        currency: curr,
+        minimumFractionDigits: digits,
+        maximumFractionDigits: digits
+      }).format(amount);
+    } catch (e) {
+      return `${curr} ${amount.toFixed(digits)}`;
+    }
+  }
+  window.fmtMoney = fmtMoney;
 
   function pill(status) {
     const s = String(status || '').toUpperCase();
@@ -233,6 +269,11 @@
 
   // --- Bootstrapping ---
   async function init() {
+    try {
+      currentTenant = await api('/api/tenants/current');
+    } catch {
+      currentTenant = null;
+    }
     try {
       currentSession = await api('/api/auth/me');
       if (currentSession.managing && currentSession.managing.length > 0) {
@@ -425,29 +466,46 @@
           <div class="login-logo">🩺 Medical Portal</div>
           <div class="login-sub">Rewritten & Powered by ASP.NET Core 8 & Entity Framework Core</div>
 
-          <form id="form-login">
-            <div class="form-group">
-              <label class="form-label">Email</label>
-              <input class="input" type="email" id="login-email" required placeholder="name@example.com">
-            </div>
-            <div class="form-group">
-              <label class="form-label">Password</label>
-              <input class="input" type="password" id="login-password" required placeholder="••••••••">
-            </div>
-            <div id="login-error" style="color: #dc2626; font-size: 0.8125rem; margin-bottom: 0.75rem;"></div>
-            <button class="btn btn-primary" style="width: 100%;" type="submit">Sign In</button>
-          </form>
+          <div id="login-primary-box">
+            <form id="form-login">
+              <div class="form-group">
+                <label class="form-label">Email</label>
+                <input class="input" type="email" id="login-email" required placeholder="name@example.com">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Password</label>
+                <input class="input" type="password" id="login-password" required placeholder="••••••••">
+              </div>
+              <div id="login-error" style="color: #dc2626; font-size: 0.8125rem; margin-bottom: 0.75rem;"></div>
+              <button class="btn btn-primary" style="width: 100%;" type="submit">Sign In</button>
+            </form>
 
-          <div class="demo-buttons">
-            <div style="font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); font-weight: 600; text-align: center;">
-              One-Click Seed Accounts
+            <div class="demo-buttons">
+              <div style="font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); font-weight: 600; text-align: center;">
+                One-Click Seed Accounts
+              </div>
+              <button class="btn btn-outline" id="demo-patient">
+                👤 Sign in as Dana Rivera (Patient with Dependents)
+              </button>
+              <button class="btn btn-outline" id="demo-clinician">
+                🩺 Sign in as Dr. Amara Patel, MD (Clinician)
+              </button>
             </div>
-            <button class="btn btn-outline" id="demo-patient">
-              👤 Sign in as Dana Rivera (Patient with Dependents)
-            </button>
-            <button class="btn btn-outline" id="demo-clinician">
-              🩺 Sign in as Dr. Amara Patel, MD (Clinician)
-            </button>
+          </div>
+
+          <div id="login-mfa-box" style="display: none;">
+            <div class="notice notice-info" style="margin-bottom: 1rem; font-size: 0.875rem;">
+              Two-factor authentication code required. Enter the 6-digit code from your authenticator app (or run <code>./scripts/dev-totp.sh</code>).
+            </div>
+            <form id="form-mfa">
+              <div class="form-group">
+                <label class="form-label">6-Digit Verification Code</label>
+                <input class="input" type="text" id="mfa-code" maxlength="8" required placeholder="000000" autocomplete="one-time-code">
+              </div>
+              <div id="mfa-error" style="color: #dc2626; font-size: 0.8125rem; margin-bottom: 0.75rem;"></div>
+              <button class="btn btn-primary" style="width: 100%; margin-bottom: 0.5rem;" type="submit">Verify Code</button>
+              <button class="btn btn-outline" style="width: 100%;" type="button" id="btn-cancel-mfa">Back to Sign In</button>
+            </form>
           </div>
         </div>
       </div>
@@ -457,32 +515,88 @@
   function attachAuthEvents() {
     const form = document.getElementById('form-login');
     const errEl = document.getElementById('login-error');
+    const primaryBox = document.getElementById('login-primary-box');
+    const mfaBox = document.getElementById('login-mfa-box');
+    const mfaForm = document.getElementById('form-mfa');
+    const mfaCodeInput = document.getElementById('mfa-code');
+    const mfaErrEl = document.getElementById('mfa-error');
+    const cancelMfaBtn = document.getElementById('btn-cancel-mfa');
+    let pendingMfaToken = null;
 
-    async function doLogin(email, password) {
-      errEl.textContent = '';
-      try {
-        await api('/api/auth/login', {
-          method: 'POST',
-          body: JSON.stringify({ email, password })
-        });
-        await init();
-      } catch (err) {
-        errEl.textContent = err.message;
+    function showMfa(token) {
+      pendingMfaToken = token;
+      if (primaryBox) primaryBox.style.display = 'none';
+      if (mfaBox) mfaBox.style.display = 'block';
+      if (mfaErrEl) mfaErrEl.textContent = '';
+      if (mfaCodeInput) {
+        mfaCodeInput.value = '';
+        mfaCodeInput.focus();
       }
     }
 
-    form.onsubmit = async (e) => {
-      e.preventDefault();
-      const email = document.getElementById('login-email').value;
-      const pass = document.getElementById('login-password').value;
-      await doLogin(email, pass);
-    };
+    function showPrimary() {
+      pendingMfaToken = null;
+      if (primaryBox) primaryBox.style.display = 'block';
+      if (mfaBox) mfaBox.style.display = 'none';
+      if (errEl) errEl.textContent = '';
+    }
 
-    document.getElementById('demo-patient').onclick = () =>
-      doLogin('dana@example.com', 'ChangeMe!Demo2024');
+    if (cancelMfaBtn) {
+      cancelMfaBtn.onclick = showPrimary;
+    }
 
-    document.getElementById('demo-clinician').onclick = () =>
-      doLogin('apatel@clinic.example', 'ChangeMe!Demo2024');
+    if (mfaForm) {
+      mfaForm.onsubmit = async (e) => {
+        e.preventDefault();
+        if (mfaErrEl) mfaErrEl.textContent = '';
+        const code = mfaCodeInput ? mfaCodeInput.value.trim() : '';
+        try {
+          await api('/api/auth/mfa/verify', {
+            method: 'POST',
+            body: JSON.stringify({ mfaToken: pendingMfaToken, code })
+          });
+          await init();
+        } catch (err) {
+          if (mfaErrEl) mfaErrEl.textContent = err.message;
+        }
+      };
+    }
+
+    async function doLogin(email, password) {
+      if (errEl) errEl.textContent = '';
+      try {
+        const res = await api('/api/auth/login', {
+          method: 'POST',
+          body: JSON.stringify({ email, password })
+        });
+        if (res && res.mfaRequired && res.mfaToken) {
+          showMfa(res.mfaToken);
+          return;
+        }
+        await init();
+      } catch (err) {
+        if (errEl) errEl.textContent = err.message;
+      }
+    }
+
+    if (form) {
+      form.onsubmit = async (e) => {
+        e.preventDefault();
+        const email = document.getElementById('login-email').value;
+        const pass = document.getElementById('login-password').value;
+        await doLogin(email, pass);
+      };
+    }
+
+    const demoPatientBtn = document.getElementById('demo-patient');
+    if (demoPatientBtn) {
+      demoPatientBtn.onclick = () => doLogin('dana@example.com', 'ChangeMe!Demo2024');
+    }
+
+    const demoClinicianBtn = document.getElementById('demo-clinician');
+    if (demoClinicianBtn) {
+      demoClinicianBtn.onclick = () => doLogin('apatel@clinic.example', 'ChangeMe!Demo2024');
+    }
   }
 
   // --- Tab Loaders ---
@@ -1262,7 +1376,7 @@
         title: 'Submit Clinical Payment',
         body: `
           <div class="form-group">
-            <label class="form-label">Payment Amount ($)</label>
+            <label class="form-label">Payment Amount (${escapeHtml(getTenantCurrency().code || 'ETB')})</label>
             <input class="input" id="pay-amount" value="${(statementsRes.totalOwedCents / 100).toFixed(2)}">
           </div>
           <div class="notice notice-good">
@@ -1289,9 +1403,10 @@
     };
 
     document.getElementById('btn-new-plan').onclick = () => {
-      const openStatement = statementsRes.statements.find(s => s.balanceCents >= 5000);
+      const minPlan = getTenantCurrency().minPaymentPlanAmountMinorUnits || 50000;
+      const openStatement = statementsRes.statements.find(s => s.balanceCents >= minPlan);
       if (!openStatement) {
-        showToast('Payment plans require a statement with an outstanding balance of at least $50.00.');
+        showToast(`Payment plans require a statement with an outstanding balance of at least ${fmtMoney(minPlan)}.`);
         return;
       }
 
@@ -1301,7 +1416,7 @@
           <div class="form-group">
             <label class="form-label">Select Statement</label>
             <select class="select" id="plan-stmt">
-              ${statementsRes.statements.filter(s => s.balanceCents >= 5000).map(s => `
+              ${statementsRes.statements.filter(s => s.balanceCents >= minPlan).map(s => `
                 <option value="${s.id}">${s.description} (${s.formatted.balance})</option>
               `).join('')}
             </select>
@@ -1579,7 +1694,7 @@
 
   // --- Find Care & Nearby Tab ---
   async function loadFindCare(el) {
-    const res = await api('/api/care/search?latitude=39.7983&longitude=-89.6437');
+    const res = await api('/api/care/search?latitude=9.0054&longitude=38.7636');
 
     el.innerHTML = `
       <div style="display: flex; flex-direction: column; gap: 1.5rem;">
@@ -1594,7 +1709,7 @@
                   <div style="font-weight: 700; font-size: 1.125rem;">${escapeHtml(p.name)}</div>
                   <div style="color: var(--primary); font-weight: 500; font-size: 0.875rem;">${escapeHtml(p.specialty)} (${escapeHtml(p.credentials || 'MD')})</div>
                   <div style="margin-top: 0.5rem; font-size: 0.8125rem; color: var(--text-muted);">
-                    ${p.locations.map(l => `<div>📍 ${escapeHtml(l.name)} — ${escapeHtml(l.distanceLabel || 'Springfield')}</div>`).join('')}
+                    ${p.locations.map(l => `<div>📍 ${escapeHtml(l.name)} — ${escapeHtml(l.distanceLabel || 'Addis Ababa')}</div>`).join('')}
                   </div>
                 </div>
                 <button class="btn btn-primary btn-sm btn-book-slot" style="margin-top: 1rem;" data-provider-id="${escapeHtml(p.providerId)}">
@@ -1680,11 +1795,11 @@
       geo = await api('/api/geo/approximate');
     } catch (e) {
       console.warn('Geo approximate failed, using fallback', e);
-      geo = { latitude: 39.7983, longitude: -89.6437, label: 'Springfield, Illinois', isPublicIp: false, ipAddress: '127.0.0.1' };
+      geo = { latitude: 9.0054, longitude: 38.7636, label: 'Addis Ababa, Ethiopia', isPublicIp: false, ipAddress: '127.0.0.1' };
     }
 
-    let lat = geo.latitude || 39.7983;
-    let lng = geo.longitude || -89.6437;
+    let lat = geo.latitude || 9.0054;
+    let lng = geo.longitude || 38.7636;
     let radius = 25;
 
     async function renderFacilities(currentLat, currentLng, radiusKm, currentLabel, ipInfo) {
@@ -1705,13 +1820,13 @@
                 </div>
               </div>
               <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
-                <button class="btn btn-secondary btn-sm" id="btn-toggle-springfield">📍 Springfield Clinic Area</button>
+                <button class="btn btn-secondary btn-sm" id="btn-toggle-springfield">📍 Addis Ababa Clinic Area</button>
                 <button class="btn btn-secondary btn-sm" id="btn-refresh-ip">🔄 Refresh IP Geolocation</button>
               </div>
             </div>
 
             <div style="margin-top: 1rem; display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
-              <input type="text" id="facility-search-input" class="input" style="max-width: 350px;" placeholder="Search Springfield, downtown, westside..." />
+              <input type="text" id="facility-search-input" class="input" style="max-width: 350px;" placeholder="Search Bole, Kirkos, Yeka, Arada, Lideta..." />
               <button class="btn btn-primary btn-sm" id="btn-search-loc">Search Places</button>
               <span class="pill info">${placesRes.places?.length || 0} Facilities within ${radiusKm} km</span>
             </div>
@@ -1736,9 +1851,9 @@
                 <div style="grid-column: 1 / -1; padding: 2.5rem 1.5rem; text-align: center; color: var(--text-muted); border: 1px dashed var(--border); border-radius: var(--radius);">
                   <div style="font-size: 1.1rem; font-weight: 600; margin-bottom: 0.5rem; color: var(--text-main);">No facilities within ${radiusKm} km of this location</div>
                   <div>Your public IP location is detected at <strong>${escapeHtml(currentLabel)}</strong> (${escapeHtml(ipInfo?.ipAddress || '')}).</div>
-                  <div style="margin-top: 0.5rem;">The seeded medical directory facilities are located in Springfield, IL.</div>
+                  <div style="margin-top: 0.5rem;">The seeded medical directory facilities are located in Addis Ababa, Ethiopia.</div>
                   <button class="btn btn-primary btn-sm" style="margin-top: 1rem;" id="btn-empty-switch">
-                    📍 Switch to Springfield Demo Clinic Directory
+                    📍 Switch to Addis Ababa Demo Clinic Directory
                   </button>
                 </div>
               `}
@@ -1748,11 +1863,11 @@
       `;
 
       document.getElementById('btn-toggle-springfield')?.addEventListener('click', () => {
-        renderFacilities(39.7983, -89.6437, 25, 'Springfield, Illinois (Demo Facilities)', null);
+        renderFacilities(9.0054, 38.7636, 25, 'Addis Ababa, Ethiopia (Demo Facilities)', null);
       });
 
       document.getElementById('btn-empty-switch')?.addEventListener('click', () => {
-        renderFacilities(39.7983, -89.6437, 25, 'Springfield, Illinois (Demo Facilities)', null);
+        renderFacilities(9.0054, 38.7636, 25, 'Addis Ababa, Ethiopia (Demo Facilities)', null);
       });
 
       document.getElementById('btn-refresh-ip')?.addEventListener('click', async () => {
@@ -1961,8 +2076,8 @@
               <div style="display: flex; flex-direction: column; gap: 0.35rem; font-size: 0.8125rem;">
                 <div><strong>Client IP:</strong> <code>${sysIp?.clientIp || 'Unknown'}</code> ${sysIp?.isPrivateOrLoopback ? '<span class="pill info" style="font-size:0.7rem; padding:0.1rem 0.4rem;">Private/Loopback</span>' : '<span class="pill good" style="font-size:0.7rem; padding:0.1rem 0.4rem;">Public</span>'}</div>
                 <div><strong>Public Egress IP:</strong> <code>${sysIp?.publicEgressIp || 'Resolved via gateway'}</code></div>
-                <div><strong>Detected Geolocation:</strong> ${sysIp?.ipLocation?.city || 'Springfield'}, ${sysIp?.ipLocation?.region || 'IL'}, ${sysIp?.ipLocation?.country || 'US'}</div>
-                <div><strong>Coordinates:</strong> <code>${sysIp?.ipLocation?.latitude || 39.7983}, ${sysIp?.ipLocation?.longitude || -89.6437}</code></div>
+                <div><strong>Detected Geolocation:</strong> ${sysIp?.ipLocation?.city || 'Addis Ababa'}, ${sysIp?.ipLocation?.region || 'Addis Ababa'}, ${sysIp?.ipLocation?.country || 'ET'}</div>
+                <div><strong>Coordinates:</strong> <code>${sysIp?.ipLocation?.latitude || 9.0054}, ${sysIp?.ipLocation?.longitude || 38.7636}</code></div>
                 <div><strong>ISP / Provider:</strong> ${sysIp?.ipLocation?.isp || 'Local / Private'}</div>
                 <div><strong>Resolution Source:</strong> <span class="pill info" style="font-size:0.7rem; padding:0.1rem 0.4rem;">${sysIp?.ipLocation?.source || 'direct'}</span></div>
               </div>
@@ -2591,7 +2706,7 @@
           <div class="grid grid-2" style="margin: 0; gap: 0.5rem;">
             <div class="form-group" style="margin: 0;">
               <label class="form-label" for="fac-name">Facility Name *</label>
-              <input class="input" id="fac-name" required value="${facility?.name || ''}" placeholder="e.g. Springfield Memorial Hospital">
+              <input class="input" id="fac-name" required value="${facility?.name || ''}" placeholder="e.g. Addis Central General Hospital (DEMO)">
             </div>
             <div class="form-group" style="margin: 0;">
               <label class="form-label" for="fac-code">Code *</label>
@@ -2600,7 +2715,7 @@
           </div>
           <div class="form-group" style="margin: 0;">
             <label class="form-label" for="fac-addr">Street Address</label>
-            <input class="input" id="fac-addr" value="${facility?.addressLine1 || ''}" placeholder="123 Healthcare Ave">
+            <input class="input" id="fac-addr" value="${facility?.addressLine1 || ''}" placeholder="Bole Subcity, Woreda 03, House 100">
           </div>
           <div class="grid grid-3" style="margin: 0; gap: 0.5rem;">
             <div class="form-group" style="margin: 0;">
@@ -2618,7 +2733,7 @@
           </div>
           <div class="form-group" style="margin: 0;">
             <label class="form-label" for="fac-phone">Main Phone</label>
-            <input class="input" id="fac-phone" value="${facility?.phone || ''}" placeholder="555-0100">
+            <input class="input" id="fac-phone" value="${facility?.phone || ''}" placeholder="+251 11 661 0100">
           </div>
         </form>
       `,
@@ -2677,7 +2792,7 @@
           </div>
           <div class="form-group" style="margin: 0;">
             <label class="form-label" for="dept-phone">Department Phone</label>
-            <input class="input" id="dept-phone" value="${department?.phone || ''}" placeholder="555-0150">
+            <input class="input" id="dept-phone" value="${department?.phone || ''}" placeholder="+251 11 661 0150">
           </div>
         </form>
       `,

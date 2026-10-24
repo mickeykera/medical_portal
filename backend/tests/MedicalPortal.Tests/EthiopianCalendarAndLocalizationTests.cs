@@ -2,12 +2,17 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using MedicalPortal.Core.Common;
+using MedicalPortal.Core.Domain;
 using MedicalPortal.Core.Entities;
 using MedicalPortal.Infrastructure.Data;
 using MedicalPortal.Infrastructure.Localization;
+using MedicalPortal.Infrastructure.Services;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
+using Moq;
 using Xunit;
 
 namespace MedicalPortal.Tests;
@@ -439,23 +444,10 @@ public class EthiopianCalendarAndLocalizationTests : IClassFixture<WebApplicatio
 
     #region 5. Rule 8 Offline Self-Sufficiency & Browser Dialog Ban
 
-    private static string FindFrontendDir()
-    {
-        var current = new DirectoryInfo(AppContext.BaseDirectory);
-        while (current != null)
-        {
-            var candidate = Path.Combine(current.FullName, "frontend");
-            if (Directory.Exists(candidate) && File.Exists(Path.Combine(candidate, "index.html")))
-                return candidate;
-            current = current.Parent;
-        }
-        throw new DirectoryNotFoundException("Could not find frontend directory from " + AppContext.BaseDirectory);
-    }
-
     [Fact]
     public void Rule8_FrontendFiles_ContainZeroBrowserDialogs()
     {
-        var frontendDir = FindFrontendDir();
+        var frontendDir = RepoPaths.Frontend;
         Assert.True(Directory.Exists(frontendDir), $"Frontend directory not found at {frontendDir}");
 
         var jsFiles = Directory.GetFiles(frontendDir, "*.js", SearchOption.AllDirectories);
@@ -484,7 +476,7 @@ public class EthiopianCalendarAndLocalizationTests : IClassFixture<WebApplicatio
     [Fact]
     public void Rule8_FrontendIndex_ContainsZeroCdnDependencies()
     {
-        var frontendDir = FindFrontendDir();
+        var frontendDir = RepoPaths.Frontend;
         var indexHtmlPath = Path.Combine(frontendDir, "index.html");
         Assert.True(File.Exists(indexHtmlPath), $"index.html not found at {indexHtmlPath}");
 
@@ -506,7 +498,7 @@ public class EthiopianCalendarAndLocalizationTests : IClassFixture<WebApplicatio
     [Fact]
     public void Rule8_LocalVendoredAssets_ExistOnDisk()
     {
-        var frontendDir = FindFrontendDir();
+        var frontendDir = RepoPaths.Frontend;
 
         // 1. SignalR minified client
         var signalrJs = Path.Combine(frontendDir, "js/vendor/signalr.min.js");
@@ -522,6 +514,225 @@ public class EthiopianCalendarAndLocalizationTests : IClassFixture<WebApplicatio
         Assert.True(File.Exists(Path.Combine(frontendDir, "locales/en.json")), "en.json locale file missing");
         Assert.True(File.Exists(Path.Combine(frontendDir, "locales/am.json")), "am.json locale file missing");
         Assert.True(File.Exists(Path.Combine(frontendDir, "locales/om.json")), "om.json locale file missing");
+    }
+
+    #endregion
+
+    #region 6. Ethiopian Birr (ETB) Currency Formatting
+
+    [Fact]
+    public void CurrencyFormatter_FormatsInAllThreeLocales_EnAmOm()
+    {
+        const int santim = 50050; // 500.50 ETB
+
+        // 1. English (en-ET) -> ETB 500.50
+        var enFormatted = MedicalPortal.Core.Domain.CurrencyFormatter.Format(santim, "en-ET");
+        Assert.Contains("500.50", enFormatted);
+        Assert.Contains("ETB", enFormatted);
+        Assert.DoesNotContain("$", enFormatted);
+
+        // 2. Amharic (am-ET) -> ብር 500.50
+        var amFormatted = MedicalPortal.Core.Domain.CurrencyFormatter.Format(santim, "am-ET");
+        Assert.Contains("500.50", amFormatted);
+        Assert.Contains("ብር", amFormatted);
+        Assert.DoesNotContain("$", amFormatted);
+
+        // 3. Afaan Oromoo (om-ET) -> Br 500.50
+        var omFormatted = MedicalPortal.Core.Domain.CurrencyFormatter.Format(santim, "om-ET");
+        Assert.Contains("500.50", omFormatted);
+        Assert.Contains("Br", omFormatted);
+        Assert.DoesNotContain("$", omFormatted);
+    }
+
+    [Fact]
+    public void ClinicalFormatting_FormatCents_UsesEtbAndRemovesDollar()
+    {
+        var formatted = MedicalPortal.Core.Domain.ClinicalFormatting.FormatCents(250000);
+        Assert.Contains("2,500.00", formatted);
+        Assert.DoesNotContain("$", formatted);
+        Assert.Contains("ETB", formatted);
+    }
+
+    [Fact]
+    public void PaymentPlan_DefaultMinimum500Etb_EnforcedWithoutHardcodedDollar()
+    {
+        // 49,999 santim (< 500.00 ETB) must be rejected
+        var ex = Assert.Throws<MedicalPortal.Core.Domain.BillingException>(() =>
+            MedicalPortal.Core.Domain.BillingLogic.AssertPlanAllowed(49999, 3, false));
+
+        Assert.Contains("500.00", ex.Message);
+        Assert.DoesNotContain("$", ex.Message);
+
+        // 50,000 santim (500.00 ETB) must pass
+        MedicalPortal.Core.Domain.BillingLogic.AssertPlanAllowed(50000, 3, false);
+    }
+
+    [Fact]
+    public void PaymentGateway_InterfaceAndProviders_MakeEtbSupportClear()
+    {
+        Assert.True(MedicalPortal.Infrastructure.Payments.PaymentGatewayProviders.ProviderSupportsEtb("Telebirr"));
+        Assert.True(MedicalPortal.Infrastructure.Payments.PaymentGatewayProviders.ProviderSupportsEtb("CBEBirr"));
+        Assert.True(MedicalPortal.Infrastructure.Payments.PaymentGatewayProviders.ProviderSupportsEtb("Chapa"));
+        Assert.True(MedicalPortal.Infrastructure.Payments.PaymentGatewayProviders.ProviderSupportsEtb("FakePaymentGateway"));
+        Assert.False(MedicalPortal.Infrastructure.Payments.PaymentGatewayProviders.ProviderSupportsEtb("Stripe"));
+
+        var fakeGateway = new MedicalPortal.Infrastructure.Payments.FakePaymentGateway();
+        Assert.True(fakeGateway.SupportsEtb);
+        Assert.Equal("FakePaymentGateway", fakeGateway.ProviderName);
+    }
+
+    #endregion
+
+    #region 9. Task 3: Addis Ababa Geolocation, Distance Units, and EAT Scheduling Tests
+
+    [Fact]
+    public async Task GeolocationFallback_ReturnsAddisAbaba_AndPlaceSearchContainsRealSubcities()
+    {
+        var mockFactory = new Mock<IHttpClientFactory>();
+        var cache = new MemoryCache(new MemoryCacheOptions());
+        var ipService = new PublicIpService(mockFactory.Object, cache, NullLogger<PublicIpService>.Instance);
+
+        var loc = await ipService.ResolveIpLocationAsync("127.0.0.1");
+        Assert.NotNull(loc);
+        Assert.Equal(9.0054, loc.Latitude!.Value);
+        Assert.Equal(38.7636, loc.Longitude!.Value);
+        Assert.Equal("Addis Ababa", loc.City);
+        Assert.Equal("Addis Ababa", loc.Region);
+        Assert.Equal("ET", loc.Country);
+        Assert.Equal("Africa/Addis_Ababa", loc.Timezone);
+
+        var geocodingService = new GeocodingService(ipService);
+        var approx = geocodingService.GetApproximateLocation("127.0.0.1");
+        Assert.Equal(9.0054, approx.Latitude);
+        Assert.Equal(38.7636, approx.Longitude);
+        Assert.Contains("Addis Ababa", approx.Label);
+
+        // Verify SearchPlaces returns real Addis Ababa subcities near 9.00, 38.76
+        var subcities = new[]
+        {
+            "Bole", "Kirkos", "Yeka", "Arada", "Lideta",
+            "Nifas Silk-Lafto", "Kolfe Keranio", "Gullele",
+            "Addis Ketema", "Akaki Kaliti", "Lemi Kura"
+        };
+
+        var allPlaces = geocodingService.SearchPlaces("");
+        foreach (var subcity in subcities)
+        {
+            var match = allPlaces.FirstOrDefault(p => p.Label.Contains(subcity, StringComparison.OrdinalIgnoreCase));
+            Assert.True(match != null, $"Expected subcity '{subcity}' in place results.");
+            Assert.InRange(match.Latitude, 8.8, 9.2);
+            Assert.InRange(match.Longitude, 38.6, 38.9);
+        }
+
+        // Filtered search
+        var boleResults = geocodingService.SearchPlaces("Bole");
+        Assert.NotEmpty(boleResults);
+        Assert.Contains(boleResults, r => r.Label.Contains("Bole"));
+    }
+
+    [Fact]
+    public void DistanceUnits_AreFormattedInKilometres_AndNeverMiles()
+    {
+        // 1. Label formatting
+        var shortDist = GeoLogic.DistanceLabel(0.4);
+        Assert.Equal("<1 km", shortDist);
+        Assert.EndsWith("km", shortDist);
+        Assert.DoesNotContain("mi", shortDist, StringComparison.OrdinalIgnoreCase);
+
+        var normalDist = GeoLogic.DistanceLabel(7.82);
+        Assert.Equal("7.8 km", normalDist);
+        Assert.EndsWith("km", normalDist);
+        Assert.DoesNotContain("mi", normalDist, StringComparison.OrdinalIgnoreCase);
+
+        // 2. Calculation
+        var p1 = new LatLng(9.0054, 38.7636);
+        var p2 = new LatLng(8.9950, 38.7850);
+        var distKm = GeoLogic.DistanceKm(p1, p2);
+        Assert.InRange(distKm, 2.0, 4.0);
+    }
+
+    [Fact]
+    public void Scheduling_DefaultTimeZone_IsAfricaAddisAbaba_WithoutDst()
+    {
+        var tzDefault = SchedulingLogic.ResolveTimeZone(null);
+        Assert.Contains("Addis_Ababa", tzDefault.Id, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(TimeSpan.FromHours(3), tzDefault.BaseUtcOffset);
+        Assert.False(tzDefault.IsDaylightSavingTime(new DateTime(2026, 3, 8)), "EAT (Africa/Addis_Ababa) has no active daylight saving time.");
+        Assert.False(tzDefault.IsDaylightSavingTime(new DateTime(2026, 7, 1)), "EAT (Africa/Addis_Ababa) has no active daylight saving time.");
+        Assert.False(tzDefault.IsDaylightSavingTime(new DateTime(2026, 11, 1)), "EAT (Africa/Addis_Ababa) has no active daylight saving time.");
+
+        var tzEmpty = SchedulingLogic.ResolveTimeZone("");
+        Assert.Equal(tzDefault.Id, tzEmpty.Id);
+
+        // In EAT, UTC offset is strictly +3 hours throughout the entire year
+        var marchDate = new DateTime(2026, 3, 8, 10, 0, 0, DateTimeKind.Unspecified);
+        var marchUtc = SchedulingLogic.ConvertLocalToUtc(marchDate, tzDefault);
+        Assert.Equal(new DateTime(2026, 3, 8, 7, 0, 0, DateTimeKind.Utc), marchUtc);
+
+        var novDate = new DateTime(2026, 11, 1, 10, 0, 0, DateTimeKind.Unspecified);
+        var novUtc = SchedulingLogic.ConvertLocalToUtc(novDate, tzDefault);
+        Assert.Equal(new DateTime(2026, 11, 1, 7, 0, 0, DateTimeKind.Utc), novUtc);
+    }
+
+    [Fact]
+    public void Scheduling_BusinessHoursInEat_ComputedInLocalTime_AndStoredInUtc()
+    {
+        var tz = SchedulingLogic.ResolveTimeZone("Africa/Addis_Ababa");
+
+        // Dr. Patel's operating window: 08:30 to 16:30 local time
+        var templates = new[]
+        {
+            new SchedulingLogic.ScheduleTemplateRule(
+                DayOfWeek.Monday,
+                new TimeSpan(8, 30, 0),
+                new TimeSpan(16, 30, 0),
+                IsActive: true)
+        };
+
+        var monday = new DateTime(2026, 10, 26); // Monday
+        var nowUtc = new DateTime(2026, 10, 20, 0, 0, 0, DateTimeKind.Utc);
+
+        var slots = SchedulingLogic.FindSlotsInLocationTimeZone(
+            monday,
+            tz,
+            templates,
+            Array.Empty<SchedulingLogic.TimeSlot>(),
+            durationMinutes: 30,
+            nowUtc: nowUtc);
+
+        Assert.NotEmpty(slots);
+
+        // First slot: local 08:30 -> stored UTC is 05:30 (exact 3 hour difference)
+        var firstSlot = slots.First();
+        Assert.Equal("08:30", firstSlot.LocalStart);
+        Assert.Equal("09:00", firstSlot.LocalEnd);
+        Assert.Equal(new DateTime(2026, 10, 26, 5, 30, 0, DateTimeKind.Utc), firstSlot.StartAt);
+        Assert.Equal(new DateTime(2026, 10, 26, 6, 0, 0, DateTimeKind.Utc), firstSlot.EndAt);
+
+        // Last slot ends at 16:30 local -> stored UTC is 13:30
+        var lastSlot = slots.Last();
+        Assert.Equal("16:00", lastSlot.LocalStart);
+        Assert.Equal("16:30", lastSlot.LocalEnd);
+        Assert.Equal(new DateTime(2026, 10, 26, 13, 0, 0, DateTimeKind.Utc), lastSlot.StartAt);
+        Assert.Equal(new DateTime(2026, 10, 26, 13, 30, 0, DateTimeKind.Utc), lastSlot.EndAt);
+    }
+
+    [Fact]
+    public async Task TenantConfiguration_ContainsAddisAbabaDefaults_ViaApi()
+    {
+        var client = _factory.CreateClient();
+        var response = await client.GetAsync("/api/tenants/current");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var doc = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("Africa/Addis_Ababa", doc.GetProperty("timeZone").GetString());
+
+        var loc = doc.GetProperty("location");
+        Assert.Equal("Ethiopia", loc.GetProperty("country").GetString());
+        Assert.Equal("Addis Ababa", loc.GetProperty("city").GetString());
+        Assert.Equal("Africa/Addis_Ababa", loc.GetProperty("timeZone").GetString());
+        Assert.Equal(9.0054, loc.GetProperty("latitude").GetDouble());
+        Assert.Equal(38.7636, loc.GetProperty("longitude").GetDouble());
     }
 
     #endregion

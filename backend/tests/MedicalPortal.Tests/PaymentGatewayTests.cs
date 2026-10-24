@@ -99,10 +99,10 @@ public class PaymentGatewayTests : IClassFixture<WebApplicationFactory<Program>>
 
         var statements = new[] { st3, st1, st2 }; // Intentionally unsorted
 
-        // Pay $50.00 (5000 cents):
-        // st1 ($30) should be fully paid (0 balance)
-        // st2 ($40) should be partially paid ($20 paid, $20 balance)
-        // st3 ($50) should be untouched ($50 balance)
+        // Pay 50.00 ETB (5000 santim):
+        // st1 (30 ETB) should be fully paid (0 balance)
+        // st2 (40 ETB) should be partially paid (20 ETB paid, 20 ETB balance)
+        // st3 (50 ETB) should be untouched (50 ETB balance)
         var allocations = BillingLogic.AllocatePaymentFifo(statements, 5000);
 
         Assert.Equal(2, allocations.Count);
@@ -135,13 +135,13 @@ public class PaymentGatewayTests : IClassFixture<WebApplicationFactory<Program>>
             Status = StatementStatus.PAID
         };
 
-        // Partial refund of $20.00 (2000 cents)
+        // Partial refund of 20.00 ETB (2000 cents)
         BillingLogic.RevertAllocation(st, 2000);
         Assert.Equal(3000, st.AmountPaidCents);
         Assert.Equal(2000, st.BalanceCents);
         Assert.Equal(StatementStatus.PARTIALLY_PAID, st.Status);
 
-        // Remaining refund of $30.00 (3000 cents)
+        // Remaining refund of 30.00 ETB (3000 cents)
         BillingLogic.RevertAllocation(st, 3000);
         Assert.Equal(0, st.AmountPaidCents);
         Assert.Equal(5000, st.BalanceCents);
@@ -156,7 +156,7 @@ public class PaymentGatewayTests : IClassFixture<WebApplicationFactory<Program>>
 
         var intentRes = await gateway.CreatePaymentIntentAsync(new PaymentIntentRequest(
             AmountCents: 4500,
-            Currency: "usd",
+            Currency: "ETB",
             PatientId: Guid.NewGuid()));
 
         Assert.True(intentRes.Success);
@@ -334,12 +334,12 @@ public class PaymentGatewayTests : IClassFixture<WebApplicationFactory<Program>>
         var reloadedSt1 = await checkDb.Statements.FirstAsync(s => s.Id == st1.Id);
         var reloadedSt2 = await checkDb.Statements.FirstAsync(s => s.Id == st2.Id);
 
-        // st1: $25 fully paid (0 balance)
+        // st1: 25 ETB fully paid (0 balance)
         Assert.Equal(0, reloadedSt1.BalanceCents);
         Assert.Equal(2500, reloadedSt1.AmountPaidCents);
         Assert.Equal(StatementStatus.PAID, reloadedSt1.Status);
 
-        // st2: $15 paid of $50 ($35 balance remaining)
+        // st2: 15 ETB paid of 50 ETB (35 ETB balance remaining)
         Assert.Equal(3500, reloadedSt2.BalanceCents);
         Assert.Equal(1500, reloadedSt2.AmountPaidCents);
         Assert.Equal(StatementStatus.PARTIALLY_PAID, reloadedSt2.Status);
@@ -410,7 +410,7 @@ public class PaymentGatewayTests : IClassFixture<WebApplicationFactory<Program>>
         var verifyDb = verifyScope.ServiceProvider.GetRequiredService<MedicalPortalDbContext>();
 
         var stReloaded = await verifyDb.Statements.FirstAsync(s => s.Id == statement.Id);
-        // Statement balance must only be reduced once by $30 (7000 balance remaining, NOT 4000!)
+        // Statement balance must only be reduced once by 30 ETB (7000 balance remaining, NOT 4000!)
         Assert.Equal(7000, stReloaded.BalanceCents);
         Assert.Equal(3000, stReloaded.AmountPaidCents);
 

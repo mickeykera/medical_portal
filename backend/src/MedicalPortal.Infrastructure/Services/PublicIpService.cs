@@ -42,12 +42,12 @@ public class PublicIpService : IPublicIpService
     private readonly IMemoryCache _cache;
     private readonly ILogger<PublicIpService> _logger;
 
-    // Springfield, IL clinic default fallback
-    private const double DefaultLatitude = 39.7983;
-    private const double DefaultLongitude = -89.6437;
-    private const string DefaultCity = "Springfield";
-    private const string DefaultRegion = "IL";
-    private const string DefaultCountry = "US";
+    // Addis Ababa, Ethiopia clinic default fallback
+    private const double DefaultLatitude = 9.0054;
+    private const double DefaultLongitude = 38.7636;
+    private const string DefaultCity = "Addis Ababa";
+    private const string DefaultRegion = "Addis Ababa";
+    private const string DefaultCountry = "ET";
 
     public PublicIpService(
         IHttpClientFactory httpClientFactory,
@@ -272,11 +272,11 @@ public class PublicIpService : IPublicIpService
                 City: DefaultCity,
                 Region: DefaultRegion,
                 Country: DefaultCountry,
-                CountryCode: "US",
+                CountryCode: "ET",
                 Latitude: DefaultLatitude,
                 Longitude: DefaultLongitude,
                 Isp: "Local Network",
-                Timezone: "America/Chicago",
+                Timezone: "Africa/Addis_Ababa",
                 Source: "default-fallback"
             );
         }
@@ -295,11 +295,11 @@ public class PublicIpService : IPublicIpService
             City: DefaultCity,
             Region: DefaultRegion,
             Country: DefaultCountry,
-            CountryCode: "US",
+            CountryCode: "ET",
             Latitude: DefaultLatitude,
             Longitude: DefaultLongitude,
             Isp: "Unknown",
-            Timezone: "America/Chicago",
+            Timezone: "Africa/Addis_Ababa",
             Source: "default-fallback"
         );
 

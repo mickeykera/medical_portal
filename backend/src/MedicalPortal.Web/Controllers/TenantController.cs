@@ -46,7 +46,9 @@ public class TenantController : ControllerBase
             modules = settings.Modules,
             hosting = settings.Hosting,
             integrations = settings.Integrations,
-            security = settings.Security
+            security = settings.Security,
+            currency = settings.Currency,
+            location = settings.Location
         });
     }
 

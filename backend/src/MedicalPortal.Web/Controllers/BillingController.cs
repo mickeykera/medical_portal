@@ -8,6 +8,7 @@ using MedicalPortal.Infrastructure.Notifications;
 using MedicalPortal.Infrastructure.Observability;
 using MedicalPortal.Infrastructure.Payments;
 using MedicalPortal.Infrastructure.Services;
+using MedicalPortal.Infrastructure.Tenancy;
 using MedicalPortal.Web.Filters;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -28,19 +29,22 @@ public class BillingController : ControllerBase
     private readonly IAuditService _audit;
     private readonly IPaymentGateway _paymentGateway;
     private readonly INotificationDeliveryService? _deliveryService;
+    private readonly ITenantContext? _tenantContext;
 
     public BillingController(
         MedicalPortalDbContext db,
         ISnapshotService snapshotService,
         IAuditService audit,
         IPaymentGateway paymentGateway,
-        INotificationDeliveryService? deliveryService = null)
+        INotificationDeliveryService? deliveryService = null,
+        ITenantContext? tenantContext = null)
     {
         _db = db;
         _snapshotService = snapshotService;
         _audit = audit;
         _paymentGateway = paymentGateway;
         _deliveryService = deliveryService;
+        _tenantContext = tenantContext;
     }
 
     private Guid TargetPatientId => (Guid)HttpContext.Items["TargetPatientId"]!;
@@ -58,6 +62,10 @@ public class BillingController : ControllerBase
             .ToListAsync();
 
         var totalOwed = statements.Where(s => s.Status != StatementStatus.PAID && s.Status != StatementStatus.VOID).Sum(s => s.BalanceCents);
+        var tenant = _tenantContext?.CurrentTenant;
+        var currencySettings = tenant?.GetParsedSettings()?.Currency ?? new TenantCurrencySettings();
+        var locale = currencySettings.Locale ?? "en-ET";
+        var code = currencySettings.Code ?? "ETB";
 
         return Ok(new
         {
@@ -69,9 +77,9 @@ public class BillingController : ControllerBase
                 balanceCents = s.BalanceCents,
                 formatted = new
                 {
-                    total = ClinicalFormatting.FormatCents(s.TotalCents),
-                    paid = ClinicalFormatting.FormatCents(s.AmountPaidCents),
-                    balance = ClinicalFormatting.FormatCents(s.BalanceCents)
+                    total = CurrencyFormatter.Format(s.TotalCents, locale, code),
+                    paid = CurrencyFormatter.Format(s.AmountPaidCents, locale, code),
+                    balance = CurrencyFormatter.Format(s.BalanceCents, locale, code)
                 },
                 dueAt = s.DueAt?.ToString("o"),
                 status = s.Status.ToString(),
@@ -79,7 +87,7 @@ public class BillingController : ControllerBase
                 payments = s.Payments.Select(p => new
                 {
                     id = p.Id,
-                    formatted = ClinicalFormatting.FormatCents(p.AmountCents),
+                    formatted = CurrencyFormatter.Format(p.AmountCents, locale, code),
                     amountCents = p.AmountCents,
                     status = p.Status.ToString(),
                     last4 = p.Last4,
@@ -89,7 +97,7 @@ public class BillingController : ControllerBase
                 })
             }),
             totalOwedCents = totalOwed,
-            totalOwedFormatted = ClinicalFormatting.FormatCents(totalOwed)
+            totalOwedFormatted = CurrencyFormatter.Format(totalOwed, locale, code)
         });
     }
 
@@ -115,9 +123,12 @@ public class BillingController : ControllerBase
         if (!hasBalance)
             return BadRequest(new { error = "No outstanding balance to pay." });
 
+        var tenant = _tenantContext?.CurrentTenant;
+        var currency = tenant?.GetParsedSettings()?.Currency?.Code ?? "ETB";
+
         var intent = await _paymentGateway.CreatePaymentIntentAsync(new PaymentIntentRequest(
             AmountCents: amountCents,
-            Currency: "usd",
+            Currency: currency,
             PatientId: TargetPatientId,
             Description: $"Payment for patient {TargetPatientId}",
             IdempotencyKey: body.IdempotencyKey,
@@ -268,7 +279,7 @@ public class BillingController : ControllerBase
             GatewayPaymentIntentId = paymentResult.PaymentIntentId,
             PatientId = TargetPatientId,
             AmountCents = paymentResult.AmountCents,
-            Currency = paymentResult.Currency ?? "usd",
+            Currency = paymentResult.Currency ?? _tenantContext?.CurrentTenant?.GetParsedSettings()?.Currency?.Code ?? "ETB",
             IdempotencyKey = body.IdempotencyKey,
             ConsumedAt = DateTime.UtcNow
         });
@@ -592,9 +603,16 @@ public class BillingController : ControllerBase
         var existingActive = await _db.PaymentPlans
             .AnyAsync(p => p.StatementId == statementId && p.Status == PaymentPlanStatus.ACTIVE);
 
+        var tenant = _tenantContext?.CurrentTenant;
+        var currencySettings = tenant?.GetParsedSettings()?.Currency ?? new TenantCurrencySettings();
+        var minPlanAmount = currencySettings.MinPaymentPlanAmountMinorUnits > 0
+            ? currencySettings.MinPaymentPlanAmountMinorUnits
+            : BillingLogic.MinBalanceForPlanSantim;
+        var locale = currencySettings.Locale ?? "en-ET";
+
         try
         {
-            BillingLogic.AssertPlanAllowed(statement.BalanceCents, body.NumberOfPayments, existingActive);
+            BillingLogic.AssertPlanAllowed(statement.BalanceCents, body.NumberOfPayments, existingActive, minPlanAmount, locale);
         }
         catch (BillingException ex)
         {

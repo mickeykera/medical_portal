@@ -52,7 +52,7 @@ public class DomainLogicTests
     public void Billing_BuildSchedule_DividesRemaindersCorrectly()
     {
         var startDate = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
-        // $100.00 total across 3 payments -> 3334, 3333, 3333
+        // 100.00 ETB total across 3 payments -> 3334, 3333, 3333
         var schedule = BillingLogic.BuildSchedule(10000, 3, startDate);
 
         Assert.Equal(3, schedule.Count);
@@ -65,20 +65,20 @@ public class DomainLogicTests
     [Fact]
     public void Billing_AssertPlanAllowed_EnforcesMinimums()
     {
-        // Balance < $50 throws
+        // Balance < 500 ETB (50000 santim) throws
         Assert.Throws<BillingException>(() =>
-            BillingLogic.AssertPlanAllowed(4999, 3, false));
+            BillingLogic.AssertPlanAllowed(49999, 3, false));
 
         // Invalid installments throws
         Assert.Throws<BillingException>(() =>
-            BillingLogic.AssertPlanAllowed(10000, 1, false));
+            BillingLogic.AssertPlanAllowed(60000, 1, false));
 
         // Already active plan throws
         Assert.Throws<BillingException>(() =>
-            BillingLogic.AssertPlanAllowed(10000, 6, true));
+            BillingLogic.AssertPlanAllowed(60000, 6, true));
 
         // Valid plan passes
-        BillingLogic.AssertPlanAllowed(10000, 6, false);
+        BillingLogic.AssertPlanAllowed(60000, 6, false);
     }
 
     [Fact]
@@ -108,12 +108,12 @@ public class DomainLogicTests
     [Fact]
     public void GeoLogic_CalculatesDistanceAccurately()
     {
-        // Springfield Clinic to Memorial Urgent Care
-        var p1 = new LatLng(39.7983, -89.6437);
-        var p2 = new LatLng(39.7935, -89.6512);
+        // Bole Family Health Clinic to Arada Urgent Care Center
+        var p1 = new LatLng(8.9950, 38.7850);
+        var p2 = new LatLng(9.0380, 38.7520);
 
         var km = GeoLogic.DistanceKm(p1, p2);
-        Assert.True(km > 0.5 && km < 2.0);
+        Assert.True(km > 4.0 && km < 8.0);
         Assert.Equal("<1 km", GeoLogic.DistanceLabel(0.8));
         Assert.Equal("3.2 km", GeoLogic.DistanceLabel(3.24));
     }

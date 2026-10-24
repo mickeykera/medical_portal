@@ -638,10 +638,13 @@ All sensitive values and environment-specific settings are configured via enviro
 
 ## 🔐 Seed Accounts & Demo Credentials
 
-| Role | Email | Password | Description |
-|------|-------|----------|-------------|
-| **Patient** | `dana@example.com` | `ChangeMe!Demo2024` | Dana Rivera (Managing self + proxy access for children Mateo and Sofia) |
-| **Clinician** | `apatel@clinic.example` | `ChangeMe!Demo2024` | Dr. Amara Patel, MD (Family Medicine, full clinical dashboard access) |
+| Role | Email | Password | MFA / TOTP | Description |
+|------|-------|----------|------------|-------------|
+| **Patient** | `dana@example.com` | `ChangeMe!Demo2024` | None (Optional) | Dana Rivera (Managing self + proxy access for children Mateo and Sofia) |
+| **Clinician** | `apatel@clinic.example` | `ChangeMe!Demo2024` | Required (`./scripts/dev-totp.sh`) | Dr. Amara Patel, MD (Family Medicine, full clinical dashboard access) |
+
+> [!NOTE]
+> For local development, Dr. Patel is seeded with a fixed dev TOTP secret (`JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP`). Run `./scripts/dev-totp.sh` or `dotnet run --project backend/src/MedicalPortal.Web -- --totp` to generate the active 6-digit TOTP code. Production startup guards strictly reject this dev secret and shortcut.
 
 ---
 

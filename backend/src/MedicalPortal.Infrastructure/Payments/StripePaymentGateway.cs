@@ -2,6 +2,7 @@ using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using MedicalPortal.Infrastructure.Tenancy;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
@@ -12,6 +13,11 @@ public class StripePaymentGateway : IPaymentGateway
     private readonly HttpClient _httpClient;
     private readonly IConfiguration _config;
     private readonly ILogger<StripePaymentGateway> _logger;
+
+    public string ProviderName => "Stripe";
+    public bool SupportsEtb => false;
+    public bool SupportsCurrency(string currencyCode) =>
+        !string.IsNullOrWhiteSpace(currencyCode) && !currencyCode.Equals("ETB", StringComparison.OrdinalIgnoreCase);
 
     public StripePaymentGateway(
         HttpClient httpClient,
@@ -189,7 +195,7 @@ public class StripePaymentGateway : IPaymentGateway
             failureReason = lpe.TryGetProperty("message", out var lpeMsg) ? lpeMsg.GetString() : null;
         }
 
-        string? currency = root.TryGetProperty("currency", out var currEl) ? currEl.GetString() : "usd";
+        string? currency = root.TryGetProperty("currency", out var currEl) ? currEl.GetString() : "ETB";
         Guid? patientId = null;
         if (root.TryGetProperty("metadata", out var metaEl) &&
             metaEl.TryGetProperty("patient_id", out var pidEl) &&

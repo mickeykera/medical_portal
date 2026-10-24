@@ -2,7 +2,7 @@ namespace MedicalPortal.Infrastructure.Payments;
 
 public record PaymentIntentRequest(
     int AmountCents,
-    string Currency = "usd",
+    string Currency = "ETB",
     Guid? PatientId = null,
     string? Description = null,
     string? IdempotencyKey = null,
@@ -68,8 +68,39 @@ public record WebhookVerificationResult(
     Dictionary<string, string>? Metadata,
     string? ErrorMessage = null);
 
+/// <summary>
+/// Registry of payment providers indicating which gateways support Ethiopian Birr (ETB).
+/// Telebirr, CBEBirr, Chapa, and internal mock gateways support ETB natively.
+/// Stripe does not natively support domestic ETB settlement.
+/// </summary>
+public static class PaymentGatewayProviders
+{
+    public const string Telebirr = "Telebirr";
+    public const string CbeBirr = "CBEBirr";
+    public const string Chapa = "Chapa";
+    public const string Stripe = "Stripe";
+    public const string FakeGateway = "FakePaymentGateway";
+
+    public static readonly IReadOnlyDictionary<string, bool> EtbSupport = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase)
+    {
+        [Telebirr] = true,
+        [CbeBirr] = true,
+        [Chapa] = true,
+        [FakeGateway] = true,
+        ["Other gateway"] = true,
+        [Stripe] = false
+    };
+
+    public static bool ProviderSupportsEtb(string providerName) =>
+        EtbSupport.TryGetValue(providerName, out var supported) && supported;
+}
+
 public interface IPaymentGateway
 {
+    string ProviderName { get; }
+    bool SupportsEtb { get; }
+    bool SupportsCurrency(string currencyCode);
+
     Task<PaymentIntentResponse> CreatePaymentIntentAsync(PaymentIntentRequest request, CancellationToken cancellationToken = default);
 
     Task<PaymentResult> ConfirmPaymentAsync(ConfirmPaymentRequest request, CancellationToken cancellationToken = default);

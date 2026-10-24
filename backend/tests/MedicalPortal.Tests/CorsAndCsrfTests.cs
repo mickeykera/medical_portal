@@ -53,7 +53,7 @@ public class CorsAndCsrfTests : IClassFixture<WebApplicationFactory<Program>>
         // Simulate cookie authentication without custom header
         using var request = new HttpRequestMessage(HttpMethod.Patch, "/api/profile");
         request.Headers.Add("Cookie", $"mp_session={token}");
-        request.Content = new StringContent("{\"phone\":\"555-9999\"}", Encoding.UTF8, "application/json");
+        request.Content = new StringContent("{\"phone\":\"+251 91 155 9999\"}", Encoding.UTF8, "application/json");
 
         var response = await client.SendAsync(request);
 
@@ -72,7 +72,7 @@ public class CorsAndCsrfTests : IClassFixture<WebApplicationFactory<Program>>
         using var request = new HttpRequestMessage(HttpMethod.Patch, "/api/profile");
         request.Headers.Add("Cookie", $"mp_session={token}");
         request.Headers.Add("X-CSRF-Token", "1");
-        request.Content = new StringContent("{\"phone\":\"555-8888\"}", Encoding.UTF8, "application/json");
+        request.Content = new StringContent("{\"phone\":\"+251 91 155 8888\"}", Encoding.UTF8, "application/json");
 
         var response = await client.SendAsync(request);
 
@@ -89,7 +89,7 @@ public class CorsAndCsrfTests : IClassFixture<WebApplicationFactory<Program>>
         using var request = new HttpRequestMessage(HttpMethod.Patch, "/api/profile");
         request.Headers.Add("Cookie", $"mp_session={token}");
         request.Headers.Add("X-Requested-With", "XMLHttpRequest");
-        request.Content = new StringContent("{\"phone\":\"555-6666\"}", Encoding.UTF8, "application/json");
+        request.Content = new StringContent("{\"phone\":\"+251 91 155 6666\"}", Encoding.UTF8, "application/json");
 
         var response = await client.SendAsync(request);
 
@@ -128,7 +128,7 @@ public class CorsAndCsrfTests : IClassFixture<WebApplicationFactory<Program>>
         // Bearer token auth without cookie does not require anti-CSRF custom header
         using var request = new HttpRequestMessage(HttpMethod.Patch, "/api/profile");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-        request.Content = new StringContent("{\"phone\":\"555-7777\"}", Encoding.UTF8, "application/json");
+        request.Content = new StringContent("{\"phone\":\"+251 91 155 7777\"}", Encoding.UTF8, "application/json");
 
         var response = await client.SendAsync(request);
 

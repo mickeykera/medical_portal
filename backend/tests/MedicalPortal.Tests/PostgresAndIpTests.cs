@@ -120,8 +120,8 @@ public class PostgresAndIpTests
 
         var loc = await service.ResolveIpLocationAsync("127.0.0.1");
         Assert.NotNull(loc);
-        Assert.Equal(39.7983, loc.Latitude!.Value);
-        Assert.Equal(-89.6437, loc.Longitude!.Value);
-        Assert.Equal("Springfield", loc.City);
+        Assert.Equal(9.0054, loc.Latitude!.Value);
+        Assert.Equal(38.7636, loc.Longitude!.Value);
+        Assert.Equal("Addis Ababa", loc.City);
     }
 }
