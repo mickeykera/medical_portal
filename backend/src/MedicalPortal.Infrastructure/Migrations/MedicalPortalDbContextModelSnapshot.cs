@@ -1341,6 +1341,9 @@ namespace MedicalPortal.Infrastructure.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp without time zone");
 
+                    b.Property<string>("FhirPatientId")
+                        .HasColumnType("text");
+
                     b.Property<DateTime?>("HmsLastSync")
                         .HasColumnType("timestamp without time zone");
 
@@ -1366,6 +1369,8 @@ namespace MedicalPortal.Infrastructure.Migrations
                         .HasDefaultValue(new Guid("00000000-0000-0000-0000-000000000001"));
 
                     b.HasKey("Id");
+
+                    b.HasIndex("FhirPatientId");
 
                     b.HasIndex("Mrn")
                         .IsUnique();

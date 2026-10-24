@@ -3,6 +3,7 @@ using MedicalPortal.Core.Entities;
 using MedicalPortal.Core.Enums;
 using MedicalPortal.Infrastructure.Auth;
 using MedicalPortal.Infrastructure.Data;
+using MedicalPortal.Infrastructure.Fhir;
 using MedicalPortal.Infrastructure.Observability;
 using MedicalPortal.Infrastructure.Services;
 using MedicalPortal.Web.Filters;
@@ -24,6 +25,8 @@ public class ClinicalController : ControllerBase
     private readonly IAuditService _audit;
     private readonly IInteractionKnowledgeBase _interactionKb;
     private readonly IAllergyKnowledgeBase _allergyKb;
+    private readonly IClinicalCoreSyncService? _coreSyncService;
+    private readonly IClinicalCoreFhirClient? _fhirClient;
 
     public ClinicalController(
         MedicalPortalDbContext db,
@@ -31,7 +34,9 @@ public class ClinicalController : ControllerBase
         IAccessControlService accessControl,
         IAuditService audit,
         IInteractionKnowledgeBase? interactionKb = null,
-        IAllergyKnowledgeBase? allergyKb = null)
+        IAllergyKnowledgeBase? allergyKb = null,
+        IClinicalCoreSyncService? coreSyncService = null,
+        IClinicalCoreFhirClient? fhirClient = null)
     {
         _db = db;
         _snapshotService = snapshotService;
@@ -39,16 +44,52 @@ public class ClinicalController : ControllerBase
         _audit = audit;
         _interactionKb = interactionKb ?? DrugInteractionLogic.DefaultKnowledgeBase;
         _allergyKb = allergyKb ?? AllergyLogic.DefaultKnowledgeBase;
+        _coreSyncService = coreSyncService;
+        _fhirClient = fhirClient;
     }
 
     private Guid TargetPatientId => (Guid)HttpContext.Items["TargetPatientId"]!;
     private AccessTokenClaims Actor => (AccessTokenClaims)HttpContext.Items["Actor"]!;
+
+    /// <summary>
+    /// Deep-links clinician encounter charting to the OpenMRS O3 microfrontend SPA.
+    /// In target architecture B &amp; C, clinician charting moves to the core's UI.
+    /// </summary>
+    [HttpGet("o3-chart-url")]
+    [RequireClinician]
+    [RequirePatientAccess(Permission.viewRecords, AppResource.ClinicalNotes, AppAction.Read)]
+    public async Task<IActionResult> GetO3ChartUrl([FromQuery] Guid? patientId = null)
+    {
+        var targetId = patientId ?? TargetPatientId;
+        if (_coreSyncService == null)
+        {
+            return StatusCode(503, new { error = "Clinical Core sync service is not available." });
+        }
+
+        var chartUrl = await _coreSyncService.GetO3PatientChartUrlAsync(targetId);
+        if (string.IsNullOrWhiteSpace(chartUrl))
+        {
+            return NotFound(new { error = "Clinical core chart URL could not be resolved for patient." });
+        }
+
+        return Ok(new
+        {
+            patientId = targetId,
+            chartUrl,
+            provider = "OpenMRS O3 Microfrontend",
+            message = "Clinician encounter charting and ordering is mastered in the Clinical Core UI."
+        });
+    }
 
     [HttpGet("snapshot")]
     [RequirePatientAccess(Permission.viewRecords, AppResource.ClinicalResults, AppAction.Read)]
     public async Task<IActionResult> GetSnapshot()
     {
         var patientId = TargetPatientId;
+        if (_coreSyncService != null)
+        {
+            await _coreSyncService.SyncPatientClinicalDataAsync(patientId);
+        }
         var snapshot = await _snapshotService.RefreshSnapshotAsync(patientId);
 
         var canSeeBalance = (await _accessControl.ResolveAccessAsync(Actor, patientId, Permission.payBills)).Allowed;
@@ -74,6 +115,11 @@ public class ClinicalController : ControllerBase
     [RequirePatientAccess(Permission.viewRecords, AppResource.ClinicalResults, AppAction.Read)]
     public async Task<IActionResult> GetLabs()
     {
+        if (_coreSyncService != null)
+        {
+            await _coreSyncService.SyncPatientClinicalDataAsync(TargetPatientId);
+        }
+
         var labs = await _db.Observations
             .AsNoTracking()
             .Where(o => o.PatientId == TargetPatientId && o.Category == ObservationCategory.LAB)
@@ -115,6 +161,11 @@ public class ClinicalController : ControllerBase
     [RequirePatientAccess(Permission.viewRecords, AppResource.ClinicalResults, AppAction.Read)]
     public async Task<IActionResult> GetAllergies()
     {
+        if (_coreSyncService != null)
+        {
+            await _coreSyncService.SyncPatientClinicalDataAsync(TargetPatientId);
+        }
+
         var allergies = await _db.Allergies
             .AsNoTracking()
             .Where(a => a.PatientId == TargetPatientId && !a.Tombstone)
@@ -140,6 +191,11 @@ public class ClinicalController : ControllerBase
     [RequirePatientAccess(Permission.viewRecords, AppResource.ClinicalResults, AppAction.Read)]
     public async Task<IActionResult> GetVitals()
     {
+        if (_coreSyncService != null)
+        {
+            await _coreSyncService.SyncPatientClinicalDataAsync(TargetPatientId);
+        }
+
         var vitals = await _db.Observations
             .AsNoTracking()
             .Where(o => o.PatientId == TargetPatientId && o.Category == ObservationCategory.VITAL)
@@ -173,6 +229,11 @@ public class ClinicalController : ControllerBase
     [RequirePatientAccess(Permission.viewRecords, AppResource.Medications, AppAction.Read)]
     public async Task<IActionResult> GetMedications()
     {
+        if (_coreSyncService != null)
+        {
+            await _coreSyncService.SyncPatientClinicalDataAsync(TargetPatientId);
+        }
+
         var prescriptions = await _db.Prescriptions
             .AsNoTracking()
             .Include(p => p.Medication)
@@ -200,6 +261,11 @@ public class ClinicalController : ControllerBase
     [RequirePatientAccess(Permission.viewRecords, AppResource.ClinicalResults, AppAction.Read)]
     public async Task<IActionResult> GetConditions()
     {
+        if (_coreSyncService != null)
+        {
+            await _coreSyncService.SyncPatientClinicalDataAsync(TargetPatientId);
+        }
+
         var conditions = await _db.Conditions
             .AsNoTracking()
             .Where(c => c.PatientId == TargetPatientId)

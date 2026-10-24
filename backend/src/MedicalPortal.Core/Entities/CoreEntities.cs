@@ -79,6 +79,7 @@ public class Patient : ITenantScoped
     public string Mrn { get; set; } = string.Empty;
     public Guid? PrimaryProviderId { get; set; }
     public string? HmsMrn { get; set; }
+    public string? FhirPatientId { get; set; }
     public DateTime? HmsLastSync { get; set; }
     public string? LastSyncedDemographicsJson { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

@@ -16,6 +16,12 @@ public class Medication : ITenantScoped
     public virtual ICollection<Prescription> Prescriptions { get; set; } = new List<Prescription>();
 }
 
+/// <summary>
+/// DEPRECATED / READ-THROUGH CACHE ONLY:
+/// Master of record for medication orders/prescriptions is OpenMRS 2.8+ / O3, accessed via FHIR R4 JSON REST.
+/// This portal database table is retained solely as a read-through cache and offline snapshot.
+/// </summary>
+[Obsolete("Clinical data is mastered in OpenMRS via FHIR R4. Portal DB tables are retained strictly as a read-through cache / offline snapshot.")]
 public class Prescription : ITenantScoped
 {
     public Guid Id { get; set; } = Guid.NewGuid();

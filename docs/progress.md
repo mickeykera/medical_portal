@@ -260,6 +260,35 @@ Passed!  - Failed: 0, Passed: 259, Skipped: 0, Total: 259, Duration: 27 s - Medi
 
 ---
 
+## 🏥 Phase 8 Clinical Core Integration & EMR Sync Verification
+
+- **Branch:** `phase-8-clinical-core-integration`
+- **Architectural Reference:** [ADR 0009: Clinical Core OpenMRS FHIR R4 Integration & Clinical Cache Demolition](adr/0009-clinical-core-openmrs-fhir-integration.md)
+- **Key Changes Implemented:**
+  - **Entity Deprecation & Read-Through Cache Repurposing:**
+    - Formally deprecated duplicated clinical tables in portal (`Observations`, `Conditions`, `Allergies`, `Prescriptions`) using `[Obsolete("Clinical data is mastered in OpenMRS via FHIR R4. Portal DB tables are retained strictly as a read-through cache / offline snapshot.")]`.
+    - Portal clinical tables now operate strictly as a read-through cache / offline snapshot store.
+    - Decoupled demo CDS rule sets (`DrugInteractionLogic`, `AllergyLogic`) with explicit `ClinicalCoreMasteryNotice` pointing canonical rules to OpenMRS 2.8+ / O3.
+  - **FHIR Logical Identifier & Migration:**
+    - Added `FhirPatientId` (indexed string) on `Patient` entity in `MedicalPortal.Core/Entities/CoreEntities.cs`.
+    - Applied migration `20261024152402_AddFhirPatientIdAndClinicalCoreSync`.
+  - **Clinical Core Synchronization Service (`IClinicalCoreSyncService`, `ClinicalCoreSyncService`):**
+    - `SyncPatientClinicalDataAsync(patientId)`: Inbound FHIR R4 pull reconciles Observations (vitals & LOINC labs), Allergies, MedicationRequests, and Encounters (reason codes) into cached records, updates `HmsLastSync`, and refreshes `HealthSnapshot`. Gracefully degrades on FHIR network failure or offline mode.
+    - `SyncOutboundAppointmentsAsync()`: Outbound push converting portal appointments to FHIR R4 `Appointment` resources (`booked`/`proposed`), linking `Patient/{fhirPatientId}`, and marking `HmsSynced = true`.
+    - `SyncStalePatientsAsync(limit)`: Inbound batch pull ordered by `HmsLastSync` ascending.
+    - `GetO3PatientChartUrlAsync(patientId)`: Resolves OpenMRS FHIR logical ID and formats deep link `${O3BaseUrl}/patient/{fhirPatientId}/chart`.
+  - **Background Worker & DI Integration:**
+    - Upgraded `HmsSyncWorker` to invoke `IClinicalCoreSyncService` alongside legacy sync.
+    - Registered `IClinicalCoreSyncService, ClinicalCoreSyncService` in `Program.cs`.
+  - **Clinical Controller & Chart Cutover:**
+    - Dynamic FHIR sync-on-read in `ClinicalController.cs` for snapshot, labs, allergies, vitals, medications, and conditions with transparent fallback to local cached snapshots.
+    - Added `GET /api/clinical/o3-chart-url` guarded by `[RequireClinician]` and `[RequirePatientAccess]` to route clinicians to OpenMRS O3 for encounter charting.
+- **Automated Test Results:**
+  - Added [`ClinicalCoreIntegrationAndSyncTests.cs`](file:///home/michael/projects/app/medical_portal/backend/tests/MedicalPortal.Tests/ClinicalCoreIntegrationAndSyncTests.cs) (9 tests covering inbound pull, outbound appointment push, offline resilience, O3 chart URL resolution, stale patient pull, CDS mastery notice, clinician O3 chart access, non-clinician 403 rejection, cross-patient access 403 rejection).
+  - Total solution tests passing: **342 passed, 0 failed, 0 skipped**.
+
+---
+
 ## 🔍 Security Audit Verification Matrix (SEC-01 .. SEC-22, SAFE-01)
 
 Every audit finding from `docs/security-audit-2026-10-24.md` has been verified against the current codebase:
@@ -299,6 +328,6 @@ Every audit finding from `docs/security-audit-2026-10-24.md` has been verified a
 2. **Access Control & Scope Verification (SEC-05, SEC-06, SEC-07, SEC-08, SEC-09, SEC-10, SEC-15, SEC-16):**
    Remediated in Phase 4. Payment intent replays are blocked, share bundles are filtered strictly by granted categories, operational staff scoping is enforced server-side, HMS integration endpoints are restricted to administrators, refill BOLA is resolved, proxy invites are 128-bit and email-bound, form submissions require write permission, and direct patient refunds are segregated. Verified across 300 tests.
 3. **Clinical Scope vs EMR Integration (SAFE-01, Phase 3/8):**
-   Clinical entities currently duplicated in the portal database (observations, allergies, prescriptions) must be cleanly decoupled and handed over to the dedicated open-source EMR core (OpenMRS 2.8+ on PostgreSQL) through standardized FHIR R4 interfaces.
+   Remediated in Phase 8. Clinical entities in the portal database have been deprecated and repurposed strictly as read-through caches / offline snapshots. Clinician charting is cut over to OpenMRS O3 SPA via deep-linking, inbound/outbound sync is powered by `IClinicalCoreSyncService` over FHIR R4, and canonical CDS is mastered in OpenMRS. Verified across 342 tests.
 4. **National Interoperability Unknowns (Phase 10):**
    Critical Ethiopian health informatics specifications (DHIS2 Ethiopian calendar period encoding, eCHIS referral payloads, Master Facility Registry synchronization) must remain decoupled behind interfaces with fakes until official Ministry guidelines are confirmed.

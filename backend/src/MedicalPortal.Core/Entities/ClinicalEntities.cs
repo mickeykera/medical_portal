@@ -2,6 +2,12 @@ using MedicalPortal.Core.Enums;
 
 namespace MedicalPortal.Core.Entities;
 
+/// <summary>
+/// DEPRECATED / READ-THROUGH CACHE ONLY:
+/// Master of record for patient allergies is OpenMRS 2.8+ / O3, accessed via FHIR R4 JSON REST.
+/// This portal database table is retained solely as a read-through cache and offline snapshot.
+/// </summary>
+[Obsolete("Clinical data is mastered in OpenMRS via FHIR R4. Portal DB tables are retained strictly as a read-through cache / offline snapshot.")]
 public class Allergy : ITenantScoped
 {
     public Guid Id { get; set; } = Guid.NewGuid();
@@ -19,6 +25,12 @@ public class Allergy : ITenantScoped
     public virtual Patient Patient { get; set; } = null!;
 }
 
+/// <summary>
+/// DEPRECATED / READ-THROUGH CACHE ONLY:
+/// Master of record for clinical observations (labs, vitals) is OpenMRS 2.8+ / O3, accessed via FHIR R4 JSON REST.
+/// This portal database table is retained solely as a read-through cache and offline snapshot.
+/// </summary>
+[Obsolete("Clinical data is mastered in OpenMRS via FHIR R4. Portal DB tables are retained strictly as a read-through cache / offline snapshot.")]
 public class Observation : ITenantScoped
 {
     public Guid Id { get; set; } = Guid.NewGuid();
@@ -42,6 +54,12 @@ public class Observation : ITenantScoped
     public virtual Patient Patient { get; set; } = null!;
 }
 
+/// <summary>
+/// DEPRECATED / READ-THROUGH CACHE ONLY:
+/// Master of record for clinical conditions/problems is OpenMRS 2.8+ / O3, accessed via FHIR R4 JSON REST.
+/// This portal database table is retained solely as a read-through cache and offline snapshot.
+/// </summary>
+[Obsolete("Clinical data is mastered in OpenMRS via FHIR R4. Portal DB tables are retained strictly as a read-through cache / offline snapshot.")]
 public class Condition : ITenantScoped
 {
     public Guid Id { get; set; } = Guid.NewGuid();

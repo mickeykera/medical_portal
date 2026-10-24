@@ -10,6 +10,12 @@ public class ClinicalCoreFhirOptions
     public string BaseUrl { get; set; } = "http://localhost:8080/openmrs/ws/fhir2/R4/";
 
     /// <summary>
+    /// Base URL to the OpenMRS O3 Microfrontend Single Page Application for clinician charting deep-links.
+    /// (e.g. https://emr.hospital.internal/openmrs/spa)
+    /// </summary>
+    public string O3BaseUrl { get; set; } = "https://emr.hospital.internal/openmrs/spa";
+
+    /// <summary>
     /// Service account username for OpenMRS REST/FHIR authentication.
     /// </summary>
     public string Username { get; set; } = string.Empty;

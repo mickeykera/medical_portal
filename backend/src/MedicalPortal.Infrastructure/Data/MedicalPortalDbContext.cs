@@ -129,6 +129,9 @@ public class MedicalPortalDbContext : DbContext
             .IsUnique();
 
         modelBuilder.Entity<Patient>()
+            .HasIndex(p => p.FhirPatientId);
+
+        modelBuilder.Entity<Patient>()
             .HasOne(p => p.Person)
             .WithOne(p => p.Patient)
             .HasForeignKey<Patient>(p => p.PersonId)

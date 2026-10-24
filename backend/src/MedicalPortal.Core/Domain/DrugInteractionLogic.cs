@@ -25,11 +25,17 @@ public record PrescriptionSafetyCheckResult(
 /// Clinical safety entry point for drug interaction screening.
 /// Delegates evaluation to pluggable <see cref="IInteractionKnowledgeBase"/> implementations.
 /// 
-/// IMPORTANT: The default knowledge base contains demonstration reference data.
-/// It does NOT claim clinical completeness or exhaustiveness.
+/// IMPORTANT ARCHITECTURAL BOUNDARY:
+/// Canonical clinical decision support and medication ordering is mastered in the Clinical Core (OpenMRS 2.8+ / O3).
+/// The portal-level rules in this class serve solely as demonstration reference data for testing and mock environments.
 /// </summary>
 public static class DrugInteractionLogic
 {
+    /// <summary>
+    /// Master boundary notice indicating that canonical CDS is governed by OpenMRS order entry.
+    /// </summary>
+    public const string ClinicalCoreMasteryNotice = "Canonical clinical decision support is mastered in OpenMRS 2.8+ / O3. Portal safety screening uses demonstration reference data.";
+
     /// <summary>
     /// Active default knowledge base used when dependency injection is not available.
     /// Can be replaced with a licensed clinical pharmacology provider.

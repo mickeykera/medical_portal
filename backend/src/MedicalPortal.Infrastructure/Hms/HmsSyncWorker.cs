@@ -65,17 +65,26 @@ public class HmsSyncWorker : BackgroundService
         using var scope = _serviceProvider.CreateScope();
         var syncService = scope.ServiceProvider.GetRequiredService<IHmsSyncService>();
         var deadLetterService = scope.ServiceProvider.GetRequiredService<IHmsDeadLetterService>();
+        var coreSyncService = scope.ServiceProvider.GetService<MedicalPortal.Infrastructure.Fhir.IClinicalCoreSyncService>();
 
         int totalActions = 0;
 
-        // 1. Push outbound unsynced appointments
+        // 1. Push outbound unsynced appointments (HMS adapter + Clinical Core FHIR)
         totalActions += await syncService.SyncOutboundAppointmentsAsync(cancellationToken);
+        if (coreSyncService != null)
+        {
+            totalActions += await coreSyncService.SyncOutboundAppointmentsAsync(cancellationToken);
+        }
 
         // 2. Push outbound unsynced refills
         totalActions += await syncService.SyncOutboundRefillsAsync(cancellationToken);
 
-        // 3. Inbound pull sync for stale patients
+        // 3. Inbound pull sync for stale patients (HMS adapter + Clinical Core FHIR)
         totalActions += await syncService.SyncStalePatientsAsync(cancellationToken: cancellationToken);
+        if (coreSyncService != null)
+        {
+            totalActions += await coreSyncService.SyncStalePatientsAsync(cancellationToken: cancellationToken);
+        }
 
         // 4. Purge expired dead letters
         await deadLetterService.PurgeExpiredRecordsAsync(cancellationToken: cancellationToken);

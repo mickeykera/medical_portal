@@ -489,6 +489,9 @@ else
     }
 }
 
+// Clinical Core Synchronization Service (FHIR R4 read-through cache & snapshot refresh)
+builder.Services.AddScoped<IClinicalCoreSyncService, ClinicalCoreSyncService>();
+
 // Automated Background Workers
 builder.Services.AddHostedService<AppointmentReminderWorker>();
 builder.Services.AddHostedService<BillingInstallmentWorker>();

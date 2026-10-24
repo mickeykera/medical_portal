@@ -102,6 +102,27 @@ public class FakeClinicalCoreFhirClient : IClinicalCoreFhirClient
         );
         Observations.Add(obsBp);
 
+        // 3b. Synthetic Lab Observation (Fasting Blood Glucose)
+        var obsLab = new FhirObservationDto(
+            ResourceType: "Observation",
+            Id: "obs-7002",
+            Status: "final",
+            Category: new List<FhirCodeableConceptDto>
+            {
+                new(new List<FhirCodingDto> { new("http://terminology.hl7.org/CodeSystem/observation-category", "laboratory", "Laboratory") }, null)
+            },
+            Code: new FhirCodeableConceptDto(
+                new List<FhirCodingDto> { new("http://loinc.org", "1558-6", "Fasting glucose [Mass/volume] in Serum or Plasma") },
+                "Fasting Blood Glucose"
+            ),
+            Subject: new FhirReferenceDto("Patient/patient-1001", "Abebe Kebede"),
+            EffectiveDateTime: "2026-10-20T08:50:00Z",
+            ValueQuantity: new FhirQuantityDto(105m, "mg/dL", "http://unitsofmeasure.org", "mg/dL"),
+            ValueString: null,
+            Component: null
+        );
+        Observations.Add(obsLab);
+
         // 4. Synthetic Allergy (Penicillin)
         var allergy1 = new FhirAllergyIntoleranceDto(
             ResourceType: "AllergyIntolerance",
