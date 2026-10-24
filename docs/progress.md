@@ -1,9 +1,9 @@
 # Modular Low-Cost Hospital Platform & Transformation Progress
 
 **Repository:** `medical_portal`  
-**Current Phase:** Phase 7: Frontend Rebuild & XSS Containment [APPROVAL GATE]  
+**Current Phase:** Phase 8: Clinical Core Integration & EMR Sync [APPROVAL GATE 8]  
 **Last Updated:** 2026-10-24  
-**Current Test Suite Baseline:** **333 passed, 0 failed, 0 skipped** (.NET 8)
+**Current Test Suite Baseline:** **342 passed, 0 failed, 0 skipped** (.NET 8)
 
 ---
 
@@ -18,8 +18,8 @@
 | **4** | **Fix Portal Authorization & Payments (SEC-05, 06, 07, 08, 09, 10, 15, 16)** | **Approved** | **GATE 4 (Approved)** | 300 passing tests; ConsumedPaymentIntents, FHIR share scope filtering, mandatory dept scope enforcement, HMS RBAC, refill BOLA/IDOR fix, 128-bit email-bound proxy invites, form write permission, segregated billing refunds; ADR 0005 |
 | **5** | **Multi-Tenancy Architecture & Isolation** | **Approved** | **GATE 5 (Approved)** | 311 passing tests; Tenant model, ITenantScoped on 48 tables, EF global filters, SaveChanges isolation validation, Postgres RLS, HKDF keys, PLATFORM_ADMIN zero PHI, API module gating, WCAG AA, Adot provisioning plan & compliance notes; ADR 0006 |
 | **6** | **Ethiopia Foundations (Dual Calendar Engine & Localization)** | **Approved** | **GATE 6 (Approved)** | 328 passing tests; Pure Ethiopian<->Gregorian engine (73,414 days verified), `calendar_dim` SQL table, DHIS2 period formats, En/Am/Om localization catalogs, local vendored offline assets, zero browser dialogs; ADR 0007 |
-| **7** | **Frontend Rebuild & XSS Containment (SEC-02)** | **Completed** | **GATE 7 (Pending Approval)** | 333 passing tests; Stored DOM XSS eliminated, escapeHtml encoder, textContent DOM assignment, strict CSP without unsafe-inline or remote CDNs, ClinicalSummaryGenerator encoding, print script; ADR 0008 |
-| 8 | Clinical Core Integration & EMR Sync | Planned | Gate 8 | Replace HMS adapter with Core FHIR R4 client; retire duplicated clinical tables; remove demo rules |
+| **7** | **Frontend Rebuild & XSS Containment (SEC-02)** | **Approved** | **GATE 7 (Approved)** | 333 passing tests; Stored DOM XSS eliminated, escapeHtml encoder, textContent DOM assignment, strict CSP without unsafe-inline or remote CDNs, ClinicalSummaryGenerator encoding, print script; ADR 0008 |
+| **8** | **Clinical Core Integration & EMR Sync** | **Completed** | **GATE 8 (Pending Approval)** | 342 passing tests; OpenMRS FHIR R4 client integration (`IClinicalCoreSyncService`), deprecation of duplicated clinical tables as read-through cache/offline snapshot, clinician O3 charting cutover & deep linking, decoupled CDS notice; ADR 0009 |
 | 9 | Offline-First Facility Stack & LAN Operations | Planned | Gate 9 | Local LAN server as system of record, outbox sync, 24h network cut chaos tests |
 | 10 | National Interoperability (DHIS2, eCHIS, MFR) | Planned | Gate 10 | DHIS2 aggregate push for HMIS, eCHIS referral interface/fake, MFR sync |
 | 11 | Data Protection & Hardening (SEC-11, 12, 17, 19, 20, 21, 22) | Planned | Gate 11 | Complete logging scrubber, authenticated field encryption, non-root containers, CI gates |
