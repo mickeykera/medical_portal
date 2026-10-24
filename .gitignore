@@ -1,0 +1,23 @@
+## .NET Core
+bin/
+obj/
+out/
+*.user
+*.userosscache
+*.suo
+*.userprefs
+*.db
+*.db-shm
+*.db-wal
+
+## Visual Studio & VS Code
+.vs/
+.vscode/
+*.DotSettings.user
+
+## Rider
+.idea/
+
+## OS
+.DS_Store
+Thumbs.db
