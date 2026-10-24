@@ -103,7 +103,7 @@ public static class ClinicalSummaryGenerator
 </head>
 <body>
   <div class=""no-print"" style=""margin-bottom: 1.5rem; display: flex; justify-content: flex-end; gap: 0.75rem;"">
-    <button class=""btn-print"" onclick=""window.print()"">🖨️ Print / Save as PDF</button>
+    <button id=""btn-print"" class=""btn-print"" type=""button"">🖨️ Print / Save as PDF</button>
   </div>
 
   <div class=""header"">
@@ -132,7 +132,7 @@ public static class ClinicalSummaryGenerator
     </div>
     <div>
       <div class=""patient-label"">Primary Provider</div>
-      <div class=""patient-val"">{(patient.PrimaryProvider != null ? $"Dr. {patient.PrimaryProvider.FirstName} {patient.PrimaryProvider.LastName}" : "Assigned Care Team")}</div>
+      <div class=""patient-val"">{(patient.PrimaryProvider != null ? $"Dr. {WebUtility.HtmlEncode(patient.PrimaryProvider.FirstName)} {WebUtility.HtmlEncode(patient.PrimaryProvider.LastName)}" : "Assigned Care Team")}</div>
     </div>
   </div>
 
@@ -217,7 +217,7 @@ public static class ClinicalSummaryGenerator
       {(vitalsAndLabs.Count > 0 ? string.Join("", vitalsAndLabs.Select(v => $@"
         <tr>
           <td style=""font-weight: 600;"">{WebUtility.HtmlEncode(v.DisplayName)}</td>
-          <td>{(v.ValueNumber.HasValue ? $"{v.ValueNumber} {v.Unit}".Trim() : (v.ValueText ?? "—"))}</td>
+          <td>{(v.ValueNumber.HasValue ? $"{v.ValueNumber} {WebUtility.HtmlEncode(v.Unit ?? "")}".Trim() : WebUtility.HtmlEncode(v.ValueText ?? "—"))}</td>
           <td>{WebUtility.HtmlEncode(v.RefRangeText ?? "Normal")}</td>
           <td>{(v.IsAbnormal ? "<span class=\"pill pill-danger\">OUT OF RANGE</span>" : "<span class=\"pill pill-good\">NORMAL</span>")}</td>
           <td>{v.ObservedAt:yyyy-MM-dd HH:mm}</td>
@@ -236,6 +236,7 @@ public static class ClinicalSummaryGenerator
       <div>Date: {DateTime.UtcNow:yyyy-MM-dd}</div>
     </div>
   </div>
+  <script src=""/js/print.js""></script>
 </body>
 </html>";
     }
