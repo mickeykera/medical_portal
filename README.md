@@ -10,36 +10,48 @@ The solution is organized using Clean Architecture principles:
 
 ```
 medical_portal/
-├── MedicalPortal.sln
-├── docker-compose.yml                  # Multi-container orchestration (App + PostgreSQL 17 Alpine)
+├── docker-compose.yml                  # Multi-container orchestration (Nginx, App, PostgreSQL 17, Redis 7)
 ├── Dockerfile                          # Multi-stage optimized .NET 8 container build
-├── src/
-│   ├── MedicalPortal.Core/             # Domain entities, enums, clinical and billing logic
-│   │   ├── Domain/
-│   │   │   ├── AllergyLogic.cs         # Drug class cross-reactivity safety checks (e.g. Penicillin / Amoxicillin J01CA)
-│   │   │   ├── DrugInteractionLogic.cs # Drug-Drug Interaction (DDI) engine (Anticoagulants+NSAIDs, ACEI+K-sparing, SSRI+Tramadol)
-│   │   │   ├── ClinicalSummaryGenerator.cs # Printable HTML/PDF clinical summary with HIPAA verification block
-│   │   │   ├── BillingLogic.cs         # Payment allocation, installment schedules (BuildSchedule), verification
-│   │   │   ├── ClinicalFormatting.cs   # Age arithmetic, ISO dates, status tone styling
-│   │   │   ├── GeoLogic.cs             # Haversine distance, bounding box calculations
-│   │   │   └── SchedulingLogic.cs      # Appointment conflict detection (CheckSlot) and 30-min candidate slot generator
-│   │   ├── Entities/                   # EF Core domain entities (Patient, Person, Observation, Allergy, Appointment, etc.)
-│   │   └── Enums/                      # Role, AllergySeverity, ObservationCategory, AppointmentStatus, etc.
+├── nginx.conf                          # Same-origin Nginx reverse proxy serving frontend & proxying backend
+├── backend/                            # Server-side .NET 8 solution and automated tests
+│   ├── MedicalPortal.sln
+│   ├── Dockerfile
+│   ├── src/
+│   │   ├── MedicalPortal.Core/             # Domain entities, enums, clinical and billing logic
+│   │   │   ├── Domain/
+│   │   │   │   ├── AllergyLogic.cs         # Drug class cross-reactivity safety checks
+│   │   │   │   ├── DrugInteractionLogic.cs # Drug-Drug Interaction (DDI) engine
+│   │   │   │   ├── ClinicalSummaryGenerator.cs # Printable HTML/PDF clinical summary
+│   │   │   │   ├── BillingLogic.cs         # Payment allocation, installment schedules
+│   │   │   │   ├── ClinicalFormatting.cs   # Age arithmetic, ISO dates, status tone styling
+│   │   │   │   ├── GeoLogic.cs             # Haversine distance, bounding box calculations
+│   │   │   │   └── SchedulingLogic.cs      # Appointment conflict detection & slot generator
+│   │   │   ├── Entities/                   # EF Core domain entities
+│   │   │   └── Enums/                      # Role, AllergySeverity, AppointmentStatus, etc.
+│   │   │
+│   │   ├── MedicalPortal.Infrastructure/   # Persistence, security, and external services
+│   │   │   ├── Auth/                       # BCrypt password hashing, session and JWT service
+│   │   │   ├── Data/                       # MedicalPortalDbContext, DbSeeder, PostgresConnectionHelper
+│   │   │   └── Services/                   # Workers, encryption, and integrations
+│   │   │
+│   │   └── MedicalPortal.Web/              # ASP.NET Core Web API host
+│   │       ├── Controllers/                # Auth, Profile, Clinical, Appointments, Refills, Messages, Billing, FHIR
+│   │       ├── Filters/                    # RequireAuth, RequirePatientAccess, RequireClinician
+│   │       ├── Hubs/                       # SignalR Real-Time Hub (PortalHub)
+│   │       └── Services/                   # SignalRNotificationService implementation
 │   │
-│   ├── MedicalPortal.Infrastructure/   # Persistence, security, and external services
-│   │   ├── Auth/                       # BCrypt password hashing and JWT access token service
-│   │   ├── Data/                       # MedicalPortalDbContext, DbSeeder, and PostgresConnectionHelper
-│   │   └── Services/                   # PublicIpService, DatabaseHealthCheck, AppointmentReminderWorker, BillingInstallmentWorker
-│   │
-│   └── MedicalPortal.Web/              # ASP.NET Core Web API host and Single Page Application
-│       ├── Controllers/                # Auth, Profile, Clinical, Appointments, Refills, Messages, Billing, Care, Geo, System, Sharing, Forms, FHIR
-│       ├── Filters/                    # RequireAuth, RequirePatientAccess (Proxy permissions), RequireClinician
-│       ├── Hubs/                       # SignalR Real-Time Hub (PortalHub) for live appointments, messages, and refills
-│       ├── Services/                   # SignalRNotificationService implementation
-│       └── wwwroot/                    # Embedded rich interactive UI (Overview, Doctor Cockpit, Trends, Messages, Billing, Facilities, Settings)
+│   └── tests/
+│       ├── MedicalPortal.Tests/            # 259 xUnit unit and integration tests
+│       └── load/                           # k6 performance and load test scripts
 │
-└── tests/
-    └── MedicalPortal.Tests/            # 259 xUnit unit and integration tests (PostgreSQL 17, DDI, Workers, IP, RBAC, FHIR, Hub, CORS/CSRF, Config, Migrations, ShareRedemption, MFA/Sessions, PHI Read Auditing & Tamper Chain, Break-Glass Emergency Overrides, PHI Hygiene & Field Encryption, Organization Hierarchy & Memberships, Granular Roles & Department Scoping, Admin Operations Console, Scheduling & Timezones, Stripe Hosted Fields, BAA Notifications, HMS Integration, Replaceable Clinical Knowledge Bases & RxNorm, Multi-Instance Distributed Locking & Cluster Safety, Production Readiness & Dependency Health Checks)
+├── frontend/                           # Single Page Application assets served by Nginx at /
+│   ├── index.html                      # Portal single-page application entrypoint
+│   ├── css/
+│   │   └── app.css                     # Responsive styling and design system tokens
+│   └── js/
+│       └── app.js                      # Client application logic and views
+│
+└── docs/                               # Architecture decision records, audit logs, and runbooks
 ```
 
 ---
@@ -53,14 +65,17 @@ medical_portal/
 ### Run the Application
 
 ```bash
-# Build the entire solution
-dotnet build
+# Build the backend solution
+dotnet build backend/MedicalPortal.sln
 
 # Run all 259 unit & integration tests
-dotnet test
+dotnet test backend/MedicalPortal.sln
 
-# Run the web application locally (SQLite fallback by default or PostgreSQL if DATABASE_URL is set)
-dotnet run --project src/MedicalPortal.Web
+# Run the backend locally (starts on http://localhost:8080)
+dotnet run --project backend/src/MedicalPortal.Web
+
+# Or run the full stack (same-origin Nginx proxy, frontend SPA, backend, Postgres) via Docker Compose:
+docker compose up -d
 ```
 
 Open your browser to:

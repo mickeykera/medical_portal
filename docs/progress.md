@@ -11,8 +11,8 @@
 
 | Phase | Description | Status | Approval Gate | Test Results / Findings Addressed |
 |:---:|---|:---:|:---:|---|
-| **0** | **Baseline & Security Audit Reconciliation** | **Completed** | **GATE 0 (Pending Approval)** | 259 passing tests; verified SEC-01..SEC-22 + SAFE-01; wrote ADR 0001 & Open Questions |
-| 1 | Restructure (`backend/`, `frontend/`, Same-Origin Nginx) | Planned | Gate 1 | Directory reorg via `git mv`; zero behavior change |
+| **0** | **Baseline & Security Audit Reconciliation** | **Approved** | **GATE 0 (Approved)** | 259 passing tests; verified SEC-01..SEC-22 + SAFE-01; wrote ADR 0001 & Open Questions |
+| **1** | **Restructure (`backend/`, `frontend/`, Same-Origin Nginx)** | **Completed** | **GATE 1 (Pending Approval)** | 259 passing tests in `backend/`; same-origin Nginx serving `frontend/` at `/`; Postgres 5432 & Redis 6379 isolated |
 | 2 | Contain Critical Security Findings (SEC-01, 03, 04, 13, 14, 18) | Planned | Gate 2 | Eliminate lazy sessions, enforce token-DB sync, fail-fast prod settings, HTTPS/HSTS |
 | 3 | Clinical Core Spike (OpenMRS 2.8+ / O3 on PostgreSQL vs Bahmni) | Planned | Gate 3 | FHIR R4 JSON & REST evaluation; memory/startup footprint; DHIS2 push |
 | 4 | Fix Portal Authorization & Payments (SEC-05, 06, 07, 08, 09, 10, 15, 16) | Planned | Gate 4 | Payment idempotency, share scope, server-derived dept scope, HMS RBAC, BOLA/IDOR |
@@ -42,6 +42,30 @@ Passed!  - Failed: 0, Passed: 259, Skipped: 0, Total: 259, Duration: 27 s - Medi
 - **MedicalPortal.Core:** 82.8% line coverage (domain logic, scheduling, billing math, permission matrix)
 - **MedicalPortal.Web:** 58.2% line coverage (controllers, filters, middleware, health endpoints)
 - **MedicalPortal.Infrastructure:** 54.1% line coverage (excluding auto-generated EF Core migrations)
+
+---
+
+## 🏗️ Phase 1 Restructure Verification
+
+- **Branch:** `phase-1-restructure`
+- **Top-Level Split (`git mv`):**
+  - `backend/`: `MedicalPortal.sln`, `src/` (`MedicalPortal.Core`, `MedicalPortal.Infrastructure`, `MedicalPortal.Web`), `tests/` (`MedicalPortal.Tests`, `load/k6-portal-flow.js`)
+  - `frontend/`: `index.html`, `css/app.css`, `js/app.js` (unbundled SPA assets moved out of `backend/src/MedicalPortal.Web/wwwroot/`)
+  - Cleaned stale `.obsidian/` files from legacy `portal/` directory.
+- **Same-Origin Reverse Proxy (`nginx.conf`):**
+  - Serves static assets directly from `/usr/share/nginx/html` at root (`/`) with SPA `try_files` fallback.
+  - Reverse-proxies `/api/`, `/hubs/` (with WebSocket upgrade), `/R4/`, `/health`, and `/swagger/` to internal `backend:8080`.
+- **Network Isolation (`docker-compose.yml`):**
+  - Created internal bridge network `portal-internal`.
+  - Removed host port mappings for PostgreSQL (`5432:5432`) and Redis (`6379:6379`); both are accessible only inside `portal-internal`.
+  - Removed host port mapping `5000:8080` from `medical-portal` backend; external entrypoint is strictly Nginx `proxy` on port `5000:80`.
+- **CI & Build Pipelines:**
+  - Updated `.github/workflows/ci.yml` paths for solution restore, build, test, and vulnerability scanning.
+  - Provided root and `backend/` Dockerfiles.
+- **Automated Test Results:**
+  ```text
+  Passed!  - Failed: 0, Passed: 259, Skipped: 0, Total: 259, Duration: 28 s - MedicalPortal.Tests.dll (net8.0)
+  ```
 
 ---
 
