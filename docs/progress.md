@@ -1,9 +1,9 @@
 # Modular Low-Cost Hospital Platform & Transformation Progress
 
 **Repository:** `medical_portal`  
-**Current Phase:** Phase 11: Data Protection & Hardening [APPROVAL GATE 11]  
+**Current Phase:** Phase 12: Productization & Tenant Provisioning [APPROVAL GATE 12]  
 **Last Updated:** 2026-10-24  
-**Current Test Suite Baseline:** **372 passed, 0 failed, 0 skipped** (.NET 8)
+**Current Test Suite Baseline:** **382 passed, 0 failed, 0 skipped** (.NET 8)
 
 ---
 
@@ -22,8 +22,9 @@
 | **8** | **Clinical Core Integration & EMR Sync** | **Approved** | **GATE 8 (Approved)** | 342 passing tests; OpenMRS FHIR R4 client integration (`IClinicalCoreSyncService`), deprecation of duplicated clinical tables as read-through cache/offline snapshot, clinician O3 charting cutover & deep linking, decoupled CDS notice; ADR 0009 |
 | **9** | **Offline-First Facility Stack & LAN Operations** | **Approved** | **GATE 9 (Approved)** | 353 passing tests; Transactional outbox in PostgreSQL (`ITenantScoped`), per-patient strict FIFO ordering, exponential backoff with jitter, HMAC-SHA256 signed reference packages with anti-downgrade, 24h network cut chaos tests, facility backup script; ADR 0010 |
 | **10** | **National Interoperability (DHIS2, eCHIS, MFR)** | **Approved** | **GATE 10 (Approved)** | 363 passing tests; DHIS2 aggregate HMIS extraction, dry-run validation & facility approval gate, signed offline JSON export, eCHIS community referrals with clinician triage, MFR reconciliation, MPI Fayya ID & demographic deduplication with atomic merge; ADR 0011 |
-| **11** | **Data Protection & Hardening (SEC-11, 12, 17, 19, 20, 21, 22)** | **Completed** | **GATE 11 (Pending Approval)** | 372 passing tests; Cleared default logger providers with national/regional regex scrubbing (SEC-11); transparent authenticated field encryption for MfaSecret/PatientNotes/conflicts with fail-fast production key separation (SEC-12); trusted proxy IP boundary enforcement (SEC-17); immutable CI actions with blocking exit codes (SEC-19); OpenTelemetry upgraded to 1.15.3 resolving NU1902 (SEC-20); non-root USER app and no-new-privileges containers (SEC-21); no-store PHI cache control, 1MB bounded webhook streams, and MFA challenge rate limiting (SEC-22); ADR 0012 |
-| 12 | Productization & Tenant Provisioning | Planned | Gate 12 | Tenant configuration schema, module gating at API level, handover docs, compliance notes |
+| **11** | **Data Protection & Hardening (SEC-11, 12, 17, 19, 20, 21, 22)** | **Approved** | **GATE 11 (Approved)** | 372 passing tests; Cleared default logger providers with national/regional regex scrubbing (SEC-11); transparent authenticated field encryption for MfaSecret/PatientNotes/conflicts with fail-fast production key separation (SEC-12); trusted proxy IP boundary enforcement (SEC-17); immutable CI actions with blocking exit codes (SEC-19); OpenTelemetry upgraded to 1.15.3 resolving NU1902 (SEC-20); non-root USER app and no-new-privileges containers (SEC-21); no-store PHI cache control, 1MB bounded webhook streams, and MFA challenge rate limiting (SEC-22); ADR 0012 |
+| **12** | **Productization & Tenant Provisioning** | **Completed** | **GATE 12 (Pending Approval)** | 382 passing tests; Tenant configuration validator & schema with WCAG 2.1 AA enforcement; hierarchical module gating across 14 modules (including interop); dynamic admin APIs (settings, module toggles, dry-run validation, export); Adot dedicated on-premises Docker Compose stack & DB init; turnkey CLI provisioning script; operational runbook & updated handover; ADR 0013 |
+| 13 | Final Proof, Verification & Delivery Checklist | Planned | Gate 13 | Negative tests for all findings, OWASP ZAP baseline, penetration test and delivery checklist |
 | 13 | Final Proof, Verification & Delivery Checklist | Planned | Gate 13 | Negative tests for all findings, OWASP ZAP baseline, penetration test and delivery checklist |
 
 ---
@@ -383,6 +384,37 @@ Passed!  - Failed: 0, Passed: 259, Skipped: 0, Total: 259, Duration: 27 s - Medi
 - **Automated Test Results:**
   - Added [`DataProtectionAndHardeningTests.cs`](file:///home/michael/projects/app/medical_portal/backend/tests/MedicalPortal.Tests/DataProtectionAndHardeningTests.cs) (9 tests covering SEC-11 through SEC-22).
   - Total solution tests passing: **372 passed, 0 failed, 0 skipped**.
+
+---
+
+## 🚀 Phase 12 Productization & Tenant Provisioning Verification
+
+- **Branch:** `phase-12-productization-and-tenant-provisioning`
+- **Architectural Reference:** [ADR 0013: Productization, Tenant Configuration Schema, and Onboarding](adr/0013-productization-and-tenant-provisioning.md)
+- **Key Deliverables & Architectural Implementations:**
+  - **Formal Tenant Configuration Validator & Schema:**
+    - Authored [`TenantConfigurationValidator.cs`](file:///home/michael/projects/app/medical_portal/backend/src/MedicalPortal.Core/Domain/TenantConfigurationValidator.cs) validating slug format, language support (`en`, `am`, `om`), valid IANA timezones, disjoint module sets, hosting isolation modes (`Shared database` vs `Dedicated database`), and security parameters (idle timeouts 5–120 min, retention $\ge 1$ year).
+    - Integrated automated ITU-R BT.709 WCAG 2.1 AA color contrast calculation for primary branding colors, rejecting color codes failing the minimum 3.0:1 large text ratio against white and emitting actionable accessibility warnings.
+  - **Canonical Module Registry & Hierarchical Gating:**
+    - Registered 14 canonical system modules in [`TenantModules`](file:///home/michael/projects/app/medical_portal/backend/src/MedicalPortal.Core/Entities/TenantEntities.cs) (`appointments`, `messaging`, `billing`, `refills`, `proxy`, `sharing`, `fhir`, `findcare`, `forms`, `interop`, `dhis2`, `echis`, `mfr`, `mpi`).
+    - Enforced hierarchical module evaluation in [`TenantModuleSettings.IsEnabled`](file:///home/michael/projects/app/medical_portal/backend/src/MedicalPortal.Core/Entities/TenantEntities.cs): disabling the parent `interop` module automatically blocks all national interoperability submodules (`dhis2`, `echis`, `mfr`, `mpi`) with HTTP 403 `module_disabled`.
+    - Applied `[RequireModule]` across all remaining modular endpoints: [`CareController`](file:///home/michael/projects/app/medical_portal/backend/src/MedicalPortal.Web/Controllers/CareAndGeoControllers.cs) (`findcare`), [`Dhis2Controller`](file:///home/michael/projects/app/medical_portal/backend/src/MedicalPortal.Web/Controllers/Dhis2Controller.cs) (`dhis2`), [`EchisController`](file:///home/michael/projects/app/medical_portal/backend/src/MedicalPortal.Web/Controllers/EchisController.cs) (`echis`), [`MfrController`](file:///home/michael/projects/app/medical_portal/backend/src/MedicalPortal.Web/Controllers/MfrController.cs) (`mfr`), and [`MpiController`](file:///home/michael/projects/app/medical_portal/backend/src/MedicalPortal.Web/Controllers/MpiController.cs) (`mpi`).
+  - **Dynamic Platform Admin Management Endpoints:**
+    - `POST /api/platform/tenants/validate`: Dry-run validation of proposed tenant configurations without persistence, returning full WCAG luminance and error diagnostics.
+    - `GET /api/platform/tenants/{id}`: Detailed tenant inspection.
+    - `PUT /api/platform/tenants/{id}/settings`: Administrative tenant configuration updates with re-validation.
+    - `PATCH /api/platform/tenants/{id}/modules`: Atomic, instant feature module toggling (`{ module, enabled }`) taking effect across active user sessions with zero service downtime.
+    - `GET /api/platform/tenants/{id}/export-config`: Clean portable JSON export for facility configuration backup and migration.
+  - **Dedicated On-Premises Deployment Package for Adot Internal Medicine:**
+    - Authored [`docs/tenants/Adot-Hospital/tenant-config.json`](file:///home/michael/projects/app/medical_portal/docs/tenants/Adot-Hospital/tenant-config.json) configuring Adot Internal Medicine (`Adot-Hospital`) with all 10 departments, 1 facility, primary color `#e01b24`, dedicated database hosting, and `en`/`am`/`om` multi-lingual support.
+    - Created [`docker-compose.adot.yml`](file:///home/michael/projects/app/medical_portal/docker-compose.adot.yml) modeling physical database segregation on hospital LAN (`adot-postgres` with `adot_portal_db` and `adot_openmrs_db`, `adot-redis`, `adot-backend`, `adot-proxy`) with non-root `USER app` and `no-new-privileges:true`.
+    - Authored [`scripts/init-adot-db.sql`](file:///home/michael/projects/app/medical_portal/scripts/init-adot-db.sql) configuring dedicated service accounts `adot_portal_app` and `adot_openmrs_app`, revoking public database permissions.
+    - Authored [`scripts/provision-tenant.sh`](file:///home/michael/projects/app/medical_portal/scripts/provision-tenant.sh) turnkey CLI automation tool with pre-flight schema validation.
+    - Authored [`docs/tenants/Adot-Hospital/runbook.md`](file:///home/michael/projects/app/medical_portal/docs/tenants/Adot-Hospital/runbook.md) providing step-by-step IT operations, daily backup cron automation, and failover instructions.
+    - Updated [`docs/tenants/Adot-Hospital/handover.md`](file:///home/michael/projects/app/medical_portal/docs/tenants/Adot-Hospital/handover.md) confirming all prerequisite items are fully delivered and go-live ready.
+- **Automated Test Results:**
+  - Added [`ProductizationAndProvisioningTests.cs`](file:///home/michael/projects/app/medical_portal/backend/tests/MedicalPortal.Tests/ProductizationAndProvisioningTests.cs) (10 tests covering schema validation, WCAG AA verification, dynamic module gating, hierarchical interop gating, Adot provisioning, dedicated DB configuration, zero-PHI platform admin safety).
+  - Total solution tests passing: **382 passed, 0 failed, 0 skipped**.
 
 ---
 

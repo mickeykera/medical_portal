@@ -13,6 +13,7 @@ namespace MedicalPortal.Web.Controllers;
 [ApiController]
 [Route("api/care")]
 [RequireAuth]
+[RequireModule("findcare")]
 [EnableRateLimiting("GeneralApiPolicy")]
 public class CareController : ControllerBase
 {

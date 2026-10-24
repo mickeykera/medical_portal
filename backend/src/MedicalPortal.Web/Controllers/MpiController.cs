@@ -9,6 +9,7 @@ namespace MedicalPortal.Web.Controllers;
 [Route("api/interop/mpi")]
 [RequireAuth]
 [RequireAdmin]
+[RequireModule("mpi")]
 public class MpiController : ControllerBase
 {
     private readonly IPatientDeduplicationService _deduplicationService;

@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using MedicalPortal.Core.Domain;
 using MedicalPortal.Core.Entities;
 using MedicalPortal.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
@@ -16,7 +17,8 @@ public record TenantProvisioningRequest(
     List<string> Languages,
     TenantSettings Settings,
     int FacilitiesCount = 1,
-    List<string>? Departments = null);
+    List<string>? Departments = null,
+    string? HostDomain = null);
 
 public interface ITenantService
 {
@@ -24,6 +26,8 @@ public interface ITenantService
     Task<Tenant?> GetTenantByIdAsync(Guid id, CancellationToken ct = default);
     Task<Tenant?> GetTenantByHostAsync(string host, CancellationToken ct = default);
     Task<Tenant> ProvisionTenantAsync(TenantProvisioningRequest request, CancellationToken ct = default);
+    Task<Tenant?> UpdateTenantSettingsAsync(Guid id, TenantSettings settings, CancellationToken ct = default);
+    Task<Tenant?> ToggleTenantModuleAsync(Guid id, string moduleName, bool enable, CancellationToken ct = default);
     Task<List<Tenant>> GetAllTenantsAsync(CancellationToken ct = default);
 }
 
@@ -92,11 +96,21 @@ public class TenantService : ITenantService
 
     public async Task<Tenant> ProvisionTenantAsync(TenantProvisioningRequest request, CancellationToken ct = default)
     {
-        if (string.IsNullOrWhiteSpace(request.Name))
-            throw new ArgumentException("Tenant name is required.", nameof(request));
+        // 1. Schema & business rule validation
+        var validation = TenantConfigurationValidator.Validate(
+            request.Name,
+            request.Slug,
+            request.Region,
+            request.TimeZone,
+            request.Languages,
+            request.Settings,
+            request.FacilitiesCount,
+            request.Departments);
 
-        if (string.IsNullOrWhiteSpace(request.Slug))
-            throw new ArgumentException("Tenant slug is required.", nameof(request));
+        if (!validation.IsValid)
+        {
+            throw new ArgumentException($"Tenant configuration validation failed: {string.Join("; ", validation.Errors)}");
+        }
 
         var normalizedSlug = request.Slug.Trim();
 
@@ -121,6 +135,7 @@ public class TenantService : ITenantService
             Id = Guid.NewGuid(),
             Name = request.Name.Trim(),
             Slug = normalizedSlug,
+            HostDomain = request.HostDomain?.Trim().ToLowerInvariant(),
             Region = request.Region ?? "Other: Ethiopia, Addis Ababa",
             TimeZone = request.TimeZone ?? "UTC",
             LanguagesJson = JsonSerializer.Serialize(request.Languages ?? new List<string> { "en" }),
@@ -202,6 +217,75 @@ public class TenantService : ITenantService
         _logger.LogInformation("Tenant {TenantName} ({Slug}) successfully provisioned with ID {TenantId} and key fingerprint {KeyFingerprint}.",
             tenant.Name, tenant.Slug, tenant.Id, tenant.MasterKeyFingerprint);
 
+        return tenant;
+    }
+
+    public async Task<Tenant?> UpdateTenantSettingsAsync(Guid id, TenantSettings settings, CancellationToken ct = default)
+    {
+        var tenant = await _db.Tenants.FirstOrDefaultAsync(t => t.Id == id, ct);
+        if (tenant == null) return null;
+
+        var languages = JsonSerializer.Deserialize<List<string>>(tenant.LanguagesJson) ?? new List<string> { "en" };
+
+        var validation = TenantConfigurationValidator.Validate(
+            tenant.Name,
+            tenant.Slug,
+            tenant.Region,
+            tenant.TimeZone,
+            languages,
+            settings,
+            1,
+            null);
+
+        if (!validation.IsValid)
+        {
+            throw new ArgumentException($"Tenant settings validation failed: {string.Join("; ", validation.Errors)}");
+        }
+
+        tenant.SetSettings(settings);
+        tenant.UpdatedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync(ct);
+
+        _logger.LogInformation("Tenant settings updated for {TenantName} ({TenantId}).", tenant.Name, tenant.Id);
+        return tenant;
+    }
+
+    public async Task<Tenant?> ToggleTenantModuleAsync(Guid id, string moduleName, bool enable, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(moduleName))
+            throw new ArgumentException("Module name is required.", nameof(moduleName));
+
+        var normalized = moduleName.Trim().ToLowerInvariant();
+        if (!TenantModules.All.Contains(normalized))
+            throw new ArgumentException($"Unknown system module '{moduleName}'.", nameof(moduleName));
+
+        var tenant = await _db.Tenants.FirstOrDefaultAsync(t => t.Id == id, ct);
+        if (tenant == null) return null;
+
+        var settings = tenant.GetParsedSettings();
+        if (enable)
+        {
+            settings.Modules.Disabled.RemoveAll(d => d.Trim().Equals(normalized, StringComparison.OrdinalIgnoreCase));
+            if (!settings.Modules.Enabled.Any(e => e.Trim().Equals(normalized, StringComparison.OrdinalIgnoreCase)))
+            {
+                settings.Modules.Enabled.Add(normalized);
+            }
+        }
+        else
+        {
+            settings.Modules.Enabled.RemoveAll(e => e.Trim().Equals(normalized, StringComparison.OrdinalIgnoreCase));
+            if (!settings.Modules.Disabled.Any(d => d.Trim().Equals(normalized, StringComparison.OrdinalIgnoreCase)))
+            {
+                settings.Modules.Disabled.Add(normalized);
+            }
+        }
+
+        tenant.SetSettings(settings);
+        tenant.UpdatedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync(ct);
+
+        _logger.LogInformation("Tenant module '{ModuleName}' set to {State} for {TenantName} ({TenantId}).",
+            normalized, enable ? "enabled" : "disabled", tenant.Name, tenant.Id);
         return tenant;
     }
 }

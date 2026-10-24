@@ -142,10 +142,14 @@ Per Working Rule 5, no placeholder or fallback secrets are permitted in producti
 
 ---
 
-## 6. Open Items Before Go-Live
+## 6. Readiness & Delivery Status (Go-Live Ready)
 
-1. **User Review of Dedicated Database Provisioning Plan**: Awaiting approval on [`docs/tenants/Adot-Hospital/provisioning-plan.md`](file:///home/michael/projects/app/medical_portal/docs/tenants/Adot-Hospital/provisioning-plan.md).
-2. **Localization Phase 6**: Amharic (`am`) and Afaan Oromoo (`om`) translation packages.
-3. **Ethiopian Calendar Phase 7**: Dual Gregorian/Ethiopian date input and display components.
-4. **Clinical Core Phase 8**: OpenMRS 2.8+ PostgreSQL FHIR sync parity.
-5. **National HMIS Integration Phase 9**: DHIS2 aggregate push adapter.
+All prerequisite architecture phases and operational assets have been completed and verified:
+
+1. **Dedicated Database Provisioning Topology**: Fully specified in [`provisioning-plan.md`](file:///home/michael/projects/app/medical_portal/docs/tenants/Adot-Hospital/provisioning-plan.md) and packaged in [`docker-compose.adot.yml`](file:///home/michael/projects/app/medical_portal/docker-compose.adot.yml) with database initialization script [`scripts/init-adot-db.sql`](file:///home/michael/projects/app/medical_portal/scripts/init-adot-db.sql).
+2. **Localization (Phase 6)**: Delivered with complete, offline-capable Amharic (`am`) and Afaan Oromoo (`om`) translation catalogs.
+3. **Ethiopian Calendar Engine (Phase 6)**: Pure algorithmic dual Gregorian/Ethiopian date conversion engine and `calendar_dim` SQL lookup table supporting 13-month calendar display.
+4. **Clinical Core Sync (Phase 8)**: OpenMRS 2.8+ / O3 PostgreSQL FHIR R4 bidirectional sync client (`IClinicalCoreSyncService`), clinician O3 charting cutover, and portal database repurposed as read-through offline cache.
+5. **National HMIS Integration (Phase 10)**: DHIS2 aggregate reporting engine with dry-run verification, eCHIS community referrals with triage workflow, and Master Facility Registry reconciliation.
+6. **Data Protection & Hardening (Phase 11)**: Transparent authenticated AES-256-GCM field encryption, PHI scrubbing with Ethiopian phone and Fayya ID patterns, non-root container deployment, and trusted proxy boundary enforcement.
+7. **Operational Runbook & Provisioning Tooling (Phase 12)**: Step-by-step IT deployment procedures in [`runbook.md`](file:///home/michael/projects/app/medical_portal/docs/tenants/Adot-Hospital/runbook.md) and automated provisioning CLI [`scripts/provision-tenant.sh`](file:///home/michael/projects/app/medical_portal/scripts/provision-tenant.sh).

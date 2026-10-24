@@ -88,11 +88,36 @@ public class TenantBrandingSettings
     public string SupportEmail { get; set; } = string.Empty;
 }
 
+public static class TenantModules
+{
+    public const string Appointments = "appointments";
+    public const string Messaging = "messaging";
+    public const string Billing = "billing";
+    public const string Refills = "refills";
+    public const string Proxy = "proxy";
+    public const string Sharing = "sharing";
+    public const string Fhir = "fhir";
+    public const string FindCare = "findcare";
+    public const string Forms = "forms";
+    public const string Interop = "interop";
+    public const string Dhis2 = "dhis2";
+    public const string Echis = "echis";
+    public const string Mfr = "mfr";
+    public const string Mpi = "mpi";
+
+    public static readonly IReadOnlySet<string> All = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    {
+        Appointments, Messaging, Billing, Refills, Proxy, Sharing, Fhir, FindCare, Forms,
+        Interop, Dhis2, Echis, Mfr, Mpi
+    };
+}
+
 public class TenantModuleSettings
 {
     public List<string> Enabled { get; set; } = new()
     {
-        "appointments", "messaging", "billing", "refills", "proxy", "sharing", "fhir", "findcare", "forms"
+        "appointments", "messaging", "billing", "refills", "proxy", "sharing", "fhir", "findcare", "forms",
+        "interop", "dhis2", "echis", "mfr", "mpi"
     };
 
     public List<string> Disabled { get; set; } = new();
@@ -101,10 +126,32 @@ public class TenantModuleSettings
     {
         if (string.IsNullOrWhiteSpace(moduleName)) return false;
         var normalized = moduleName.Trim().ToLowerInvariant();
+
+        // 1. Direct disabled check
         if (Disabled.Any(d => d.Trim().Equals(normalized, StringComparison.OrdinalIgnoreCase)))
             return false;
-        return Enabled.Any(e => e.Trim().Equals(normalized, StringComparison.OrdinalIgnoreCase));
+
+        // 2. If parent interop module is explicitly disabled, all interop submodules are blocked
+        if (IsInteropSubmodule(normalized) && Disabled.Any(d => d.Trim().Equals("interop", StringComparison.OrdinalIgnoreCase)))
+            return false;
+
+        // 3. Direct enabled check
+        if (Enabled.Any(e => e.Trim().Equals(normalized, StringComparison.OrdinalIgnoreCase)))
+            return true;
+
+        // 4. If parent interop module is explicitly enabled, all interop submodules are enabled
+        if (IsInteropSubmodule(normalized) && Enabled.Any(e => e.Trim().Equals("interop", StringComparison.OrdinalIgnoreCase)))
+            return true;
+
+        // 5. Backward compatibility for legacy default tenant records where national interop modules were not yet serialized
+        if (IsInteropSubmodule(normalized) && !Disabled.Any(d => d.Trim().Equals("interop", StringComparison.OrdinalIgnoreCase)))
+            return true;
+
+        return false;
     }
+
+    private static bool IsInteropSubmodule(string mod) =>
+        mod is "dhis2" or "echis" or "mfr" or "mpi";
 }
 
 public class TenantHostingSettings

@@ -8,6 +8,7 @@ namespace MedicalPortal.Web.Controllers;
 [Route("api/interop/dhis2")]
 [RequireAuth]
 [RequireAdmin]
+[RequireModule("dhis2")]
 public class Dhis2Controller : ControllerBase
 {
     private readonly IDhis2AggregateService _aggregateService;

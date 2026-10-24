@@ -8,6 +8,7 @@ namespace MedicalPortal.Web.Controllers;
 [ApiController]
 [Route("api/interop/echis")]
 [RequireAuth]
+[RequireModule("echis")]
 public class EchisController : ControllerBase
 {
     private readonly IEchisReferralService _referralService;

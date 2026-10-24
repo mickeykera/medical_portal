@@ -1,0 +1,69 @@
+{
+  "name": "Adot Internal Medicine",
+  "slug": "Adot-Hospital",
+  "hostDomain": "portal.adot.et",
+  "region": "Other: Ethiopia, Addis Ababa",
+  "timeZone": "Africa/Addis_Ababa",
+  "languages": [
+    "en",
+    "am",
+    "om"
+  ],
+  "facilitiesCount": 1,
+  "departments": [
+    "Cardiology",
+    "Gastroenterology",
+    "Endocrinology",
+    "Pulmonology",
+    "Rheumatology",
+    "Nephrology",
+    "Laboratory Services",
+    "Imaging & Radiology",
+    "Infusion Suite",
+    "Preventive & Wellness Care"
+  ],
+  "settings": {
+    "branding": {
+      "primaryColor": "#e01b24",
+      "logo": "/img/tenants/adot-logo.svg",
+      "supportEmail": "support@adot.et"
+    },
+    "modules": {
+      "enabled": [
+        "appointments",
+        "messaging",
+        "billing",
+        "refills",
+        "proxy",
+        "sharing",
+        "fhir",
+        "findcare",
+        "forms",
+        "interop",
+        "dhis2",
+        "echis",
+        "mfr",
+        "mpi"
+      ],
+      "disabled": []
+    },
+    "hosting": {
+      "provider": "Hospital on-premises",
+      "dataResidency": "same country as hospital",
+      "isolation": "Dedicated database"
+    },
+    "integrations": {
+      "ehr": "Custom API",
+      "payments": "Other gateway",
+      "notifications": "Email and SMS",
+      "staffSignIn": "Local accounts with MFA"
+    },
+    "security": {
+      "mfaStaff": true,
+      "mfaPatients": true,
+      "idleTimeoutMinutes": 15,
+      "retentionYears": 20,
+      "breakGlass": true
+    }
+  }
+}

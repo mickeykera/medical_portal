@@ -9,6 +9,7 @@ namespace MedicalPortal.Web.Controllers;
 [ApiController]
 [Route("api/interop/mfr")]
 [RequireAuth]
+[RequireModule("mfr")]
 public class MfrController : ControllerBase
 {
     private readonly IMfrSyncService _mfrSyncService;
