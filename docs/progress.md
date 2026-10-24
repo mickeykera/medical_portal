@@ -1,9 +1,9 @@
 # Modular Low-Cost Hospital Platform & Transformation Progress
 
 **Repository:** `medical_portal`  
-**Current Phase:** Phase 8: Clinical Core Integration & EMR Sync [APPROVAL GATE 8]  
+**Current Phase:** Phase 9: Offline-First Facility Stack & LAN Operations [APPROVAL GATE 9]  
 **Last Updated:** 2026-10-24  
-**Current Test Suite Baseline:** **342 passed, 0 failed, 0 skipped** (.NET 8)
+**Current Test Suite Baseline:** **353 passed, 0 failed, 0 skipped** (.NET 8)
 
 ---
 
@@ -19,8 +19,8 @@
 | **5** | **Multi-Tenancy Architecture & Isolation** | **Approved** | **GATE 5 (Approved)** | 311 passing tests; Tenant model, ITenantScoped on 48 tables, EF global filters, SaveChanges isolation validation, Postgres RLS, HKDF keys, PLATFORM_ADMIN zero PHI, API module gating, WCAG AA, Adot provisioning plan & compliance notes; ADR 0006 |
 | **6** | **Ethiopia Foundations (Dual Calendar Engine & Localization)** | **Approved** | **GATE 6 (Approved)** | 328 passing tests; Pure Ethiopian<->Gregorian engine (73,414 days verified), `calendar_dim` SQL table, DHIS2 period formats, En/Am/Om localization catalogs, local vendored offline assets, zero browser dialogs; ADR 0007 |
 | **7** | **Frontend Rebuild & XSS Containment (SEC-02)** | **Approved** | **GATE 7 (Approved)** | 333 passing tests; Stored DOM XSS eliminated, escapeHtml encoder, textContent DOM assignment, strict CSP without unsafe-inline or remote CDNs, ClinicalSummaryGenerator encoding, print script; ADR 0008 |
-| **8** | **Clinical Core Integration & EMR Sync** | **Completed** | **GATE 8 (Pending Approval)** | 342 passing tests; OpenMRS FHIR R4 client integration (`IClinicalCoreSyncService`), deprecation of duplicated clinical tables as read-through cache/offline snapshot, clinician O3 charting cutover & deep linking, decoupled CDS notice; ADR 0009 |
-| 9 | Offline-First Facility Stack & LAN Operations | Planned | Gate 9 | Local LAN server as system of record, outbox sync, 24h network cut chaos tests |
+| **8** | **Clinical Core Integration & EMR Sync** | **Approved** | **GATE 8 (Approved)** | 342 passing tests; OpenMRS FHIR R4 client integration (`IClinicalCoreSyncService`), deprecation of duplicated clinical tables as read-through cache/offline snapshot, clinician O3 charting cutover & deep linking, decoupled CDS notice; ADR 0009 |
+| **9** | **Offline-First Facility Stack & LAN Operations** | **Completed** | **GATE 9 (Pending Approval)** | 353 passing tests; Transactional outbox in PostgreSQL (`ITenantScoped`), per-patient strict FIFO ordering, exponential backoff with jitter, HMAC-SHA256 signed reference packages with anti-downgrade, 24h network cut chaos tests, facility backup script; ADR 0010 |
 | 10 | National Interoperability (DHIS2, eCHIS, MFR) | Planned | Gate 10 | DHIS2 aggregate push for HMIS, eCHIS referral interface/fake, MFR sync |
 | 11 | Data Protection & Hardening (SEC-11, 12, 17, 19, 20, 21, 22) | Planned | Gate 11 | Complete logging scrubber, authenticated field encryption, non-root containers, CI gates |
 | 12 | Productization & Tenant Provisioning | Planned | Gate 12 | Tenant configuration schema, module gating at API level, handover docs, compliance notes |
@@ -289,6 +289,40 @@ Passed!  - Failed: 0, Passed: 259, Skipped: 0, Total: 259, Duration: 27 s - Medi
 
 ---
 
+## ⚡ Phase 9 Offline-First Facility Stack & LAN Operations Verification
+
+- **Branch:** `phase-9-offline-first-stack`
+- **Architectural Reference:** [ADR 0010: Offline-First Facility Stack, Transactional Outbox, and LAN Operations](adr/0010-offline-first-facility-stack-and-outbox-sync.md)
+- **Key Changes Implemented:**
+  - **Deployment Node Role Architecture:**
+    - Introduced [`FacilityNodeOptions.cs`](file:///home/michael/projects/app/medical_portal/backend/src/MedicalPortal.Infrastructure/Offline/FacilityNodeOptions.cs) supporting `DeploymentNodeRole.Facility` (authoritative local system of record on hospital LAN) vs `DeploymentNodeRole.RegionalCloud` (aggregator replica).
+    - Added node monitoring endpoint `GET /api/system/node-status` returning role, facility code, connectivity state, queue depths, and installed reference packages.
+  - **Transactional Outbox in PostgreSQL (`SyncOutboxMessage`):**
+    - Created [`SyncOutboxMessage`](file:///home/michael/projects/app/medical_portal/backend/src/MedicalPortal.Core/Entities/OfflineSyncEntities.cs) entity implementing `ITenantScoped`.
+    - Atomic persistence: Outbox records are generated within the same transaction as business events.
+    - Unique index on `(TenantId, IdempotencyKey)`. Composite indexes on `(TenantId, Status, ScheduledAtUtc)` and `(TenantId, PatientId, PerPatientSequence)`.
+    - Database migration `20261024155857_AddOfflineSyncAndOutbox`.
+  - **Per-Patient Strict FIFO Ordering Barrier:**
+    - Implemented in [`OutboxSyncDispatcher.cs`](file:///home/michael/projects/app/medical_portal/backend/src/MedicalPortal.Infrastructure/Offline/OutboxSyncDispatcher.cs).
+    - If message $N$ for patient $P$ encounters a transient failure or is awaiting retry in backoff, subsequent messages $N+1, N+2$ for patient $P$ are held back and never dispatched out of order.
+  - **Store-and-Forward HTTPS with Exponential Backoff & Jitter:**
+    - Dispatches to [`ICloudAggregatorClient`](file:///home/michael/projects/app/medical_portal/backend/src/MedicalPortal.Infrastructure/Offline/ICloudAggregatorClient.cs) with `Idempotency-Key` and `X-Facility-Code`.
+    - Exponential backoff algorithm: $\min(\text{MaxBackoff}, \text{InitialBackoff} \times 2^{\text{Attempt}-1}) \times \text{jitter}(0.9 .. 1.1)$.
+    - Idempotency deduplication: Replays returning HTTP 409 Conflict are recognized as already processed and marked `Delivered` without stopping the queue.
+    - Unrecoverable 4xx or exceeded `MaxAttempts` move to `DeadLetter` status.
+  - **Signed & Versioned Reference Data Packages (`ReferencePackage`):**
+    - Created [`ReferencePackage`](file:///home/michael/projects/app/medical_portal/backend/src/MedicalPortal.Core/Entities/OfflineSyncEntities.cs) and [`ReferenceDataService.cs`](file:///home/michael/projects/app/medical_portal/backend/src/MedicalPortal.Infrastructure/Offline/ReferenceDataService.cs).
+    - Validates HMAC-SHA256 signatures via constant-time comparison (`CryptographicOperations.FixedTimeEquals`).
+    - Anti-downgrade version protection rejects incoming packages with `VersionOrdinal <= ExistingActiveVersionOrdinal`.
+    - Supports automated online pull and offline import via `POST /api/system/reference-packages/install` (for USB drive distribution).
+  - **Automated Facility Backup & Rotation:**
+    - Created [`scripts/facility-backup.sh`](file:///home/michael/projects/app/medical_portal/scripts/facility-backup.sh) with compressed PostgreSQL dumps (`gzip -9`), SHA-256 manifests, strict permissions (`chmod 600`), and automated 30-day rotation.
+- **Chaos Simulation & Automated Test Results:**
+  - Added [`OfflineFirstFacilityStackTests.cs`](file:///home/michael/projects/app/medical_portal/backend/tests/MedicalPortal.Tests/OfflineFirstFacilityStackTests.cs) (11 tests covering 24h network cut chaos simulation, network restoration queue draining, strict per-patient FIFO ordering barrier, idempotency deduplication replay resilience, exponential backoff scheduling, cryptographic signature verification, tampered payload rejection, anti-downgrade protection, cross-tenant outbox isolation, and node-status/drain-sync RBAC APIs).
+  - Total solution tests passing: **353 passed, 0 failed, 0 skipped**.
+
+---
+
 ## 🔍 Security Audit Verification Matrix (SEC-01 .. SEC-22, SAFE-01)
 
 Every audit finding from `docs/security-audit-2026-10-24.md` has been verified against the current codebase:
@@ -324,10 +358,12 @@ Every audit finding from `docs/security-audit-2026-10-24.md` has been verified a
 ## ⚠️ Key Architectural & Operational Risks
 
 1. **Client-Side Cross-Site Scripting (SEC-02):**
-   The legacy vanilla JS SPA relies on direct `.innerHTML` interpolation across nearly all screens. Replacing this during Phase 7 with a type-safe component framework (React/TypeScript) is essential before loading real patient data.
+   Remediated in Phase 7. Server-side clinical HTML summaries encoded with `WebUtility.HtmlEncode`, client-side dynamic rendering secured via universal `escapeHtml` contextual encoder and `.textContent` DOM node assignments, strict CSP without `'unsafe-inline'` or remote CDNs enforced in `Program.cs` and `nginx.conf`. Verified across 333 tests.
 2. **Access Control & Scope Verification (SEC-05, SEC-06, SEC-07, SEC-08, SEC-09, SEC-10, SEC-15, SEC-16):**
    Remediated in Phase 4. Payment intent replays are blocked, share bundles are filtered strictly by granted categories, operational staff scoping is enforced server-side, HMS integration endpoints are restricted to administrators, refill BOLA is resolved, proxy invites are 128-bit and email-bound, form submissions require write permission, and direct patient refunds are segregated. Verified across 300 tests.
 3. **Clinical Scope vs EMR Integration (SAFE-01, Phase 3/8):**
    Remediated in Phase 8. Clinical entities in the portal database have been deprecated and repurposed strictly as read-through caches / offline snapshots. Clinician charting is cut over to OpenMRS O3 SPA via deep-linking, inbound/outbound sync is powered by `IClinicalCoreSyncService` over FHIR R4, and canonical CDS is mastered in OpenMRS. Verified across 342 tests.
-4. **National Interoperability Unknowns (Phase 10):**
+4. **Offline LAN Stack & Outbox Store-and-Forward (Phase 9):**
+   Remediated in Phase 9. Local facility servers operate as the primary authoritative system of record. Outbound data is queued atomically in a PostgreSQL transactional outbox with per-patient FIFO ordering, exponential backoff with jitter, idempotency deduplication, HMAC-SHA256 signed reference packages, and automated database dumps with 30-day rotation. Verified across 353 tests.
+5. **National Interoperability Unknowns (Phase 10):**
    Critical Ethiopian health informatics specifications (DHIS2 Ethiopian calendar period encoding, eCHIS referral payloads, Master Facility Registry synchronization) must remain decoupled behind interfaces with fakes until official Ministry guidelines are confirmed.

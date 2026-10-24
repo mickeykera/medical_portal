@@ -11,6 +11,7 @@ using MedicalPortal.Infrastructure.Localization;
 using MedicalPortal.Infrastructure.Logging;
 using MedicalPortal.Infrastructure.Notifications;
 using MedicalPortal.Infrastructure.Observability;
+using MedicalPortal.Infrastructure.Offline;
 using MedicalPortal.Infrastructure.Payments;
 using MedicalPortal.Infrastructure.Security;
 using MedicalPortal.Infrastructure.Services;
@@ -491,6 +492,31 @@ else
 
 // Clinical Core Synchronization Service (FHIR R4 read-through cache & snapshot refresh)
 builder.Services.AddScoped<IClinicalCoreSyncService, ClinicalCoreSyncService>();
+
+// Offline-First Facility Node & Transactional Outbox Sync
+builder.Services.Configure<FacilityNodeOptions>(builder.Configuration.GetSection(FacilityNodeOptions.SectionName));
+var facilityNodeOptions = builder.Configuration.GetSection(FacilityNodeOptions.SectionName).Get<FacilityNodeOptions>() ?? new FacilityNodeOptions();
+
+builder.Services.AddSingleton<FakeCloudAggregatorClient>();
+if (builder.Environment.IsProduction() && !facilityNodeOptions.UseFakeAggregator)
+{
+    builder.Services.AddHttpClient<ICloudAggregatorClient, CloudAggregatorClient>();
+}
+else
+{
+    if (facilityNodeOptions.UseFakeAggregator || string.IsNullOrWhiteSpace(facilityNodeOptions.AggregatorEndpoint) || !builder.Environment.IsProduction())
+    {
+        builder.Services.AddSingleton<ICloudAggregatorClient>(sp => sp.GetRequiredService<FakeCloudAggregatorClient>());
+    }
+    else
+    {
+        builder.Services.AddHttpClient<ICloudAggregatorClient, CloudAggregatorClient>();
+    }
+}
+
+builder.Services.AddScoped<IOutboxSyncDispatcher, OutboxSyncDispatcher>();
+builder.Services.AddScoped<IReferenceDataService, ReferenceDataService>();
+builder.Services.AddHostedService<OutboxSyncWorker>();
 
 // Automated Background Workers
 builder.Services.AddHostedService<AppointmentReminderWorker>();

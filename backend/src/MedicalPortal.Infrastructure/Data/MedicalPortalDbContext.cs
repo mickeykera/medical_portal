@@ -73,6 +73,8 @@ public class MedicalPortalDbContext : DbContext
     public DbSet<HmsDemographicConflict> HmsDemographicConflicts => Set<HmsDemographicConflict>();
     public DbSet<HmsProcessedWebhookEvent> HmsProcessedWebhookEvents => Set<HmsProcessedWebhookEvent>();
     public DbSet<CalendarDim> CalendarDimensions => Set<CalendarDim>();
+    public DbSet<SyncOutboxMessage> OutboxMessages => Set<SyncOutboxMessage>();
+    public DbSet<ReferencePackage> ReferencePackages => Set<ReferencePackage>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -618,6 +620,27 @@ public class MedicalPortalDbContext : DbContext
         modelBuilder.Entity<HmsProcessedWebhookEvent>(b =>
         {
             b.HasIndex(w => w.EventId).IsUnique();
+        });
+
+        // Offline-First Outbox Synchronization
+        modelBuilder.Entity<SyncOutboxMessage>(b =>
+        {
+            b.Property(o => o.Status).HasConversion<string>();
+            b.HasIndex(o => new { o.TenantId, o.Status, o.ScheduledAtUtc });
+            b.HasIndex(o => new { o.TenantId, o.PatientId, o.PerPatientSequence });
+            b.HasIndex(o => new { o.TenantId, o.IdempotencyKey }).IsUnique();
+            b.HasOne(o => o.Patient)
+                .WithMany()
+                .HasForeignKey(o => o.PatientId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // Signed Reference Data Packages
+        modelBuilder.Entity<ReferencePackage>(b =>
+        {
+            b.Property(r => r.Status).HasConversion<string>();
+            b.HasIndex(r => new { r.TenantId, r.PackageId, r.VersionOrdinal }).IsUnique();
+            b.HasIndex(r => new { r.TenantId, r.PackageId, r.IsActive });
         });
 
         // Configure tenant scoping and global query filters
