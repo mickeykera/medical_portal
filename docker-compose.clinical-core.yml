@@ -1,0 +1,92 @@
+version: '3.8'
+
+# ==============================================================================
+# Clinical Core Dev Stack: OpenMRS 2.8+ / O3 on PostgreSQL
+# Architecture Spike: Dedicated clinical database, isolated on portal-internal network.
+# Memory Footprint: ~2.5 GB total RAM allocation (low-cost hospital server profile).
+# ==============================================================================
+
+services:
+  # Dedicated PostgreSQL 17 instance for OpenMRS clinical repository
+  clinical-db:
+    image: postgres:17-alpine
+    container_name: clinical-core-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: openmrs
+      POSTGRES_USER: openmrs
+      POSTGRES_PASSWORD: openmrs
+    volumes:
+      - clinical_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U openmrs -d openmrs"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    networks:
+      - portal-internal
+
+  # OpenMRS 2.8+ Platform Core with FHIR2 Module (R4 REST API)
+  clinical-core:
+    image: openmrs/openmrs-reference-application-3-backend:nightly
+    container_name: clinical-core-backend
+    restart: unless-stopped
+    environment:
+      DB_DATABASE: openmrs
+      DB_HOST: clinical-db
+      DB_PORT: 5432
+      DB_USER: openmrs
+      DB_PASSWORD: openmrs
+      DB_CREATE_TABLES: "true"
+      DB_AUTO_UPDATE: "true"
+      OMRS_JAVA_OPTS: "-Xms512m -Xmx1536m -XX:+UseG1GC"
+    depends_on:
+      clinical-db:
+        condition: service_healthy
+    volumes:
+      - clinical_core_data:/openmrs/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/openmrs/ws/fhir2/R4/metadata || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 2048M
+          cpus: '2.0'
+    networks:
+      portal-internal:
+        aliases:
+          - clinical-core
+
+  # OpenMRS 3.x (O3) Modern Microfrontend Single Page Application
+  clinical-frontend:
+    image: openmrs/openmrs-reference-application-3-frontend:latest
+    container_name: clinical-core-frontend
+    restart: unless-stopped
+    environment:
+      SPA_PATH: /openmrs/spa
+      API_URL: /openmrs
+    depends_on:
+      - clinical-core
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    networks:
+      - portal-internal
+
+networks:
+  portal-internal:
+    external: true
+    name: portal-internal
+
+volumes:
+  clinical_pg_data:
+  clinical_core_data:

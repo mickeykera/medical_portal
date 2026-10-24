@@ -4,6 +4,7 @@ using MedicalPortal.Core.Domain;
 using MedicalPortal.Infrastructure.Auth;
 using MedicalPortal.Infrastructure.Data;
 using MedicalPortal.Infrastructure.DistributedLock;
+using MedicalPortal.Infrastructure.Fhir;
 using MedicalPortal.Infrastructure.Hms;
 using MedicalPortal.Infrastructure.Logging;
 using MedicalPortal.Infrastructure.Notifications;
@@ -454,6 +455,31 @@ builder.Services.AddScoped<IHmsDeadLetterService, HmsDeadLetterService>();
 builder.Services.AddScoped<IHmsWebhookHandler, HmsWebhookHandler>();
 builder.Services.AddScoped<IHmsSyncService, HmsSyncService>();
 
+// Clinical Core FHIR R4 Client (OpenMRS 2.8+ / O3 on PostgreSQL)
+builder.Services.Configure<ClinicalCoreFhirOptions>(builder.Configuration.GetSection(ClinicalCoreFhirOptions.SectionName));
+var coreFhirOptions = builder.Configuration.GetSection(ClinicalCoreFhirOptions.SectionName).Get<ClinicalCoreFhirOptions>() ?? new ClinicalCoreFhirOptions();
+
+if (builder.Environment.IsProduction())
+{
+    if (coreFhirOptions.UseFake)
+    {
+        throw new InvalidOperationException("Production startup failed: ClinicalCore:UseFake cannot be true in Production.");
+    }
+    builder.Services.AddHttpClient<IClinicalCoreFhirClient, ClinicalCoreFhirClient>();
+}
+else
+{
+    builder.Services.AddSingleton<FakeClinicalCoreFhirClient>();
+    if (coreFhirOptions.UseFake || string.IsNullOrWhiteSpace(coreFhirOptions.BaseUrl))
+    {
+        builder.Services.AddSingleton<IClinicalCoreFhirClient>(sp => sp.GetRequiredService<FakeClinicalCoreFhirClient>());
+    }
+    else
+    {
+        builder.Services.AddHttpClient<IClinicalCoreFhirClient, ClinicalCoreFhirClient>();
+    }
+}
+
 // Automated Background Workers
 builder.Services.AddHostedService<AppointmentReminderWorker>();
 builder.Services.AddHostedService<BillingInstallmentWorker>();
@@ -608,6 +634,13 @@ else
     {
         throw new InvalidOperationException(
             "Production startup failed: Fake HMS client is registered in production.");
+    }
+
+    var clinicalCore = scope.ServiceProvider.GetService<IClinicalCoreFhirClient>();
+    if (clinicalCore is FakeClinicalCoreFhirClient)
+    {
+        throw new InvalidOperationException(
+            "Production startup failed: Fake clinical core FHIR client is registered in production.");
     }
 }
 
