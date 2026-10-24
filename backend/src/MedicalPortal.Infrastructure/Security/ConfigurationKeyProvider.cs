@@ -40,22 +40,24 @@ public class ConfigurationKeyProvider : IKeyProvider
             }
         }
 
-        // If no keys configured (e.g. fresh dev environment), generate a persistent in-memory 256-bit key for v1
+        // If no keys configured, check environment
         if (!_keys.ContainsKey(_activeKeyVersion))
         {
-            // Use deterministic fallback derived from JWT secret or machine seed if available, or generate 32 random bytes
-            var fallbackSeed = configuration["Jwt:Secret"] ?? configuration["JWT_SECRET"];
-            if (!string.IsNullOrWhiteSpace(fallbackSeed))
+            var env = configuration["ASPNETCORE_ENVIRONMENT"] ?? Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+            var isProduction = string.Equals(env, "Production", StringComparison.OrdinalIgnoreCase);
+
+            if (isProduction)
             {
-                using var sha = SHA256.Create();
-                _keys[_activeKeyVersion] = sha.ComputeHash(System.Text.Encoding.UTF8.GetBytes(fallbackSeed + "_FieldEncKey_v1"));
+                throw new InvalidOperationException(
+                    $"Production startup failed: FieldEncryption key for active version '{_activeKeyVersion}' is not configured. " +
+                    "Sensitive data encryption requires an explicit key (e.g. FieldEncryption:Keys:{version} or FIELD_ENCRYPTION_KEY_{VERSION}). " +
+                    "Deriving encryption keys from authentication secrets (JWT_SECRET) is strictly prohibited.");
             }
-            else
-            {
-                var randomKey = new byte[32];
-                RandomNumberGenerator.Fill(randomKey);
-                _keys[_activeKeyVersion] = randomKey;
-            }
+
+            // In non-production/test environments without explicit keys, use a consistent 256-bit development master key
+            // (independent of JWT_SECRET, ensuring deterministic test runs and cross-test database consistency)
+            using var sha = SHA256.Create();
+            _keys[_activeKeyVersion] = sha.ComputeHash(System.Text.Encoding.UTF8.GetBytes("MedicalPortal_Dev_FieldEncryption_MasterKey_v1"));
         }
     }
 

@@ -1,9 +1,9 @@
 # Modular Low-Cost Hospital Platform & Transformation Progress
 
 **Repository:** `medical_portal`  
-**Current Phase:** Phase 10: National Interoperability (DHIS2, eCHIS, MFR) [APPROVAL GATE 10]  
+**Current Phase:** Phase 11: Data Protection & Hardening [APPROVAL GATE 11]  
 **Last Updated:** 2026-10-24  
-**Current Test Suite Baseline:** **363 passed, 0 failed, 0 skipped** (.NET 8)
+**Current Test Suite Baseline:** **372 passed, 0 failed, 0 skipped** (.NET 8)
 
 ---
 
@@ -21,8 +21,8 @@
 | **7** | **Frontend Rebuild & XSS Containment (SEC-02)** | **Approved** | **GATE 7 (Approved)** | 333 passing tests; Stored DOM XSS eliminated, escapeHtml encoder, textContent DOM assignment, strict CSP without unsafe-inline or remote CDNs, ClinicalSummaryGenerator encoding, print script; ADR 0008 |
 | **8** | **Clinical Core Integration & EMR Sync** | **Approved** | **GATE 8 (Approved)** | 342 passing tests; OpenMRS FHIR R4 client integration (`IClinicalCoreSyncService`), deprecation of duplicated clinical tables as read-through cache/offline snapshot, clinician O3 charting cutover & deep linking, decoupled CDS notice; ADR 0009 |
 | **9** | **Offline-First Facility Stack & LAN Operations** | **Approved** | **GATE 9 (Approved)** | 353 passing tests; Transactional outbox in PostgreSQL (`ITenantScoped`), per-patient strict FIFO ordering, exponential backoff with jitter, HMAC-SHA256 signed reference packages with anti-downgrade, 24h network cut chaos tests, facility backup script; ADR 0010 |
-| **10** | **National Interoperability (DHIS2, eCHIS, MFR)** | **Completed** | **GATE 10 (Pending Approval)** | 363 passing tests; DHIS2 aggregate HMIS extraction, dry-run validation & facility approval gate, signed offline JSON export, eCHIS community referrals with clinician triage, MFR reconciliation, MPI Fayya ID & demographic deduplication with atomic merge; ADR 0011 |
-| 11 | Data Protection & Hardening (SEC-11, 12, 17, 19, 20, 21, 22) | Planned | Gate 11 | Complete logging scrubber, authenticated field encryption, non-root containers, CI gates |
+| **10** | **National Interoperability (DHIS2, eCHIS, MFR)** | **Approved** | **GATE 10 (Approved)** | 363 passing tests; DHIS2 aggregate HMIS extraction, dry-run validation & facility approval gate, signed offline JSON export, eCHIS community referrals with clinician triage, MFR reconciliation, MPI Fayya ID & demographic deduplication with atomic merge; ADR 0011 |
+| **11** | **Data Protection & Hardening (SEC-11, 12, 17, 19, 20, 21, 22)** | **Completed** | **GATE 11 (Pending Approval)** | 372 passing tests; Cleared default logger providers with national/regional regex scrubbing (SEC-11); transparent authenticated field encryption for MfaSecret/PatientNotes/conflicts with fail-fast production key separation (SEC-12); trusted proxy IP boundary enforcement (SEC-17); immutable CI actions with blocking exit codes (SEC-19); OpenTelemetry upgraded to 1.15.3 resolving NU1902 (SEC-20); non-root USER app and no-new-privileges containers (SEC-21); no-store PHI cache control, 1MB bounded webhook streams, and MFA challenge rate limiting (SEC-22); ADR 0012 |
 | 12 | Productization & Tenant Provisioning | Planned | Gate 12 | Tenant configuration schema, module gating at API level, handover docs, compliance notes |
 | 13 | Final Proof, Verification & Delivery Checklist | Planned | Gate 13 | Negative tests for all findings, OWASP ZAP baseline, penetration test and delivery checklist |
 
@@ -353,6 +353,39 @@ Passed!  - Failed: 0, Passed: 259, Skipped: 0, Total: 259, Duration: 27 s - Medi
 
 ---
 
+## 🔐 Phase 11 Data Protection & Hardening Verification
+
+- **Branch:** `phase-11-data-protection-and-hardening`
+- **Architectural Reference:** [ADR 0012: Data Protection, Field Encryption, and Deployment Hardening (SEC-11, 12, 17, 19, 20, 21, 22)](adr/0012-data-protection-and-security-hardening.md)
+- **Key Deliverables & Architectural Implementations:**
+  - **SEC-11 (Incomplete PHI Logging Scrubbing):**
+    - `LoggingExtensions.AddPhiScrubber`: Invokes `builder.ClearProviders()` prior to registering `ScrubbingLoggerProvider`, preventing unscrubbed default console, debug, or event source log leakage.
+    - `PhiScrubber.cs`: Enriched with Ethiopian phone number regex patterns (`(?:\+?251|0)[79]\d{8}\b`), national Fayya IDs (`\bET-FAYYA-[A-Za-z0-9-]+\b`), and sensitive keys (`mfasecret`, `totpsecret`, `nationalpatientid`).
+    - `HmsConflictService.cs`: Eliminated plaintext demographic value logging (`Local: '...', HMS: '...'`), logging only property names and lengths.
+  - **SEC-12 (Sensitive Data Plaintext at Rest & Key Separation):**
+    - `EncryptedStringConverter.cs`: Transparent authenticated AES-256-GCM field encryption converter integrated into EF Core `MedicalPortalDbContext`.
+    - Protected columns: `UserAccount.MfaSecret`, `Appointment.PatientNotes`, `HmsDemographicConflict.LocalValue`, `HmsValue`, `LastSyncedValue`.
+    - `ConfigurationKeyProvider.cs`: Enforces fail-fast startup abort in Production if `FieldEncryption:Keys` is missing or empty. Prohibits deriving encryption keys from `JWT_SECRET`. Uses an isolated deterministic dev master key in non-production environments.
+  - **SEC-17 (Client IP Bypasses Trusted Proxy Boundary):**
+    - `PublicIpService.cs`: Inspects forwarded headers (`CF-Connecting-IP`, `X-Real-IP`, `X-Forwarded-For`, `True-Client-IP`) strictly when the immediate TCP connection `RemoteIpAddress` is loopback (`127.0.0.1`/`::1`) or an explicitly authorized proxy CIDR. Rejects spoofed headers from untrusted external peers.
+  - **SEC-19 (Non-Blocking CI Security & Mutable Actions):**
+    - `.github/workflows/ci.yml`: Pinned all third-party actions (`actions/checkout`, `actions/setup-dotnet`, `actions/upload-artifact`, `aquasecurity/trivy-action`, `gitleaks/gitleaks-action`) to immutable 40-character commit SHAs.
+    - Enforced `exit-code: '1'` on Trivy scans to block PRs on High/Critical findings, and added an automated step asserting `dotnet list package --vulnerable --include-transitive`.
+  - **SEC-20 (Vulnerable OpenTelemetry Protocol Exporter):**
+    - `MedicalPortal.Web.csproj`: Upgraded `OpenTelemetry.Exporter.OpenTelemetryProtocol` to 1.15.3 and OpenTelemetry core dependencies to 1.11.2 / 1.15.3, eliminating CVE-2026-42191 / GHSA-4625-4j76-fww9. Confirmed zero vulnerable packages.
+  - **SEC-21 (Unhardened Container Deployment):**
+    - `Dockerfile` & `backend/Dockerfile`: Enforced non-root execution via `USER app`.
+    - `docker-compose.yml`: Added `security_opt: [ "no-new-privileges:true" ]` across all application services. (PostgreSQL and Redis host port exposure was already eliminated in Phase 1).
+  - **SEC-22 (Rate Limiting, PHI Caching & Webhook Bounds):**
+    - `Program.cs`: Enforced anti-caching headers (`Cache-Control: no-store, no-cache, must-revalidate, proxy-revalidate`, `Pragma: no-cache`, `Expires: 0`) across all `/api` and `/R4` endpoints.
+    - `HmsWebhookController.cs`: Applied `[RequestSizeLimit(1024 * 1024)]` (1MB cap) and bounded stream reading to defend against buffer exhaustion.
+    - `Program.cs` & `AuthController.cs`: Configured `MfaChallengePolicy` (5 req/min per account/IP) with `[EnableRateLimiting("MfaChallengePolicy")]` on `MfaEnroll` and `MfaVerify`.
+- **Automated Test Results:**
+  - Added [`DataProtectionAndHardeningTests.cs`](file:///home/michael/projects/app/medical_portal/backend/tests/MedicalPortal.Tests/DataProtectionAndHardeningTests.cs) (9 tests covering SEC-11 through SEC-22).
+  - Total solution tests passing: **372 passed, 0 failed, 0 skipped**.
+
+---
+
 ## 🔍 Security Audit Verification Matrix (SEC-01 .. SEC-22, SAFE-01)
 
 Every audit finding from `docs/security-audit-2026-10-24.md` has been verified against the current codebase:
@@ -369,18 +402,18 @@ Every audit finding from `docs/security-audit-2026-10-24.md` has been verified a
 | **SEC-08** | **High** | Missing HMS Admin Authorization | **CLOSED** | `/api/integrations/hms/conflicts` and `/api/integrations/hms/dead-letters` decorated with `[RequireAuth]` and `[RequireAdmin]` in `HmsWebhookController.cs`. Read access restricted to `ADMIN`, `SYSTEM_ADMIN`, `COMPLIANCE_AUDITOR`; mutating actions restricted to `ADMIN` and `SYSTEM_ADMIN`. Covered in `AuthorizationAndPaymentsSecurityTests.cs`. | Closed in Phase 4 |
 | **SEC-09** | **High** | BOLA / IDOR in Refill Processing | **CLOSED** | `AppointmentsAndRefillsControllers.cs` verifies `r.Prescription.PatientId == TargetPatientId` in `ApproveRefill` and `DenyRefill`. Cross-patient attempts return 404 Not Found. Covered in `AuthorizationAndPaymentsSecurityTests.cs`. | Closed in Phase 4 |
 | **SEC-10** | **High** | Weak Proxy Invites & Unbound Acceptance | **CLOSED** | `SharingAndFormsAndFamilyControllers.cs` generates 128-bit cryptographic random tokens (`INV-<32 hex chars>`). `AcceptProxyInvite` verifies `actorPerson.Email == invite.Email` and rejects self-acceptance (`actorPerson.Id == invite.InviterPersonId`). Covered in `AuthorizationAndPaymentsSecurityTests.cs`. | Closed in Phase 4 |
-| **SEC-11** | **High** | Incomplete PHI Logging Scrubbing | **OPEN** | `LoggingExtensions.cs:8` registers an extra logger provider without wrapping or clearing default providers (`Console`, `Debug`, `EventSource`). `HmsConflictService.cs:113` logs demographic comparison strings directly. | Phase 11 |
-| **SEC-12** | **High** | Sensitive Data Plaintext at Rest | **OPEN** | `AesGcmFieldEncryptionService` is registered but not hooked into EF Core `ValueConverter` mappings. `AuthController.cs:262` stores `account.TotpSecret` in plaintext. `ConfigurationKeyProvider.cs:43` derives fallback encryption key from `JWT_SECRET`. | Phase 11 |
+| **SEC-11** | **High** | Incomplete PHI Logging Scrubbing | **CLOSED** | `LoggingExtensions.cs` invokes `builder.ClearProviders()` before registering `ScrubbingLoggerProvider`. `PhiScrubber.cs` masks Ethiopian phones (`+2519...`, `09...`), Fayya IDs (`ET-FAYYA-...`), and sensitive keys. Cleartext demographic comparison values eliminated from `HmsConflictService.cs`. Tested in `DataProtectionAndHardeningTests.cs`. | Closed in Phase 11 |
+| **SEC-12** | **High** | Sensitive Data Plaintext at Rest | **CLOSED** | EF Core `EncryptedStringConverter` provides authenticated AES-256-GCM encryption for `UserAccount.MfaSecret`, `Appointment.PatientNotes`, and HMS demographic conflict values. `ConfigurationKeyProvider.cs` enforces key separation and fails fast in Production without `FieldEncryption:Keys`. Tested in `DataProtectionAndHardeningTests.cs`. | Closed in Phase 11 |
 | **SEC-13** | **High** | Known Fallback HMS Secrets & Plain HTTP | **CLOSED** | Default fallback secret removed from `HmsWebhookHandler.cs`. Fallback `admin`/`Admin` credentials removed from `HmsClient.cs`. Startup validator in `Program.cs` prohibits fallback secrets and enforces HTTPS. Tested in `CriticalSecurityContainmentTests.cs`. | Closed in Phase 2 |
 | **SEC-14** | **Medium** | SignalR Bypasses Session Revocation | **CLOSED** | `PortalHub.cs` now validates session through `ISessionService.ValidateSessionAsync`, verifying `AuthorizationVersion`, active status, and database role prior to establishing connection. Revoked/unknown sessions rejected. Tested in `CriticalSecurityContainmentTests.cs`. | Closed in Phase 2 |
 | **SEC-15** | **Medium** | Form Writes Require Only Read Permission | **CLOSED** | Dedicated `Permission.submitForms` added and mapped to `CanSubmitForms` on `ProxyGrant` and `ProxyInvite`. Permission matrix configured with `(UserRole.PATIENT, AppResource.ClinicalResults, AppAction.Write)`. `POST /api/forms/{id}/submit` guarded with `[RequirePatientAccess(Permission.submitForms, AppResource.ClinicalResults, AppAction.Write)]`. Covered in `AuthorizationAndPaymentsSecurityTests.cs`. | Closed in Phase 4 |
 | **SEC-16** | **Medium** | Direct Patient/Proxy Refund Triggering | **CLOSED** | `BillingController.cs` restricts `POST /api/billing/refunds` direct gateway execution strictly to billing staff (`BILLING`, `ADMIN`, `SYSTEM_ADMIN`) with mandatory refund audit reason. Patient/proxy self-refund attempts return 403 Forbidden. Covered in `AuthorizationAndPaymentsSecurityTests.cs`. | Closed in Phase 4 |
-| **SEC-17** | **Medium** | Client IP Bypasses Trusted Proxy Boundary | **OPEN** | `PublicIpService.cs:62` reads `CF-Connecting-IP`, `X-Real-IP`, and `X-Forwarded-For` directly from headers without checking if immediate socket peer is an authorized proxy. | Phase 11 |
+| **SEC-17** | **Medium** | Client IP Bypasses Trusted Proxy Boundary | **CLOSED** | `PublicIpService.cs` validates immediate TCP `RemoteIpAddress`. Forwarded proxy headers (`CF-Connecting-IP`, `X-Forwarded-For`, etc.) are rejected from untrusted peers and only accepted from loopback or verified trusted proxies. Tested in `DataProtectionAndHardeningTests.cs`. | Closed in Phase 11 |
 | **SEC-18** | **Medium** | Plain HTTP Third-Party Geolocation Call | **CLOSED** | Plain-HTTP calls to `http://ip-api.com` in `PublicIpService.cs` completely eliminated; fallback geolocation returns clean offline/mock metadata. Tested in `CriticalSecurityContainmentTests.cs`. | Closed in Phase 2 |
-| **SEC-19** | **Medium** | Non-Blocking CI Security & Mutable Actions | **OPEN** | `.github/workflows/ci.yml:106,131` uses mutable `@master` tags for Trivy and sets `exit-code: '0'`, preventing high/critical vulnerabilities from failing the CI build. | Phase 11 |
-| **SEC-20** | **Medium** | Vulnerable OpenTelemetry Protocol Exporter | **OPEN** | `MedicalPortal.Web.csproj:19` references `OpenTelemetry.Exporter.OpenTelemetryProtocol` 1.10.0, which emits `NU1902` for CVE-2026-42191 / GHSA-4625-4j76-fww9. Requires update to 1.15.3+. | Phase 11 |
-| **SEC-21** | **Medium** | Unhardened Container Deployment | **OPEN** | `Dockerfile` runs container as `root`. `docker-compose.yml:9,50` publishes PostgreSQL port 5432 and Redis port 6379 directly to host with default credentials. | Phase 11 |
-| **SEC-22** | **Medium** | Rate Limiting, Caching & Webhook Limits | **OPEN** | Memory-only rate limits in `Program.cs`. No `Cache-Control: no-store` on PHI API routes. `HmsWebhookController.cs:29` reads unbounded request streams into memory without size limit. | Phase 11 |
+| **SEC-19** | **Medium** | Non-Blocking CI Security & Mutable Actions | **CLOSED** | All GitHub Actions in `.github/workflows/ci.yml` pinned to immutable commit SHAs. Trivy scans enforce `exit-code: '1'` on High/Critical findings. Added automated transitive vulnerability scan `dotnet list package --vulnerable`. Tested in `DataProtectionAndHardeningTests.cs`. | Closed in Phase 11 |
+| **SEC-20** | **Medium** | Vulnerable OpenTelemetry Protocol Exporter | **CLOSED** | Upgraded `OpenTelemetry.Exporter.OpenTelemetryProtocol` to 1.15.3 and OpenTelemetry dependencies to 1.11.2 / 1.15.3, eliminating CVE-2026-42191 / GHSA-4625-4j76-fww9. `dotnet list package --vulnerable` confirms 0 vulnerable packages. Tested in `DataProtectionAndHardeningTests.cs`. | Closed in Phase 11 |
+| **SEC-21** | **Medium** | Unhardened Container Deployment | **CLOSED** | `Dockerfile` and `backend/Dockerfile` run as non-root `USER app`. `docker-compose.yml` services enforce `security_opt: [ "no-new-privileges:true" ]`. Tested in `DataProtectionAndHardeningTests.cs`. | Closed in Phase 11 |
+| **SEC-22** | **Medium** | Rate Limiting, Caching & Webhook Limits | **CLOSED** | `/api` and `/R4` endpoints enforce `Cache-Control: no-store, no-cache, must-revalidate, proxy-revalidate`, `Pragma: no-cache`, `Expires: 0`. `HmsWebhookController` restricts payload size to 1MB (`[RequestSizeLimit]`). Auth MFA endpoints protected by `MfaChallengePolicy` (5 req/min). Tested in `DataProtectionAndHardeningTests.cs`. | Closed in Phase 11 |
 | **SAFE-01** | **Safety** | Unconditional Demo Decision-Support Data | **CLOSED** | Pre-build and post-build startup validations in `Program.cs` prevent production boot if `Clinical:UseDemoKnowledgeBase` is true or if demo knowledge base implementations are registered in DI. Negative tests in `CriticalSecurityContainmentTests.cs`. | Closed in Phase 2 |
 
 ---

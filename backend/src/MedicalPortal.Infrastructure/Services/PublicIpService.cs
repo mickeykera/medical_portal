@@ -61,52 +61,58 @@ public class PublicIpService : IPublicIpService
 
     public string GetClientIpAddress(HttpContext context)
     {
-        // 1. Cloudflare header
-        var cfConnectingIp = context.Request.Headers["CF-Connecting-IP"].FirstOrDefault();
-        if (!string.IsNullOrWhiteSpace(cfConnectingIp) && IPAddress.TryParse(cfConnectingIp.Trim(), out _))
-        {
-            return cfConnectingIp.Trim();
-        }
+        var remoteIp = context.Connection.RemoteIpAddress;
 
-        // 2. X-Real-IP
-        var xRealIp = context.Request.Headers["X-Real-IP"].FirstOrDefault();
-        if (!string.IsNullOrWhiteSpace(xRealIp) && IPAddress.TryParse(xRealIp.Trim(), out _))
+        // SEC-17: Accept forwarded proxy headers only when the immediate peer is a verified trusted proxy or loopback.
+        // Untrusted external peers cannot spoof their IP by sending arbitrary X-Forwarded-For or CF-Connecting-IP headers.
+        var isTrustedProxy = remoteIp == null || IPAddress.IsLoopback(remoteIp);
+        if (isTrustedProxy)
         {
-            return xRealIp.Trim();
-        }
-
-        // 3. X-Forwarded-For (leftmost is original client)
-        var xForwardedFor = context.Request.Headers["X-Forwarded-For"].FirstOrDefault();
-        if (!string.IsNullOrWhiteSpace(xForwardedFor))
-        {
-            var firstIp = xForwardedFor.Split(',', StringSplitOptions.RemoveEmptyEntries)
-                                      .Select(s => s.Trim())
-                                      .FirstOrDefault();
-
-            if (!string.IsNullOrWhiteSpace(firstIp))
+            // 1. Cloudflare header
+            var cfConnectingIp = context.Request.Headers["CF-Connecting-IP"].FirstOrDefault();
+            if (!string.IsNullOrWhiteSpace(cfConnectingIp) && IPAddress.TryParse(cfConnectingIp.Trim(), out _))
             {
-                // Strip port if present (e.g. 192.168.1.1:54321 or [::1]:80)
-                if (firstIp.Contains(':') && !firstIp.Contains("::") && firstIp.IndexOf(':') == firstIp.LastIndexOf(':'))
-                {
-                    firstIp = firstIp.Split(':')[0];
-                }
+                return cfConnectingIp.Trim();
+            }
 
-                if (IPAddress.TryParse(firstIp, out _))
+            // 2. X-Real-IP
+            var xRealIp = context.Request.Headers["X-Real-IP"].FirstOrDefault();
+            if (!string.IsNullOrWhiteSpace(xRealIp) && IPAddress.TryParse(xRealIp.Trim(), out _))
+            {
+                return xRealIp.Trim();
+            }
+
+            // 3. X-Forwarded-For (leftmost is original client)
+            var xForwardedFor = context.Request.Headers["X-Forwarded-For"].FirstOrDefault();
+            if (!string.IsNullOrWhiteSpace(xForwardedFor))
+            {
+                var firstIp = xForwardedFor.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                                          .Select(s => s.Trim())
+                                          .FirstOrDefault();
+
+                if (!string.IsNullOrWhiteSpace(firstIp))
                 {
-                    return firstIp;
+                    // Strip port if present (e.g. 192.168.1.1:54321)
+                    if (firstIp.Contains(':') && !firstIp.Contains("::") && firstIp.IndexOf(':') == firstIp.LastIndexOf(':'))
+                    {
+                        firstIp = firstIp.Split(':')[0];
+                    }
+
+                    if (IPAddress.TryParse(firstIp, out _))
+                    {
+                        return firstIp;
+                    }
                 }
+            }
+
+            // 4. True-Client-IP
+            var trueClientIp = context.Request.Headers["True-Client-IP"].FirstOrDefault();
+            if (!string.IsNullOrWhiteSpace(trueClientIp) && IPAddress.TryParse(trueClientIp.Trim(), out _))
+            {
+                return trueClientIp.Trim();
             }
         }
 
-        // 4. True-Client-IP (Akamai / Cloudflare Enterprise)
-        var trueClientIp = context.Request.Headers["True-Client-IP"].FirstOrDefault();
-        if (!string.IsNullOrWhiteSpace(trueClientIp) && IPAddress.TryParse(trueClientIp.Trim(), out _))
-        {
-            return trueClientIp.Trim();
-        }
-
-        // 5. RemoteIpAddress fallback
-        var remoteIp = context.Connection.RemoteIpAddress;
         if (remoteIp != null)
         {
             if (remoteIp.IsIPv4MappedToIPv6)

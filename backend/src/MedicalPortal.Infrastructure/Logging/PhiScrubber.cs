@@ -21,7 +21,8 @@ public class PhiScrubber : IPhiScrubber
         "notes", "patientnotes", "clinicalnotes", "freetext", "body", "reasonforvisit", "clinicalvalue",
         "address", "addressline1", "addressline2", "street", "postalcode", "zip",
         "email", "phone", "phonenumber", "emergencycontactname", "emergencycontactphone",
-        "secret", "password", "token", "jwt", "totpsecret", "recoverycode", "refreshtoken"
+        "secret", "password", "token", "jwt", "totpsecret", "mfasecret", "recoverycode", "refreshtoken",
+        "fayya", "nationalpatientid", "nationalid", "healthextensionworkerid", "fayyanationalid"
     };
 
     // Regex for Social Security Numbers: 123-45-6789 or 123 45 6789 or 9 digits
@@ -53,6 +54,16 @@ public class PhiScrubber : IPhiScrubber
         @"(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}\b",
         RegexOptions.Compiled);
 
+    // Regex for Ethiopian Phone Numbers: +2519..., 09..., +2517..., 07...
+    private static readonly Regex EthiopianPhoneRegex = new(
+        @"(?:\+?251|0)[79]\d{8}\b",
+        RegexOptions.Compiled);
+
+    // Regex for Ethiopian Fayya National Patient IDs: ET-FAYYA-...
+    private static readonly Regex FayyaIdRegex = new(
+        @"\bET-FAYYA-[A-Za-z0-9-]+\b",
+        RegexOptions.Compiled);
+
     public string ScrubText(string? input)
     {
         if (string.IsNullOrEmpty(input))
@@ -65,6 +76,8 @@ public class PhiScrubber : IPhiScrubber
         scrubbed = MrnRegex.Replace(scrubbed, "[MRN-REDACTED]");
         scrubbed = EmailRegex.Replace(scrubbed, "[EMAIL-REDACTED]");
         scrubbed = PhoneRegex.Replace(scrubbed, "[PHONE-REDACTED]");
+        scrubbed = EthiopianPhoneRegex.Replace(scrubbed, "[PHONE-REDACTED]");
+        scrubbed = FayyaIdRegex.Replace(scrubbed, "[NATIONALID-REDACTED]");
 
         return scrubbed;
     }

@@ -26,12 +26,26 @@ public class HmsWebhookController : ControllerBase
         _deadLetterService = deadLetterService;
     }
 
+    private const int MaxWebhookPayloadSizeBytes = 1024 * 1024; // 1 MB limit
+
     [HttpPost("webhook")]
     [AllowAnonymous]
+    [RequestSizeLimit(MaxWebhookPayloadSizeBytes)]
     public async Task<IActionResult> HandleWebhook()
     {
+        if (Request.ContentLength.HasValue && Request.ContentLength.Value > MaxWebhookPayloadSizeBytes)
+        {
+            return StatusCode(StatusCodes.Status413PayloadTooLarge, new { error = "Webhook payload exceeds 1MB limit." });
+        }
+
         using var reader = new StreamReader(Request.Body, Encoding.UTF8);
-        var rawBody = await reader.ReadToEndAsync();
+        var buffer = new char[MaxWebhookPayloadSizeBytes + 1];
+        var charsRead = await reader.ReadBlockAsync(buffer, 0, buffer.Length);
+        if (charsRead > MaxWebhookPayloadSizeBytes)
+        {
+            return StatusCode(StatusCodes.Status413PayloadTooLarge, new { error = "Webhook payload exceeds 1MB limit." });
+        }
+        var rawBody = new string(buffer, 0, charsRead);
 
         var signatureHeader = Request.Headers["X-Hms-Signature"].FirstOrDefault()
             ?? Request.Headers["HMS-Signature"].FirstOrDefault()

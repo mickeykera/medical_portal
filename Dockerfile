@@ -24,4 +24,6 @@ EXPOSE 8080
 ENV ASPNETCORE_URLS=http://+:8080
 ENV ASPNETCORE_ENVIRONMENT=Production
 
+USER app
+
 ENTRYPOINT ["dotnet", "MedicalPortal.Web.dll"]

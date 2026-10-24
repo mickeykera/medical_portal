@@ -2,6 +2,7 @@ using System.Reflection;
 using MedicalPortal.Core.Domain;
 using MedicalPortal.Core.Entities;
 using MedicalPortal.Core.Enums;
+using MedicalPortal.Infrastructure.Security;
 using MedicalPortal.Infrastructure.Tenancy;
 using Microsoft.EntityFrameworkCore;
 
@@ -107,6 +108,10 @@ public class MedicalPortalDbContext : DbContext
         modelBuilder.Entity<UserAccount>()
             .Property(u => u.Role)
             .HasConversion<string>();
+
+        modelBuilder.Entity<UserAccount>()
+            .Property(u => u.MfaSecret)
+            .HasConversion<EncryptedStringConverter>();
 
         modelBuilder.Entity<UserAccount>()
             .HasOne(u => u.Person)
@@ -268,6 +273,10 @@ public class MedicalPortalDbContext : DbContext
         modelBuilder.Entity<Appointment>()
             .Property(a => a.Status)
             .HasConversion<string>();
+
+        modelBuilder.Entity<Appointment>()
+            .Property(a => a.PatientNotes)
+            .HasConversion<EncryptedStringConverter>();
 
         modelBuilder.Entity<Appointment>()
             .HasOne(a => a.Patient)
@@ -607,6 +616,9 @@ public class MedicalPortalDbContext : DbContext
         modelBuilder.Entity<HmsDemographicConflict>(b =>
         {
             b.Property(c => c.Status).HasConversion<string>();
+            b.Property(c => c.LocalValue).HasConversion<EncryptedStringConverter>();
+            b.Property(c => c.HmsValue).HasConversion<EncryptedStringConverter>();
+            b.Property(c => c.LastSyncedValue).HasConversion<EncryptedStringConverter>();
             b.HasIndex(c => c.PatientId);
             b.HasIndex(c => c.HmsMrn);
             b.HasIndex(c => c.Status);

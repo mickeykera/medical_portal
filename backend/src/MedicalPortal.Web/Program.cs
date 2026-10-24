@@ -257,6 +257,24 @@ builder.Services.AddRateLimiter(options =>
         });
     });
 
+    // Dedicated MFA Challenge Rate Limiter (5 attempts per minute per account/IP in Production)
+    var mfaPermitLimit = builder.Configuration.GetValue<int?>("RateLimiting:MfaPolicyPermitLimit")
+        ?? (builder.Environment.IsDevelopment() ? 300 : 5);
+
+    options.AddPolicy("MfaChallengePolicy", httpContext =>
+    {
+        var ip = httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        var accountId = httpContext.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "anon";
+        var partitionKey = $"mfa:{accountId}:{ip}";
+        return RateLimitPartition.GetFixedWindowLimiter(partitionKey, _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = mfaPermitLimit,
+            Window = TimeSpan.FromMinutes(1),
+            QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+            QueueLimit = 0
+        });
+    });
+
     // Strict rate limiter for Share Code Redemption (brute-force defense: 10 requests per minute per IP per instance in Production)
     var sharePermitLimit = builder.Configuration.GetValue<int?>("RateLimiting:ShareRedemptionPolicyPermitLimit") 
         ?? (builder.Environment.IsDevelopment() ? 300 : 10);
@@ -639,6 +657,9 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
+// Initialize ambient FieldEncryptionAccessor for EF Core ValueConverters
+FieldEncryptionAccessor.Initialize(app.Services.GetRequiredService<IFieldEncryptionService>());
+
 // Support dedicated migration command for Production/CI: dotnet run -- --migrate [--seed]
 if (args.Contains("--migrate"))
 {
@@ -763,6 +784,14 @@ app.Use(async (context, next) =>
         !app.Environment.IsDevelopment())
     {
         context.Response.Headers.Append("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload");
+    }
+
+    // SEC-22: Prevent browser/proxy disk caching of Protected Health Information (PHI)
+    if (context.Request.Path.StartsWithSegments("/api") || context.Request.Path.StartsWithSegments("/R4"))
+    {
+        context.Response.Headers.Append("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+        context.Response.Headers.Append("Pragma", "no-cache");
+        context.Response.Headers.Append("Expires", "0");
     }
 
     await next();

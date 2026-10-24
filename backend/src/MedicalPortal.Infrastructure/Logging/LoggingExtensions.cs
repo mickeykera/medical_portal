@@ -7,6 +7,7 @@ public static class LoggingExtensions
 {
     public static ILoggingBuilder AddPhiScrubber(this ILoggingBuilder builder, Action<string>? logSink = null)
     {
+        builder.ClearProviders();
         builder.Services.AddSingleton<IPhiScrubber, PhiScrubber>();
         builder.Services.AddSingleton<ILoggerProvider>(sp =>
         {

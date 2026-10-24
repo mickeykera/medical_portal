@@ -28,6 +28,8 @@ services:
       dockerfile: Dockerfile
     container_name: medical-portal-app
     restart: unless-stopped
+    security_opt:
+      - "no-new-privileges:true"
     # Host port 5000 removed; traffic enters via the same-origin Nginx proxy
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
@@ -67,6 +69,8 @@ services:
       dockerfile: Dockerfile
     container_name: medical-portal-app-1
     restart: unless-stopped
+    security_opt:
+      - "no-new-privileges:true"
     profiles: ["cluster"]
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
@@ -96,6 +100,8 @@ services:
       dockerfile: Dockerfile
     container_name: medical-portal-app-2
     restart: unless-stopped
+    security_opt:
+      - "no-new-privileges:true"
     profiles: ["cluster"]
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
@@ -124,6 +130,8 @@ services:
     image: nginx:alpine
     container_name: medical-portal-proxy
     restart: unless-stopped
+    security_opt:
+      - "no-new-privileges:true"
     ports:
       - "5000:80"
     volumes:

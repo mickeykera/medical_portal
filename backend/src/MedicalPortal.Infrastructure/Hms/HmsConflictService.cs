@@ -110,8 +110,8 @@ public class HmsConflictService : IHmsConflictService
 
             _db.HmsDemographicConflicts.Add(conflict);
             conflicts.Add(conflict);
-            _logger.LogInformation("Detected demographic conflict for patient {PatientId} on field '{Field}': Local='{Local}', HMS='{Hms}', Baseline='{Base}'",
-                patient.Id, fieldName, localVal, hmsVal, baseVal);
+            _logger.LogInformation("Detected demographic conflict for patient {PatientId} on field '{Field}': recorded for administrative review",
+                patient.Id, fieldName);
         }
 
         // Check identity and address fields

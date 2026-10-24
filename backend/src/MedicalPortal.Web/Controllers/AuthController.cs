@@ -214,6 +214,7 @@ public class AuthController : ControllerBase
     public record MfaEnrollRequest(string Secret, string Code, string? MfaToken);
 
     [HttpPost("mfa/enroll")]
+    [EnableRateLimiting("MfaChallengePolicy")]
     public async Task<IActionResult> MfaEnroll([FromBody] MfaEnrollRequest request)
     {
         if (string.IsNullOrWhiteSpace(request.Secret) || string.IsNullOrWhiteSpace(request.Code))
@@ -307,6 +308,7 @@ public class AuthController : ControllerBase
     public record MfaVerifyRequest(string MfaToken, string Code);
 
     [HttpPost("mfa/verify")]
+    [EnableRateLimiting("MfaChallengePolicy")]
     public async Task<IActionResult> MfaVerify([FromBody] MfaVerifyRequest request)
     {
         if (string.IsNullOrWhiteSpace(request.MfaToken) || string.IsNullOrWhiteSpace(request.Code))
