@@ -24,6 +24,52 @@
     }, 4500);
   }
 
+  function showInAppAlert(message, title = 'Notice') {
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-backdrop';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,0.7);z-index:999999;display:flex;align-items:center;justify-content:center;padding:1rem;';
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.style.cssText = 'max-width:440px;width:100%;box-shadow:0 20px 25px -5px rgba(0,0,0,0.2);border-radius:12px;padding:1.5rem;background:#fff;';
+    card.innerHTML = `
+      <h3 style="margin-bottom:0.75rem;font-size:1.15rem;font-weight:600;color:var(--text);">${title}</h3>
+      <p style="color:var(--text-muted);margin-bottom:1.25rem;font-size:0.95rem;line-height:1.5;white-space:pre-wrap;">${message}</p>
+      <div style="display:flex;justify-content:flex-end;">
+        <button id="inapp-ok-btn" class="btn btn-primary">OK</button>
+      </div>
+    `;
+    overlay.appendChild(card);
+    document.body.appendChild(overlay);
+    card.querySelector('#inapp-ok-btn').onclick = () => overlay.remove();
+  }
+
+  function showInAppConfirm(message, onConfirm, onCancel, title = 'Confirmation Required') {
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-backdrop';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,0.7);z-index:999999;display:flex;align-items:center;justify-content:center;padding:1rem;';
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.style.cssText = 'max-width:440px;width:100%;box-shadow:0 20px 25px -5px rgba(0,0,0,0.2);border-radius:12px;padding:1.5rem;background:#fff;';
+    card.innerHTML = `
+      <h3 style="margin-bottom:0.75rem;font-size:1.15rem;font-weight:600;color:var(--text);">${title}</h3>
+      <p style="color:var(--text-muted);margin-bottom:1.25rem;font-size:0.95rem;line-height:1.5;">${message}</p>
+      <div style="display:flex;justify-content:flex-end;gap:0.75rem;">
+        <button id="inapp-cancel-btn" class="btn btn-secondary">Cancel</button>
+        <button id="inapp-confirm-btn" class="btn btn-primary">Confirm</button>
+      </div>
+    `;
+    overlay.appendChild(card);
+    document.body.appendChild(overlay);
+    card.querySelector('#inapp-cancel-btn').onclick = () => {
+      overlay.remove();
+      if (onCancel) onCancel();
+    };
+    card.querySelector('#inapp-confirm-btn').onclick = () => {
+      overlay.remove();
+      if (onConfirm) onConfirm();
+    };
+  }
+
   async function connectSignalR() {
     if (!window.signalR || hubConnection) return;
     try {
@@ -307,8 +353,8 @@
 
     const endBgBtn = document.getElementById('btn-end-break-glass');
     if (endBgBtn) {
-      endBgBtn.onclick = async () => {
-        if (confirm('Conclude emergency break-glass session and revoke override access?')) {
+      endBgBtn.onclick = () => {
+        showInAppConfirm('Conclude emergency break-glass session and revoke override access?', async () => {
           try {
             await api('/api/clinical/break-glass/revoke', {
               method: 'POST',
@@ -320,7 +366,7 @@
           } catch (err) {
             showToast(`Error concluding session: ${err.message}`);
           }
-        }
+        }, null, 'Conclude Emergency Override');
       };
     }
 
@@ -563,11 +609,13 @@
     `;
 
     document.querySelectorAll('.btn-cancel-appt').forEach(btn => {
-      btn.onclick = async () => {
-        if (!confirm('Cancel this appointment?')) return;
+      btn.onclick = () => {
         const id = btn.getAttribute('data-id');
-        await api(`/api/appointments/${id}/cancel`, { method: 'POST' });
-        loadOverview(el);
+        showInAppConfirm('Cancel this appointment?', async () => {
+          await api(`/api/appointments/${id}/cancel`, { method: 'POST' });
+          showToast('Appointment cancelled.');
+          loadOverview(el);
+        }, null, 'Cancel Appointment');
       };
     });
 
@@ -787,7 +835,7 @@
               showToast(`💊 Prescribed ${drug} successfully!`);
               alertBox.innerHTML = `<div class="notice notice-good">Prescription for <strong>${drug}</strong> written to patient chart and synchronized to pharmacy queue.</div>`;
             } catch (err) {
-              alert(err.message);
+              showToast(err.message);
             }
           };
         } else {
@@ -823,7 +871,7 @@
           document.getElementById('btn-override-prescribe')?.addEventListener('click', async () => {
             const justification = document.getElementById('override-reason').value.trim();
             if (!justification) {
-              alert('Clinical justification is required to override high-severity safety alerts.');
+              showToast('Clinical justification is required to override high-severity safety alerts.');
               return;
             }
             try {
@@ -840,7 +888,7 @@
               showToast(`⚠️ Prescribed ${drug} under clinician override.`);
               alertBox.innerHTML = `<div class="notice notice-good">Order recorded with safety override audit trail: "${justification}".</div>`;
             } catch (err) {
-              alert(err.message);
+              showToast(err.message);
             }
           });
         }
@@ -850,7 +898,7 @@
     };
 
     document.getElementById('btn-save-note').onclick = () => {
-      alert('Clinical encounter note signed and recorded.');
+      showToast('Clinical encounter note signed and recorded.');
     };
   }
 
@@ -1199,7 +1247,7 @@
     document.getElementById('btn-new-plan').onclick = () => {
       const openStatement = statementsRes.statements.find(s => s.balanceCents >= 5000);
       if (!openStatement) {
-        alert('Payment plans require a statement with an outstanding balance of at least $50.00.');
+        showToast('Payment plans require a statement with an outstanding balance of at least $50.00.');
         return;
       }
 
@@ -1349,7 +1397,7 @@
           });
 
           closeModal();
-          alert(`Invitation created! Invitation Code: ${res.code}\nShare this code with the recipient.`);
+          showInAppAlert(`Invitation created! Invitation Code: ${res.code}\nShare this code with the recipient.`, 'Proxy Invitation Created');
           loadFamily(el);
         }
       });
@@ -1457,7 +1505,7 @@
           });
 
           closeModal();
-          alert(`Share code created!\nCode: ${res.code}\nGive this code to your outside provider.`);
+          showInAppAlert(`Share code created!\nCode: ${res.code}\nGive this code to your outside provider.`, 'Record Share Code');
           loadSharing(el);
         }
       });
@@ -1555,26 +1603,26 @@
     `;
 
     document.querySelectorAll('.btn-slot-select').forEach(btn => {
-      btn.onclick = async () => {
+      btn.onclick = () => {
         const pid = btn.getAttribute('data-provider-id');
         const startAt = btn.getAttribute('data-start');
         const endAt = btn.getAttribute('data-end');
 
-        if (!confirm(`Book appointment on ${new Date(startAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}?`)) return;
+        showInAppConfirm(`Book appointment on ${new Date(startAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}?`, async () => {
+          await api('/api/appointments', {
+            method: 'POST',
+            body: JSON.stringify({
+              providerId: pid,
+              startAt,
+              endAt,
+              reasonForVisit: 'Clinic check-up'
+            })
+          });
 
-        await api('/api/appointments', {
-          method: 'POST',
-          body: JSON.stringify({
-            providerId: pid,
-            startAt,
-            endAt,
-            reasonForVisit: 'Clinic check-up'
-          })
-        });
-
-        alert('Appointment requested successfully!');
-        currentTab = 'overview';
-        render();
+          showToast('Appointment requested successfully!');
+          currentTab = 'overview';
+          render();
+        }, null, 'Book Appointment');
       };
     });
   }
@@ -1764,7 +1812,7 @@
           body: JSON.stringify({ answers })
         });
 
-        alert('Form answers submitted.');
+        showToast('Form answers submitted.');
         loadForms(el);
       };
     });
@@ -1909,7 +1957,7 @@
           emergencyContactPhone: document.getElementById('p-e-phone').value
         })
       });
-      alert('Profile updated.');
+      showToast('Profile updated.');
       loadSettings(el);
     };
   }
@@ -2090,10 +2138,10 @@
     };
 
     container.querySelectorAll('button[data-disable-user]').forEach(btn => {
-      btn.onclick = async () => {
+      btn.onclick = () => {
         const id = btn.getAttribute('data-disable-user');
         const email = btn.getAttribute('data-email');
-        if (confirm(`Disable user account '${email}'? Active sessions will be terminated immediately.`)) {
+        showInAppConfirm(`Disable user account '${email}'? Active sessions will be terminated immediately.`, async () => {
           try {
             await api(`/api/admin/users/${id}/disable`, { method: 'POST' });
             showToast(`User '${email}' disabled.`);
@@ -2101,7 +2149,7 @@
           } catch (err) {
             showToast(`Failed to disable user: ${err.message}`);
           }
-        }
+        }, null, 'Disable User Account');
       };
     });
 
@@ -2212,7 +2260,7 @@
         const departmentId = document.getElementById('new-u-dept').value || null;
 
         if (!firstName || !lastName || !email || !password || !dob) {
-          alert('Please fill out all required fields.');
+          showToast('Please fill out all required fields.');
           return;
         }
 
@@ -2234,7 +2282,7 @@
           showToast(`User account '${email}' created successfully.`);
           onSuccess();
         } catch (err) {
-          alert(`Error creating user: ${err.message}`);
+          showToast(`Error creating user: ${err.message}`);
         }
       }
     });
@@ -2266,7 +2314,7 @@
           showToast(`Role updated to ${newRole}.`);
           onSuccess();
         } catch (err) {
-          alert(`Error updating role: ${err.message}`);
+          showToast(`Error updating role: ${err.message}`);
         }
       }
     });
@@ -2343,7 +2391,7 @@
             attachMembershipEvents();
             showToast('Membership removed.');
           } catch (err) {
-            alert(`Error: ${err.message}`);
+            showToast(`Error: ${err.message}`);
           }
         };
       });
@@ -2354,7 +2402,7 @@
           const facilityId = document.getElementById('assign-m-fac').value || null;
           const departmentId = document.getElementById('assign-m-dept').value || null;
           if (!facilityId && !departmentId) {
-            alert('Select at least a facility or department.');
+            showToast('Select at least a facility or department.');
             return;
           }
           try {
@@ -2374,7 +2422,7 @@
             attachMembershipEvents();
             showToast('Membership assigned.');
           } catch (err) {
-            alert(`Error: ${err.message}`);
+            showToast(`Error: ${err.message}`);
           }
         };
       }
@@ -2534,7 +2582,7 @@
         const name = document.getElementById('fac-name').value.trim();
         const code = document.getElementById('fac-code').value.trim();
         if (!name || !code) {
-          alert('Facility name and code are required.');
+          showToast('Facility name and code are required.');
           return;
         }
         const payload = {
@@ -2556,7 +2604,7 @@
           showToast(`Facility '${name}' saved.`);
           onSuccess();
         } catch (err) {
-          alert(`Error saving facility: ${err.message}`);
+          showToast(`Error saving facility: ${err.message}`);
         }
       }
     });
@@ -2593,7 +2641,7 @@
         const name = document.getElementById('dept-name').value.trim();
         const code = document.getElementById('dept-code').value.trim();
         if (!name || !code) {
-          alert('Department name and code are required.');
+          showToast('Department name and code are required.');
           return;
         }
         const specialty = document.getElementById('dept-spec').value.trim();
@@ -2614,7 +2662,7 @@
           showToast(`Department '${name}' saved.`);
           onSuccess();
         } catch (err) {
-          alert(`Error saving department: ${err.message}`);
+          showToast(`Error saving department: ${err.message}`);
         }
       }
     });
@@ -2838,17 +2886,17 @@
     `;
 
     container.querySelectorAll('button[data-revoke-grant]').forEach(btn => {
-      btn.onclick = async () => {
+      btn.onclick = () => {
         const id = btn.getAttribute('data-revoke-grant');
-        if (confirm('Revoke this proxy access grant? The proxy user will immediately lose access to the patient chart.')) {
+        showInAppConfirm('Revoke this proxy access grant? The proxy user will immediately lose access to the patient chart.', async () => {
           try {
             await api(`/api/admin/proxy-grants/${id}/revoke`, { method: 'POST' });
             showToast('Proxy grant revoked.');
             loadAdmin(rootEl);
           } catch (err) {
-            alert(`Error: ${err.message}`);
+            showToast(`Error: ${err.message}`);
           }
-        }
+        }, null, 'Revoke Proxy Grant');
       };
     });
   }
@@ -2911,17 +2959,17 @@
     `;
 
     container.querySelectorAll('button[data-revoke-share]').forEach(btn => {
-      btn.onclick = async () => {
+      btn.onclick = () => {
         const id = btn.getAttribute('data-revoke-share');
-        if (confirm('Revoke this external record share code? External recipients will no longer be able to redeem it.')) {
+        showInAppConfirm('Revoke this external record share code? External recipients will no longer be able to redeem it.', async () => {
           try {
             await api(`/api/admin/shares/${id}/revoke`, { method: 'POST' });
             showToast('Record share revoked.');
             loadAdmin(rootEl);
           } catch (err) {
-            alert(`Error: ${err.message}`);
+            showToast(`Error: ${err.message}`);
           }
-        }
+        }, null, 'Revoke Record Share');
       };
     });
   }

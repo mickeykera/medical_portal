@@ -38,6 +38,11 @@ public static class DbSeeder
             await db.SaveChangesAsync();
         }
 
+        if (!await db.CalendarDimensions.AnyAsync())
+        {
+            await SeedCalendarDimensionAsync(db);
+        }
+
         if (await db.Persons.AnyAsync())
         {
             var accountsToFix = await db.UserAccounts.IgnoreQueryFilters().Where(u => u.TenantId == Guid.Empty).ToListAsync();
@@ -964,5 +969,32 @@ public static class DbSeeder
         }
 
         await db.SaveChangesAsync();
+    }
+
+    public static async Task SeedCalendarDimensionAsync(MedicalPortalDbContext db)
+    {
+        var start = new DateOnly(1900, 1, 1);
+        var end = new DateOnly(2100, 12, 31);
+        var batch = new List<CalendarDim>(2500);
+
+        for (var curr = start; curr <= end; curr = curr.AddDays(1))
+        {
+            batch.Add(CalendarDim.FromGregorianDate(curr));
+            if (batch.Count >= 2500)
+            {
+                await db.CalendarDimensions.AddRangeAsync(batch);
+                await db.SaveChangesAsync();
+                db.ChangeTracker.Clear();
+                batch.Clear();
+            }
+        }
+
+        if (batch.Count > 0)
+        {
+            await db.CalendarDimensions.AddRangeAsync(batch);
+            await db.SaveChangesAsync();
+            db.ChangeTracker.Clear();
+            batch.Clear();
+        }
     }
 }

@@ -56,7 +56,9 @@ namespace MedicalPortal.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValue(new Guid("00000000-0000-0000-0000-000000000001"));
 
                     b.Property<bool>("Tombstone")
                         .HasColumnType("boolean");
@@ -120,7 +122,9 @@ namespace MedicalPortal.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValue(new Guid("00000000-0000-0000-0000-000000000001"));
 
                     b.HasKey("Id");
 
@@ -168,7 +172,9 @@ namespace MedicalPortal.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValue(new Guid("00000000-0000-0000-0000-000000000001"));
 
                     b.HasKey("Id");
 
@@ -231,7 +237,9 @@ namespace MedicalPortal.Infrastructure.Migrations
                         .HasColumnType("bigint");
 
                     b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValue(new Guid("00000000-0000-0000-0000-000000000001"));
 
                     b.Property<string>("UserAgent")
                         .HasColumnType("text");
@@ -287,7 +295,9 @@ namespace MedicalPortal.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValue(new Guid("00000000-0000-0000-0000-000000000001"));
 
                     b.Property<string>("UserAgent")
                         .HasColumnType("text");
@@ -301,6 +311,114 @@ namespace MedicalPortal.Infrastructure.Migrations
                     b.HasIndex("ClinicianUserAccountId", "PatientId", "ExpiresAt");
 
                     b.ToTable("BreakGlassOverrides");
+                });
+
+            modelBuilder.Entity("MedicalPortal.Core.Entities.CalendarDim", b =>
+                {
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date");
+
+                    b.Property<int>("DayOfWeek")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("DayOfWeekNameAmharic")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("DayOfWeekNameEnglish")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("DayOfWeekNameOromo")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Dhis2MonthlyPeriod")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Dhis2QuarterlyPeriod")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Dhis2YearlyPeriod")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("EthiopianDateFormatted")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("EthiopianDateFormattedAmharic")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("EthiopianDateFormattedOromo")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("EthiopianDay")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("EthiopianFiscalQuarter")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("EthiopianFiscalYear")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("EthiopianMonth")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("EthiopianMonthNameAmharic")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("EthiopianMonthNameEnglish")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("EthiopianMonthNameOromo")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("EthiopianQuarter")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("EthiopianYear")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("GregorianDay")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("GregorianMonth")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("GregorianQuarter")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("GregorianYear")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("IsEnkutatash")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsEthiopianLeapYear")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsPagume")
+                        .HasColumnType("boolean");
+
+                    b.HasKey("Date");
+
+                    b.HasIndex("Dhis2MonthlyPeriod");
+
+                    b.HasIndex("Dhis2QuarterlyPeriod");
+
+                    b.HasIndex("EthiopianFiscalYear", "EthiopianFiscalQuarter");
+
+                    b.HasIndex("EthiopianYear", "EthiopianMonth");
+
+                    b.ToTable("calendar_dim", (string)null);
                 });
 
             modelBuilder.Entity("MedicalPortal.Core.Entities.Condition", b =>
@@ -328,7 +446,9 @@ namespace MedicalPortal.Infrastructure.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValue(new Guid("00000000-0000-0000-0000-000000000001"));
 
                     b.HasKey("Id");
 
@@ -366,7 +486,9 @@ namespace MedicalPortal.Infrastructure.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValue(new Guid("00000000-0000-0000-0000-000000000001"));
 
                     b.HasKey("Id");
 
@@ -407,7 +529,9 @@ namespace MedicalPortal.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValue(new Guid("00000000-0000-0000-0000-000000000001"));
 
                     b.HasKey("Id");
 
@@ -458,7 +582,9 @@ namespace MedicalPortal.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValue(new Guid("00000000-0000-0000-0000-000000000001"));
 
                     b.HasKey("Id");
 
@@ -495,7 +621,9 @@ namespace MedicalPortal.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValue(new Guid("00000000-0000-0000-0000-000000000001"));
 
                     b.Property<string>("Title")
                         .IsRequired()
@@ -535,7 +663,9 @@ namespace MedicalPortal.Infrastructure.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValue(new Guid("00000000-0000-0000-0000-000000000001"));
 
                     b.HasKey("Id");
 
@@ -576,7 +706,9 @@ namespace MedicalPortal.Infrastructure.Migrations
                         .HasColumnType("integer");
 
                     b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValue(new Guid("00000000-0000-0000-0000-000000000001"));
 
                     b.Property<DateTime?>("UpcomingAppointmentAt")
                         .HasColumnType("timestamp without time zone");
@@ -642,7 +774,9 @@ namespace MedicalPortal.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValue(new Guid("00000000-0000-0000-0000-000000000001"));
 
                     b.HasKey("Id");
 
@@ -702,7 +836,9 @@ namespace MedicalPortal.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValue(new Guid("00000000-0000-0000-0000-000000000001"));
 
                     b.HasKey("Id");
 
@@ -740,7 +876,9 @@ namespace MedicalPortal.Infrastructure.Migrations
                         .HasColumnType("timestamp without time zone");
 
                     b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValue(new Guid("00000000-0000-0000-0000-000000000001"));
 
                     b.HasKey("Id");
 
@@ -800,7 +938,9 @@ namespace MedicalPortal.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValue(new Guid("00000000-0000-0000-0000-000000000001"));
 
                     b.Property<string>("TimeZoneId")
                         .IsRequired()
@@ -848,7 +988,9 @@ namespace MedicalPortal.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValue(new Guid("00000000-0000-0000-0000-000000000001"));
 
                     b.HasKey("Id");
 
@@ -880,7 +1022,9 @@ namespace MedicalPortal.Infrastructure.Migrations
                         .HasColumnType("timestamp without time zone");
 
                     b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValue(new Guid("00000000-0000-0000-0000-000000000001"));
 
                     b.Property<Guid>("ThreadId")
                         .HasColumnType("uuid");
@@ -921,7 +1065,9 @@ namespace MedicalPortal.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValue(new Guid("00000000-0000-0000-0000-000000000001"));
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp without time zone");
@@ -947,7 +1093,9 @@ namespace MedicalPortal.Infrastructure.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValue(new Guid("00000000-0000-0000-0000-000000000001"));
 
                     b.HasKey("ThreadId", "PersonId");
 
@@ -1016,7 +1164,9 @@ namespace MedicalPortal.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValue(new Guid("00000000-0000-0000-0000-000000000001"));
 
                     b.HasKey("Id");
 
@@ -1057,7 +1207,9 @@ namespace MedicalPortal.Infrastructure.Migrations
                         .HasColumnType("boolean");
 
                     b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValue(new Guid("00000000-0000-0000-0000-000000000001"));
 
                     b.HasKey("Id");
 
@@ -1114,7 +1266,9 @@ namespace MedicalPortal.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValue(new Guid("00000000-0000-0000-0000-000000000001"));
 
                     b.Property<string>("Unit")
                         .HasColumnType("text");
@@ -1158,7 +1312,9 @@ namespace MedicalPortal.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValue(new Guid("00000000-0000-0000-0000-000000000001"));
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp without time zone");
@@ -1205,7 +1361,9 @@ namespace MedicalPortal.Infrastructure.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValue(new Guid("00000000-0000-0000-0000-000000000001"));
 
                     b.HasKey("Id");
 
@@ -1242,7 +1400,9 @@ namespace MedicalPortal.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValue(new Guid("00000000-0000-0000-0000-000000000001"));
 
                     b.HasKey("Id");
 
@@ -1301,7 +1461,9 @@ namespace MedicalPortal.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValue(new Guid("00000000-0000-0000-0000-000000000001"));
 
                     b.HasKey("Id");
 
@@ -1338,7 +1500,9 @@ namespace MedicalPortal.Infrastructure.Migrations
                         .HasColumnType("integer");
 
                     b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValue(new Guid("00000000-0000-0000-0000-000000000001"));
 
                     b.HasKey("Id");
 
@@ -1381,7 +1545,9 @@ namespace MedicalPortal.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValue(new Guid("00000000-0000-0000-0000-000000000001"));
 
                     b.Property<int>("TotalCents")
                         .HasColumnType("integer");
@@ -1451,7 +1617,9 @@ namespace MedicalPortal.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValue(new Guid("00000000-0000-0000-0000-000000000001"));
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp without time zone");
@@ -1499,7 +1667,9 @@ namespace MedicalPortal.Infrastructure.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValue(new Guid("00000000-0000-0000-0000-000000000001"));
 
                     b.HasKey("Id");
 
@@ -1541,7 +1711,9 @@ namespace MedicalPortal.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValue(new Guid("00000000-0000-0000-0000-000000000001"));
 
                     b.HasKey("Id");
 
@@ -1570,7 +1742,9 @@ namespace MedicalPortal.Infrastructure.Migrations
                         .HasColumnType("timestamp without time zone");
 
                     b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValue(new Guid("00000000-0000-0000-0000-000000000001"));
 
                     b.HasKey("Id");
 
@@ -1619,7 +1793,9 @@ namespace MedicalPortal.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValue(new Guid("00000000-0000-0000-0000-000000000001"));
 
                     b.HasKey("Id");
 
@@ -1646,7 +1822,9 @@ namespace MedicalPortal.Infrastructure.Migrations
                         .HasColumnType("boolean");
 
                     b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValue(new Guid("00000000-0000-0000-0000-000000000001"));
 
                     b.HasKey("ProviderId", "DepartmentId");
 
@@ -1666,7 +1844,9 @@ namespace MedicalPortal.Infrastructure.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValue(new Guid("00000000-0000-0000-0000-000000000001"));
 
                     b.HasKey("ProviderId", "LocationId");
 
@@ -1720,7 +1900,9 @@ namespace MedicalPortal.Infrastructure.Migrations
                         .HasColumnType("timestamp without time zone");
 
                     b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValue(new Guid("00000000-0000-0000-0000-000000000001"));
 
                     b.HasKey("Id");
 
@@ -1788,7 +1970,9 @@ namespace MedicalPortal.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValue(new Guid("00000000-0000-0000-0000-000000000001"));
 
                     b.HasKey("Id");
 
@@ -1839,7 +2023,9 @@ namespace MedicalPortal.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValue(new Guid("00000000-0000-0000-0000-000000000001"));
 
                     b.Property<int>("UseCount")
                         .HasColumnType("integer");
@@ -1869,7 +2055,9 @@ namespace MedicalPortal.Infrastructure.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValue(new Guid("00000000-0000-0000-0000-000000000001"));
 
                     b.Property<string>("UserAgent")
                         .HasColumnType("text");
@@ -1921,7 +2109,9 @@ namespace MedicalPortal.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValue(new Guid("00000000-0000-0000-0000-000000000001"));
 
                     b.HasKey("Id");
 
@@ -1957,7 +2147,9 @@ namespace MedicalPortal.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValue(new Guid("00000000-0000-0000-0000-000000000001"));
 
                     b.HasKey("Id");
 
@@ -2015,7 +2207,9 @@ namespace MedicalPortal.Infrastructure.Migrations
                         .HasColumnType("timestamp without time zone");
 
                     b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValue(new Guid("00000000-0000-0000-0000-000000000001"));
 
                     b.HasKey("Id");
 
@@ -2074,7 +2268,9 @@ namespace MedicalPortal.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValue(new Guid("00000000-0000-0000-0000-000000000001"));
 
                     b.Property<int>("TotalCents")
                         .HasColumnType("integer");
@@ -2198,7 +2394,9 @@ namespace MedicalPortal.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValue(new Guid("00000000-0000-0000-0000-000000000001"));
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp without time zone");
@@ -2235,7 +2433,9 @@ namespace MedicalPortal.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValue(new Guid("00000000-0000-0000-0000-000000000001"));
 
                     b.Property<Guid>("UserAccountId")
                         .HasColumnType("uuid");
@@ -2286,7 +2486,9 @@ namespace MedicalPortal.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValue(new Guid("00000000-0000-0000-0000-000000000001"));
 
                     b.Property<Guid>("UserAccountId")
                         .HasColumnType("uuid");
@@ -2337,7 +2539,9 @@ namespace MedicalPortal.Infrastructure.Migrations
                         .HasColumnType("interval");
 
                     b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValue(new Guid("00000000-0000-0000-0000-000000000001"));
 
                     b.HasKey("Id");
 

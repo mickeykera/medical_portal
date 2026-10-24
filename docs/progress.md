@@ -1,9 +1,9 @@
 # Modular Low-Cost Hospital Platform & Transformation Progress
 
 **Repository:** `medical_portal`  
-**Current Phase:** Phase 5: Multi-Tenancy Architecture & Isolation [APPROVAL GATE]  
+**Current Phase:** Phase 6: Ethiopia Foundations (Dual Calendar Engine & Localization) [APPROVAL GATE]  
 **Last Updated:** 2026-10-24  
-**Current Test Suite Baseline:** **311 passed, 0 failed, 0 skipped** (.NET 8)
+**Current Test Suite Baseline:** **328 passed, 0 failed, 0 skipped** (.NET 8)
 
 ---
 
@@ -16,8 +16,8 @@
 | **2** | **Contain Critical Security Findings (SEC-01, 03, 04, 13, 14, 18, SAFE-01)** | **Approved** | **GATE 2 (Approved)** | 275 passing tests; eliminated lazy sessions, token-DB reconciliation, AuthorizationVersion revocation, unified SignalR auth, production fail-fast assertions, HSTS |
 | **3** | **Clinical Core Spike (OpenMRS 2.8+ / O3 on PostgreSQL vs Bahmni)** | **Approved** | **GATE 3 (Approved)** | 288 passing tests; selected OpenMRS 2.8+ / O3 on PostgreSQL over Bahmni; proven FHIR R4 JSON REST client for 6 core resources; docker-compose dev stack; ADR 0004 & spike report |
 | **4** | **Fix Portal Authorization & Payments (SEC-05, 06, 07, 08, 09, 10, 15, 16)** | **Approved** | **GATE 4 (Approved)** | 300 passing tests; ConsumedPaymentIntents, FHIR share scope filtering, mandatory dept scope enforcement, HMS RBAC, refill BOLA/IDOR fix, 128-bit email-bound proxy invites, form write permission, segregated billing refunds; ADR 0005 |
-| **5** | **Multi-Tenancy Architecture & Isolation** | **Completed** | **GATE 5 (Pending Approval)** | 311 passing tests; Tenant model, ITenantScoped on 48 tables, EF global filters, SaveChanges isolation validation, Postgres RLS, HKDF keys, PLATFORM_ADMIN zero PHI, API module gating, WCAG AA, Adot provisioning plan & compliance notes; ADR 0006 |
-| 6 | Ethiopia Foundations (Dual Calendar Engine & Localization) | Planned | Gate 6 | Gregorian/Ethiopian conversion engine, `calendar_dim`, Amharic/Afaan Oromoo locales |
+| **5** | **Multi-Tenancy Architecture & Isolation** | **Approved** | **GATE 5 (Approved)** | 311 passing tests; Tenant model, ITenantScoped on 48 tables, EF global filters, SaveChanges isolation validation, Postgres RLS, HKDF keys, PLATFORM_ADMIN zero PHI, API module gating, WCAG AA, Adot provisioning plan & compliance notes; ADR 0006 |
+| **6** | **Ethiopia Foundations (Dual Calendar Engine & Localization)** | **Completed** | **GATE 6 (Pending Approval)** | 328 passing tests; Pure Ethiopian<->Gregorian engine (73,414 days verified), `calendar_dim` SQL table, DHIS2 period formats, En/Am/Om localization catalogs, local vendored offline assets, zero browser dialogs; ADR 0007 |
 | 7 | Frontend Rebuild (TypeScript, React/Vite, Accessible Dialogs) | Planned | Gate 7 | Eliminate stored DOM XSS (SEC-02), ban browser dialogs, strict CSP without unsafe-inline |
 | 8 | Clinical Core Integration & EMR Sync | Planned | Gate 8 | Replace HMS adapter with Core FHIR R4 client; retire duplicated clinical tables; remove demo rules |
 | 9 | Offline-First Facility Stack & LAN Operations | Planned | Gate 9 | Local LAN server as system of record, outbox sync, 24h network cut chaos tests |
@@ -192,6 +192,47 @@ Passed!  - Failed: 0, Passed: 259, Skipped: 0, Total: 259, Duration: 27 s - Medi
 - **Test Suite Results:**
   - Added [`MultiTenancySecurityTests.cs`](file:///home/michael/projects/app/medical_portal/backend/tests/MedicalPortal.Tests/MultiTenancySecurityTests.cs) (11 tests covering tenant resolution, Adot-Hospital provisioning, WCAG AA contrast calculation, theme endpoint, cross-tenant read leak, cross-tenant write leak, cross-tenant mutation leak, token tenant mismatch, module gating, platform admin zero-PHI, and Postgres RLS SQL generator).
   - Total tests passing: **311 passed, 0 failed, 0 skipped**.
+
+---
+
+## 🇪🇹 Phase 6 Ethiopia Foundations Verification
+
+- **Branch:** `phase-6-ethiopia-foundations`
+- **Architectural Reference:** [ADR 0007: Ethiopian Calendar Engine and Offline-First Localization Architecture](adr/0007-ethiopian-calendar-engine-and-offline-localization.md)
+- **Key Deliverables Implemented:**
+  - **Pure Bidirectional Conversion Engine:**
+    - Implemented [`EthiopianCalendar.cs`](file:///home/michael/projects/app/medical_portal/backend/src/MedicalPortal.Core/Common/EthiopianCalendar.cs) with exact epoch day offset 2,795, 4-year cycle (1,461 days), leap rule ($Year \pmod 4 == 3$), and Pagume (5/6 days).
+    - Verified against 73,414 consecutive days (1900-01-01 to 2100-12-31) with zero drift.
+    - Verified historical benchmarks: Ethiopian Millennium (2007-09-12 -> 2000-01-01), Battle of Adwa (1896-03-01 -> 1888-06-23), Enkutatash 2016/2017, Pagume 5/6, and 1 Hamle fiscal year boundary.
+    - Mirrored in [`ethiopian-calendar.js`](file:///home/michael/projects/app/medical_portal/frontend/js/ethiopian-calendar.js) for offline browser client.
+  - **Precalculated `calendar_dim` SQL Dimension:**
+    - Created [`CalendarDim`](file:///home/michael/projects/app/medical_portal/backend/src/MedicalPortal.Core/Entities/CalendarEntities.cs) and EF Core migration `AddCalendarDimensionTable`.
+    - Populated 73,414 rows (1900..2100) via [`DbSeeder.SeedCalendarDimensionAsync`](file:///home/michael/projects/app/medical_portal/backend/src/MedicalPortal.Infrastructure/Data/DbSeeder.cs) with `ChangeTracker.Clear()` chunking.
+    - Indexed on `(ethiopian_year, ethiopian_month)`, `(ethiopian_fiscal_year, ethiopian_fiscal_quarter)`, and `dhis2_monthly_period`.
+    - Enables high-speed SQL reporting and HMIS aggregation directly in PostgreSQL without runtime conversions.
+  - **Fiscal Periods & DHIS2 Interoperability Formats:**
+    - Ethiopian Fiscal Year (EFY) calculation: Hamle 1 (July 8) starts EFY $Year+1$, Q1 (Hamle-Meskerem), Q2 (Tikimt-Tahsas), Q3 (Tir-Magabit), Q4 (Miyazya-Sene).
+    - DHIS2 period generators: Monthly (`YYYYMM`), Quarterly (`YYYYQ#`), Yearly (`YYYY`).
+  - **Three-Language Localization Catalogs (`en`, `am`, `om`):**
+    - [`LocalizationCatalog.cs`](file:///home/michael/projects/app/medical_portal/backend/src/MedicalPortal.Core/Common/LocalizationCatalog.cs) with 100% complete key parity across English, Amharic (አማርኛ), and Afaan Oromoo.
+    - [`LocalizationService.cs`](file:///home/michael/projects/app/medical_portal/backend/src/MedicalPortal.Infrastructure/Localization/LocalizationService.cs) with graceful fallback.
+    - Static offline catalogs in `frontend/locales/en.json`, `am.json`, `om.json`.
+    - Offline client engine [`i18n.js`](file:///home/michael/projects/app/medical_portal/frontend/js/i18n.js) with dynamic DOM translation and events.
+  - **Calendar & Localization REST Endpoints:**
+    - `GET /api/calendar/convert?date=YYYY-MM-DD`
+    - `GET /api/calendar/convert-ethiopian?year=Y&month=M&day=D`
+    - `GET /api/calendar/today` (localized to `Africa/Addis_Ababa` UTC+3)
+    - `GET /api/calendar/month-view?year=Y&month=M`
+    - `GET /api/localization/{language}`
+    - `GET /api/localization/languages`
+  - **Working Rule 8 Offline Self-Sufficiency & Dialog Elimination:**
+    - Vendored Microsoft SignalR client locally in `frontend/js/vendor/signalr.min.js`.
+    - Vendored Ethiopic typography locally in `frontend/fonts/NotoSansEthiopic-Regular.woff2`.
+    - Zero remote CDN dependencies in `frontend/index.html`.
+    - Eliminated all 28 browser dialogs (`window.alert`, `window.confirm`, `window.prompt`), replacing them with accessible in-app modal cards and toast notifications.
+- **Automated Test Results:**
+  - Added [`EthiopianCalendarAndLocalizationTests.cs`](file:///home/michael/projects/app/medical_portal/backend/tests/MedicalPortal.Tests/EthiopianCalendarAndLocalizationTests.cs) (17 comprehensive tests covering roundtrip math, historical dates, fiscal periods, negative boundaries, DHIS2 formats, multi-language month/day names, catalog parity, localization fallback, database dimension SQL queries, API endpoints, Rule 8 browser hygiene, and offline asset verification).
+  - Total solution tests passing: **328 passed, 0 failed, 0 skipped**.
 
 ---
 

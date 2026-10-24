@@ -7,6 +7,7 @@ using MedicalPortal.Infrastructure.Data;
 using MedicalPortal.Infrastructure.DistributedLock;
 using MedicalPortal.Infrastructure.Fhir;
 using MedicalPortal.Infrastructure.Hms;
+using MedicalPortal.Infrastructure.Localization;
 using MedicalPortal.Infrastructure.Logging;
 using MedicalPortal.Infrastructure.Notifications;
 using MedicalPortal.Infrastructure.Observability;
@@ -299,6 +300,7 @@ builder.Services.AddScoped<ISnapshotService, SnapshotService>();
 builder.Services.AddScoped<IPlacesService, PlacesService>();
 builder.Services.AddSingleton<IGeocodingService, GeocodingService>();
 builder.Services.AddScoped<IFhirService, FhirService>();
+builder.Services.AddSingleton<ILocalizationService, LocalizationService>();
 
 // Multi-Tenancy Services (Tenant isolation, key derivation, provisioning)
 builder.Services.AddScoped<ITenantContext, TenantContext>();
