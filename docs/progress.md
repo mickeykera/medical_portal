@@ -1,9 +1,9 @@
 # Modular Low-Cost Hospital Platform & Transformation Progress
 
 **Repository:** `medical_portal`  
-**Current Phase:** Phase 4: Fix Portal Authorization & Payments [APPROVAL GATE]  
+**Current Phase:** Phase 5: Multi-Tenancy Architecture & Isolation [APPROVAL GATE]  
 **Last Updated:** 2026-10-24  
-**Current Test Suite Baseline:** **300 passed, 0 failed, 0 skipped** (.NET 8)
+**Current Test Suite Baseline:** **311 passed, 0 failed, 0 skipped** (.NET 8)
 
 ---
 
@@ -15,8 +15,8 @@
 | **1** | **Restructure (`backend/`, `frontend/`, Same-Origin Nginx)** | **Approved** | **GATE 1 (Approved)** | 259 passing tests in `backend/`; same-origin Nginx serving `frontend/` at `/`; Postgres 5432 & Redis 6379 isolated |
 | **2** | **Contain Critical Security Findings (SEC-01, 03, 04, 13, 14, 18, SAFE-01)** | **Approved** | **GATE 2 (Approved)** | 275 passing tests; eliminated lazy sessions, token-DB reconciliation, AuthorizationVersion revocation, unified SignalR auth, production fail-fast assertions, HSTS |
 | **3** | **Clinical Core Spike (OpenMRS 2.8+ / O3 on PostgreSQL vs Bahmni)** | **Approved** | **GATE 3 (Approved)** | 288 passing tests; selected OpenMRS 2.8+ / O3 on PostgreSQL over Bahmni; proven FHIR R4 JSON REST client for 6 core resources; docker-compose dev stack; ADR 0004 & spike report |
-| **4** | **Fix Portal Authorization & Payments (SEC-05, 06, 07, 08, 09, 10, 15, 16)** | **Completed** | **GATE 4 (Pending Approval)** | 300 passing tests; ConsumedPaymentIntents, FHIR share scope filtering, mandatory dept scope enforcement, HMS RBAC, refill BOLA/IDOR fix, 128-bit email-bound proxy invites, form write permission, segregated billing refunds; ADR 0005 |
-| 5 | Multi-Tenancy Architecture & Isolation | Planned | Gate 5 | Shared portal DB with TenantId & RLS, isolated EMR cores, cross-tenant leak tests |
+| **4** | **Fix Portal Authorization & Payments (SEC-05, 06, 07, 08, 09, 10, 15, 16)** | **Approved** | **GATE 4 (Approved)** | 300 passing tests; ConsumedPaymentIntents, FHIR share scope filtering, mandatory dept scope enforcement, HMS RBAC, refill BOLA/IDOR fix, 128-bit email-bound proxy invites, form write permission, segregated billing refunds; ADR 0005 |
+| **5** | **Multi-Tenancy Architecture & Isolation** | **Completed** | **GATE 5 (Pending Approval)** | 311 passing tests; Tenant model, ITenantScoped on 48 tables, EF global filters, SaveChanges isolation validation, Postgres RLS, HKDF keys, PLATFORM_ADMIN zero PHI, API module gating, WCAG AA, Adot provisioning plan & compliance notes; ADR 0006 |
 | 6 | Ethiopia Foundations (Dual Calendar Engine & Localization) | Planned | Gate 6 | Gregorian/Ethiopian conversion engine, `calendar_dim`, Amharic/Afaan Oromoo locales |
 | 7 | Frontend Rebuild (TypeScript, React/Vite, Accessible Dialogs) | Planned | Gate 7 | Eliminate stored DOM XSS (SEC-02), ban browser dialogs, strict CSP without unsafe-inline |
 | 8 | Clinical Core Integration & EMR Sync | Planned | Gate 8 | Replace HMS adapter with Core FHIR R4 client; retire duplicated clinical tables; remove demo rules |
@@ -157,6 +157,41 @@ Passed!  - Failed: 0, Passed: 259, Skipped: 0, Total: 259, Duration: 27 s - Medi
   ```text
   Passed!  - Failed: 0, Passed: 300, Skipped: 0, Total: 300, Duration: 27 s - MedicalPortal.Tests.dll (net8.0)
   ```
+
+---
+
+## 🏛️ Phase 5 Multi-Tenancy Architecture & Isolation Verification
+
+- **Branch:** `phase-5-multi-tenancy-architecture`
+- **Tenant Modeling & Settings Engine:**
+  - Added [`Tenant`](file:///home/michael/projects/app/medical_portal/backend/src/MedicalPortal.Core/Entities/TenantEntities.cs) with unique index on `Slug`, configuration properties (`Region`, `TimeZone`, `LanguagesJson`, `SettingsJson`), master key fingerprint, and genesis audit block hash.
+  - Implemented `TenantSettings` model with strongly-typed `Branding`, `Modules`, `Hosting`, `Integrations`, and `Security` sub-models without code forks.
+  - Configured `ITenantScoped` with default `TenantConstants.DefaultTenantId` across all 48 tenant-owned entities.
+- **EF Core Global Query Filters & Isolation Enforcement:**
+  - Injected `ITenantContext` into [`MedicalPortalDbContext.cs`](file:///home/michael/projects/app/medical_portal/backend/src/MedicalPortal.Infrastructure/Data/MedicalPortalDbContext.cs).
+  - Applied query filters `e => !IsTenantResolved || e.TenantId == CurrentTenantId` across all `ITenantScoped` entities.
+  - Implemented `EnforceTenantIsolation()` in `SaveChanges()` and `SaveChangesAsync()` (auto-stamps tenant ID, blocks cross-tenant entity creation with `SecurityException`, blocks tenant reassignment with `SecurityException`).
+- **PostgreSQL Row-Level Security (RLS) Helper:**
+  - Implemented [`PostgresRlsHelper.cs`](file:///home/michael/projects/app/medical_portal/backend/src/MedicalPortal.Infrastructure/Data/PostgresRlsHelper.cs) generating RLS policies (`<Table>_tenant_isolation`) and enforcing RLS across all 48 tenant-scoped tables.
+- **Cryptographic Isolation:**
+  - Implemented [`TenantKeyProvider.cs`](file:///home/michael/projects/app/medical_portal/backend/src/MedicalPortal.Infrastructure/Tenancy/ITenantKeyProvider.cs) using RFC 5869 HKDF SHA-256 for deterministic per-tenant key derivation.
+- **Server-Side Tenant Resolution & Session Binding:**
+  - Implemented [`TenantResolutionMiddleware.cs`](file:///home/michael/projects/app/medical_portal/backend/src/MedicalPortal.Web/Middleware/TenantResolutionMiddleware.cs) with precedence: `X-Tenant-Slug` -> `X-Tenant-Id` -> `Host` header -> default tenant (`springfield`).
+  - Added token-to-tenant validation: cross-tenant token mismatch is rejected with `403 Forbidden` (`tenant_mismatch`).
+- **Platform Admin Governance:**
+  - Created `UserRole.PLATFORM_ADMIN`. Enforced zero PHI access in `PermissionMatrix` and `AccessControlService` (`platform_admin_no_phi`).
+- **API-Level Module Gating:**
+  - Created [`RequireModuleAttribute`](file:///home/michael/projects/app/medical_portal/backend/src/MedicalPortal.Web/Filters/RequireModuleFilter.cs) and decorated modular controllers (`BillingController`, `AppointmentsController`, `RefillsController`, `MessagesController`, `SharingController`, `FormsController`, `FamilyAndSettingsController`, `FhirController`). Returns `403 Forbidden` (`module_disabled`) when calling endpoints of a disabled module.
+- **Tenant Onboarding & Compliance Documentation:**
+  - Provisioned Adot Internal Medicine (`Adot-Hospital`) via `/api/platform/tenants/provision` with 1 facility and 10 departments.
+  - Calculated WCAG 2.1 AA contrast for Adot primary color `#e01b24`: `4.81:1` against white (Passes AA normal and large text).
+  - Authored [`docs/tenants/Adot-Hospital/provisioning-plan.md`](file:///home/michael/projects/app/medical_portal/docs/tenants/Adot-Hospital/provisioning-plan.md) (dedicated database isolation plan).
+  - Authored [`docs/tenants/Adot-Hospital/compliance-notes.md`](file:///home/michael/projects/app/medical_portal/docs/tenants/Adot-Hospital/compliance-notes.md) (mapping controls to Ethiopian laws, explicitly claiming no compliance).
+  - Authored [`docs/tenants/Adot-Hospital/handover.md`](file:///home/michael/projects/app/medical_portal/docs/tenants/Adot-Hospital/handover.md) (config summary, credentials needed, open items).
+  - Authored [`docs/adr/0006-multi-tenancy-architecture-and-isolation.md`](file:///home/michael/projects/app/medical_portal/docs/adr/0006-multi-tenancy-architecture-and-isolation.md).
+- **Test Suite Results:**
+  - Added [`MultiTenancySecurityTests.cs`](file:///home/michael/projects/app/medical_portal/backend/tests/MedicalPortal.Tests/MultiTenancySecurityTests.cs) (11 tests covering tenant resolution, Adot-Hospital provisioning, WCAG AA contrast calculation, theme endpoint, cross-tenant read leak, cross-tenant write leak, cross-tenant mutation leak, token tenant mismatch, module gating, platform admin zero-PHI, and Postgres RLS SQL generator).
+  - Total tests passing: **311 passed, 0 failed, 0 skipped**.
 
 ---
 

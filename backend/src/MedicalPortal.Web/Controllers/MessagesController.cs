@@ -15,6 +15,7 @@ namespace MedicalPortal.Web.Controllers;
 [ApiController]
 [Route("api/messages")]
 [RequireAuth]
+[RequireModule("messaging")]
 [EnableRateLimiting("GeneralApiPolicy")]
 public class MessagesController : ControllerBase
 {

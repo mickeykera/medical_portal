@@ -55,12 +55,17 @@ namespace MedicalPortal.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.Property<bool>("Tombstone")
                         .HasColumnType("boolean");
 
                     b.HasKey("Id");
 
                     b.HasIndex("PatientId");
+
+                    b.HasIndex("TenantId");
 
                     b.ToTable("Allergies");
                 });
@@ -114,6 +119,9 @@ namespace MedicalPortal.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.HasKey("Id");
 
                     b.HasIndex("AppointmentTypeId");
@@ -123,6 +131,8 @@ namespace MedicalPortal.Infrastructure.Migrations
                     b.HasIndex("LocationId");
 
                     b.HasIndex("PatientId");
+
+                    b.HasIndex("TenantId");
 
                     b.HasIndex("ProviderId", "StartAt", "EndAt");
 
@@ -157,10 +167,15 @@ namespace MedicalPortal.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.HasKey("Id");
 
                     b.HasIndex("Code")
                         .IsUnique();
+
+                    b.HasIndex("TenantId");
 
                     b.ToTable("AppointmentTypes");
                 });
@@ -215,6 +230,9 @@ namespace MedicalPortal.Infrastructure.Migrations
                     b.Property<long>("SequenceNumber")
                         .HasColumnType("bigint");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("UserAgent")
                         .HasColumnType("text");
 
@@ -231,6 +249,8 @@ namespace MedicalPortal.Infrastructure.Migrations
                     b.HasIndex("ResourceType");
 
                     b.HasIndex("SequenceNumber");
+
+                    b.HasIndex("TenantId");
 
                     b.ToTable("AuditLogs");
                 });
@@ -266,12 +286,17 @@ namespace MedicalPortal.Infrastructure.Migrations
                     b.Property<string>("RevokedReason")
                         .HasColumnType("text");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("UserAgent")
                         .HasColumnType("text");
 
                     b.HasKey("Id");
 
                     b.HasIndex("PatientId");
+
+                    b.HasIndex("TenantId");
 
                     b.HasIndex("ClinicianUserAccountId", "PatientId", "ExpiresAt");
 
@@ -302,9 +327,14 @@ namespace MedicalPortal.Infrastructure.Migrations
                     b.Property<Guid>("PatientId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.HasKey("Id");
 
                     b.HasIndex("PatientId");
+
+                    b.HasIndex("TenantId");
 
                     b.ToTable("Conditions");
                 });
@@ -335,10 +365,15 @@ namespace MedicalPortal.Infrastructure.Migrations
                     b.Property<Guid>("PatientId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.HasKey("Id");
 
                     b.HasIndex("GatewayPaymentIntentId")
                         .IsUnique();
+
+                    b.HasIndex("TenantId");
 
                     b.HasIndex("PatientId", "IdempotencyKey");
 
@@ -371,7 +406,12 @@ namespace MedicalPortal.Infrastructure.Migrations
                     b.Property<string>("Specialty")
                         .HasColumnType("text");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("TenantId");
 
                     b.HasIndex("FacilityId", "Code")
                         .IsUnique();
@@ -417,7 +457,12 @@ namespace MedicalPortal.Infrastructure.Migrations
                     b.Property<string>("State")
                         .HasColumnType("text");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("TenantId");
 
                     b.HasIndex("OrganizationId", "Code")
                         .IsUnique();
@@ -449,11 +494,16 @@ namespace MedicalPortal.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasColumnType("text");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("TenantId");
 
                     b.ToTable("FormDefinitions");
                 });
@@ -484,11 +534,16 @@ namespace MedicalPortal.Infrastructure.Migrations
                     b.Property<Guid?>("SubmittedByUserAccountId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.HasKey("Id");
 
                     b.HasIndex("FormDefinitionId");
 
                     b.HasIndex("PatientId");
+
+                    b.HasIndex("TenantId");
 
                     b.ToTable("FormResponses");
                 });
@@ -520,10 +575,15 @@ namespace MedicalPortal.Infrastructure.Migrations
                     b.Property<int>("OutstandingBalanceCents")
                         .HasColumnType("integer");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime?>("UpcomingAppointmentAt")
                         .HasColumnType("timestamp without time zone");
 
                     b.HasKey("PatientId");
+
+                    b.HasIndex("TenantId");
 
                     b.ToTable("HealthSnapshots");
                 });
@@ -581,6 +641,9 @@ namespace MedicalPortal.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.HasKey("Id");
 
                     b.HasIndex("EventId");
@@ -590,6 +653,8 @@ namespace MedicalPortal.Infrastructure.Migrations
                     b.HasIndex("ResolvedByUserAccountId");
 
                     b.HasIndex("Status");
+
+                    b.HasIndex("TenantId");
 
                     b.ToTable("HmsDeadLetterRecords");
                 });
@@ -636,6 +701,9 @@ namespace MedicalPortal.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.HasKey("Id");
 
                     b.HasIndex("HmsMrn");
@@ -645,6 +713,8 @@ namespace MedicalPortal.Infrastructure.Migrations
                     b.HasIndex("ResolvedByUserAccountId");
 
                     b.HasIndex("Status");
+
+                    b.HasIndex("TenantId");
 
                     b.ToTable("HmsDemographicConflicts");
                 });
@@ -669,10 +739,15 @@ namespace MedicalPortal.Infrastructure.Migrations
                     b.Property<DateTime>("ProcessedAt")
                         .HasColumnType("timestamp without time zone");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.HasKey("Id");
 
                     b.HasIndex("EventId")
                         .IsUnique();
+
+                    b.HasIndex("TenantId");
 
                     b.ToTable("HmsProcessedWebhookEvents");
                 });
@@ -724,6 +799,9 @@ namespace MedicalPortal.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("TimeZoneId")
                         .IsRequired()
                         .HasColumnType("text");
@@ -738,6 +816,8 @@ namespace MedicalPortal.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("DepartmentId");
+
+                    b.HasIndex("TenantId");
 
                     b.ToTable("Locations");
                 });
@@ -767,7 +847,12 @@ namespace MedicalPortal.Infrastructure.Migrations
                     b.Property<string>("Strength")
                         .HasColumnType("text");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("TenantId");
 
                     b.ToTable("Medications");
                 });
@@ -794,12 +879,17 @@ namespace MedicalPortal.Infrastructure.Migrations
                     b.Property<DateTime>("SentAt")
                         .HasColumnType("timestamp without time zone");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid>("ThreadId")
                         .HasColumnType("uuid");
 
                     b.HasKey("Id");
 
                     b.HasIndex("SenderPersonId");
+
+                    b.HasIndex("TenantId");
 
                     b.HasIndex("ThreadId");
 
@@ -830,12 +920,17 @@ namespace MedicalPortal.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp without time zone");
 
                     b.HasKey("Id");
 
                     b.HasIndex("PatientId");
+
+                    b.HasIndex("TenantId");
 
                     b.ToTable("MessageThreads");
                 });
@@ -851,9 +946,14 @@ namespace MedicalPortal.Infrastructure.Migrations
                     b.Property<Guid?>("LastReadMessageId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.HasKey("ThreadId", "PersonId");
 
                     b.HasIndex("PersonId");
+
+                    b.HasIndex("TenantId");
 
                     b.ToTable("MessageThreadParticipants");
                 });
@@ -915,11 +1015,16 @@ namespace MedicalPortal.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.HasKey("Id");
 
                     b.HasIndex("RecipientPersonId");
 
                     b.HasIndex("Status");
+
+                    b.HasIndex("TenantId");
 
                     b.HasIndex("ReferenceType", "ReferenceId");
 
@@ -951,9 +1056,14 @@ namespace MedicalPortal.Infrastructure.Migrations
                     b.Property<bool>("SmsEnabled")
                         .HasColumnType("boolean");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.HasKey("Id");
 
                     b.HasIndex("PersonId");
+
+                    b.HasIndex("TenantId");
 
                     b.ToTable("NotificationPreferences");
                 });
@@ -1003,6 +1113,9 @@ namespace MedicalPortal.Infrastructure.Migrations
                     b.Property<string>("RefRangeText")
                         .HasColumnType("text");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Unit")
                         .HasColumnType("text");
 
@@ -1015,6 +1128,8 @@ namespace MedicalPortal.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("PatientId");
+
+                    b.HasIndex("TenantId");
 
                     b.ToTable("Observations");
                 });
@@ -1042,6 +1157,9 @@ namespace MedicalPortal.Infrastructure.Migrations
                     b.Property<string>("TaxId")
                         .HasColumnType("text");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp without time zone");
 
@@ -1052,6 +1170,8 @@ namespace MedicalPortal.Infrastructure.Migrations
 
                     b.HasIndex("Code")
                         .IsUnique();
+
+                    b.HasIndex("TenantId");
 
                     b.ToTable("Organizations");
                 });
@@ -1084,6 +1204,9 @@ namespace MedicalPortal.Infrastructure.Migrations
                     b.Property<Guid?>("PrimaryProviderId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.HasKey("Id");
 
                     b.HasIndex("Mrn")
@@ -1093,6 +1216,8 @@ namespace MedicalPortal.Infrastructure.Migrations
                         .IsUnique();
 
                     b.HasIndex("PrimaryProviderId");
+
+                    b.HasIndex("TenantId");
 
                     b.ToTable("Patients");
                 });
@@ -1116,9 +1241,14 @@ namespace MedicalPortal.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ProviderId");
+
+                    b.HasIndex("TenantId");
 
                     b.HasIndex("PatientId", "ProviderId")
                         .IsUnique();
@@ -1170,6 +1300,9 @@ namespace MedicalPortal.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.HasKey("Id");
 
                     b.HasIndex("GatewayPaymentIntentId");
@@ -1177,6 +1310,8 @@ namespace MedicalPortal.Infrastructure.Migrations
                     b.HasIndex("IdempotencyKey");
 
                     b.HasIndex("StatementId");
+
+                    b.HasIndex("TenantId");
 
                     b.ToTable("Payments");
                 });
@@ -1202,9 +1337,14 @@ namespace MedicalPortal.Infrastructure.Migrations
                     b.Property<int>("Sequence")
                         .HasColumnType("integer");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.HasKey("Id");
 
                     b.HasIndex("PlanId");
+
+                    b.HasIndex("TenantId");
 
                     b.ToTable("PaymentInstallments");
                 });
@@ -1240,6 +1380,9 @@ namespace MedicalPortal.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.Property<int>("TotalCents")
                         .HasColumnType("integer");
 
@@ -1248,6 +1391,8 @@ namespace MedicalPortal.Infrastructure.Migrations
                     b.HasIndex("PatientId");
 
                     b.HasIndex("StatementId");
+
+                    b.HasIndex("TenantId");
 
                     b.ToTable("PaymentPlans");
                 });
@@ -1305,10 +1450,15 @@ namespace MedicalPortal.Infrastructure.Migrations
                     b.Property<string>("State")
                         .HasColumnType("text");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp without time zone");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("TenantId");
 
                     b.ToTable("Persons");
                 });
@@ -1348,6 +1498,9 @@ namespace MedicalPortal.Infrastructure.Migrations
                     b.Property<Guid>("ProviderId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.HasKey("Id");
 
                     b.HasIndex("MedicationId");
@@ -1355,6 +1508,8 @@ namespace MedicalPortal.Infrastructure.Migrations
                     b.HasIndex("PatientId");
 
                     b.HasIndex("ProviderId");
+
+                    b.HasIndex("TenantId");
 
                     b.ToTable("Prescriptions");
                 });
@@ -1385,9 +1540,14 @@ namespace MedicalPortal.Infrastructure.Migrations
                     b.Property<string>("PerformedBy")
                         .HasColumnType("text");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.HasKey("Id");
 
                     b.HasIndex("PatientId");
+
+                    b.HasIndex("TenantId");
 
                     b.ToTable("Procedures");
                 });
@@ -1409,10 +1569,15 @@ namespace MedicalPortal.Infrastructure.Migrations
                     b.Property<DateTime>("ProcessedAt")
                         .HasColumnType("timestamp without time zone");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.HasKey("Id");
 
                     b.HasIndex("EventId")
                         .IsUnique();
+
+                    b.HasIndex("TenantId");
 
                     b.ToTable("ProcessedWebhookEvents");
                 });
@@ -1453,10 +1618,15 @@ namespace MedicalPortal.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.HasKey("Id");
 
                     b.HasIndex("AccountId")
                         .IsUnique();
+
+                    b.HasIndex("TenantId");
 
                     b.ToTable("Providers");
                 });
@@ -1475,9 +1645,14 @@ namespace MedicalPortal.Infrastructure.Migrations
                     b.Property<bool>("IsPrimary")
                         .HasColumnType("boolean");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.HasKey("ProviderId", "DepartmentId");
 
                     b.HasIndex("DepartmentId");
+
+                    b.HasIndex("TenantId");
 
                     b.ToTable("ProviderDepartments");
                 });
@@ -1490,9 +1665,14 @@ namespace MedicalPortal.Infrastructure.Migrations
                     b.Property<Guid>("LocationId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.HasKey("ProviderId", "LocationId");
 
                     b.HasIndex("LocationId");
+
+                    b.HasIndex("TenantId");
 
                     b.ToTable("ProviderLocations");
                 });
@@ -1539,11 +1719,16 @@ namespace MedicalPortal.Infrastructure.Migrations
                     b.Property<DateTime?>("RevokedAt")
                         .HasColumnType("timestamp without time zone");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.HasKey("Id");
 
                     b.HasIndex("GranteeId");
 
                     b.HasIndex("GrantorId");
+
+                    b.HasIndex("TenantId");
 
                     b.ToTable("ProxyGrants");
                 });
@@ -1602,9 +1787,14 @@ namespace MedicalPortal.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.HasKey("Id");
 
                     b.HasIndex("InviterId");
+
+                    b.HasIndex("TenantId");
 
                     b.ToTable("ProxyInvites");
                 });
@@ -1648,12 +1838,17 @@ namespace MedicalPortal.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.Property<int>("UseCount")
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
 
                     b.HasIndex("PatientId");
+
+                    b.HasIndex("TenantId");
 
                     b.ToTable("RecordShares");
                 });
@@ -1673,12 +1868,17 @@ namespace MedicalPortal.Infrastructure.Migrations
                     b.Property<Guid>("ShareId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("UserAgent")
                         .HasColumnType("text");
 
                     b.HasKey("Id");
 
                     b.HasIndex("ShareId");
+
+                    b.HasIndex("TenantId");
 
                     b.ToTable("RecordShareAccesses");
                 });
@@ -1720,11 +1920,16 @@ namespace MedicalPortal.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.HasKey("Id");
 
                     b.HasIndex("MedicationId");
 
                     b.HasIndex("PrescriptionId");
+
+                    b.HasIndex("TenantId");
 
                     b.ToTable("RefillRequests");
                 });
@@ -1751,9 +1956,14 @@ namespace MedicalPortal.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.HasKey("Id");
 
                     b.HasIndex("LocationId");
+
+                    b.HasIndex("TenantId");
 
                     b.ToTable("RoomResources");
                 });
@@ -1804,7 +2014,12 @@ namespace MedicalPortal.Infrastructure.Migrations
                     b.Property<DateTime>("StartAt")
                         .HasColumnType("timestamp without time zone");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("TenantId");
 
                     b.HasIndex("LocationId", "StartAt", "EndAt");
 
@@ -1858,6 +2073,9 @@ namespace MedicalPortal.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.Property<int>("TotalCents")
                         .HasColumnType("integer");
 
@@ -1865,7 +2083,67 @@ namespace MedicalPortal.Infrastructure.Migrations
 
                     b.HasIndex("PatientId");
 
+                    b.HasIndex("TenantId");
+
                     b.ToTable("Statements");
+                });
+
+            modelBuilder.Entity("MedicalPortal.Core.Entities.Tenant", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AuditChainHash")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("HostDomain")
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("LanguagesJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("MasterKeyFingerprint")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Region")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("SettingsJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("TimeZone")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Slug")
+                        .IsUnique();
+
+                    b.ToTable("Tenants");
                 });
 
             modelBuilder.Entity("MedicalPortal.Core.Entities.UserAccount", b =>
@@ -1919,15 +2197,20 @@ namespace MedicalPortal.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp without time zone");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("Email")
-                        .IsUnique();
-
                     b.HasIndex("PersonId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "Email")
+                        .IsUnique();
 
                     b.ToTable("UserAccounts");
                 });
@@ -1951,6 +2234,9 @@ namespace MedicalPortal.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid>("UserAccountId")
                         .HasColumnType("uuid");
 
@@ -1959,6 +2245,8 @@ namespace MedicalPortal.Infrastructure.Migrations
                     b.HasIndex("DepartmentId");
 
                     b.HasIndex("FacilityId");
+
+                    b.HasIndex("TenantId");
 
                     b.HasIndex("UserAccountId", "FacilityId", "DepartmentId");
 
@@ -1997,6 +2285,9 @@ namespace MedicalPortal.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid>("UserAccountId")
                         .HasColumnType("uuid");
 
@@ -2009,6 +2300,8 @@ namespace MedicalPortal.Infrastructure.Migrations
 
                     b.HasIndex("Sid")
                         .IsUnique();
+
+                    b.HasIndex("TenantId");
 
                     b.HasIndex("UserAccountId");
 
@@ -2043,11 +2336,16 @@ namespace MedicalPortal.Infrastructure.Migrations
                     b.Property<TimeSpan>("StartTime")
                         .HasColumnType("interval");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.HasKey("Id");
 
                     b.HasIndex("LocationId");
 
                     b.HasIndex("ProviderId");
+
+                    b.HasIndex("TenantId");
 
                     b.ToTable("WeeklyScheduleTemplates");
                 });

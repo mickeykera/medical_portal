@@ -2,9 +2,10 @@ using MedicalPortal.Core.Enums;
 
 namespace MedicalPortal.Core.Entities;
 
-public class Person
+public class Person : ITenantScoped
 {
     public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; } = TenantConstants.DefaultTenantId;
     public string FirstName { get; set; } = string.Empty;
     public string LastName { get; set; } = string.Empty;
     public DateTime DateOfBirth { get; set; }
@@ -26,9 +27,10 @@ public class Person
     public virtual Patient? Patient { get; set; }
 }
 
-public class UserAccount
+public class UserAccount : ITenantScoped
 {
     public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; } = TenantConstants.DefaultTenantId;
     public Guid PersonId { get; set; }
     public string Email { get; set; } = string.Empty;
     public string PasswordHash { get; set; } = string.Empty;
@@ -51,9 +53,10 @@ public class UserAccount
     public virtual ICollection<UserMembership> Memberships { get; set; } = new List<UserMembership>();
 }
 
-public class UserSession
+public class UserSession : ITenantScoped
 {
     public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; } = TenantConstants.DefaultTenantId;
     public string Sid { get; set; } = string.Empty;
     public Guid UserAccountId { get; set; }
     public string RefreshTokenHash { get; set; } = string.Empty;
@@ -68,9 +71,10 @@ public class UserSession
     public virtual UserAccount UserAccount { get; set; } = null!;
 }
 
-public class Patient
+public class Patient : ITenantScoped
 {
     public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; } = TenantConstants.DefaultTenantId;
     public Guid PersonId { get; set; }
     public string Mrn { get; set; } = string.Empty;
     public Guid? PrimaryProviderId { get; set; }
@@ -95,9 +99,10 @@ public class Patient
     public virtual ICollection<FormResponse> FormResponses { get; set; } = new List<FormResponse>();
 }
 
-public class Provider
+public class Provider : ITenantScoped
 {
     public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; } = TenantConstants.DefaultTenantId;
     public Guid? AccountId { get; set; }
     public string FirstName { get; set; } = string.Empty;
     public string LastName { get; set; } = string.Empty;
@@ -117,9 +122,10 @@ public class Provider
     public virtual ICollection<ScheduleBlock> ScheduleBlocks { get; set; } = new List<ScheduleBlock>();
 }
 
-public class Location
+public class Location : ITenantScoped
 {
     public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; } = TenantConstants.DefaultTenantId;
     public Guid? DepartmentId { get; set; }
     public string Name { get; set; } = string.Empty;
     public LocationType Type { get; set; } = LocationType.CLINIC;
@@ -143,8 +149,9 @@ public class Location
     public virtual ICollection<ScheduleBlock> ScheduleBlocks { get; set; } = new List<ScheduleBlock>();
 }
 
-public class ProviderLocation
+public class ProviderLocation : ITenantScoped
 {
+    public Guid TenantId { get; set; } = TenantConstants.DefaultTenantId;
     public Guid ProviderId { get; set; }
     public Guid LocationId { get; set; }
 
@@ -152,9 +159,10 @@ public class ProviderLocation
     public virtual Location Location { get; set; } = null!;
 }
 
-public class PatientCareTeam
+public class PatientCareTeam : ITenantScoped
 {
     public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; } = TenantConstants.DefaultTenantId;
     public Guid PatientId { get; set; }
     public Guid ProviderId { get; set; }
     public string Role { get; set; } = "Primary care";

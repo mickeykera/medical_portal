@@ -16,6 +16,7 @@ public static class TestAuthHelper
         var sid = Convert.ToHexString(RandomNumberGenerator.GetBytes(16)).ToLowerInvariant();
         var session = new UserSession
         {
+            TenantId = account.TenantId,
             UserAccountId = account.Id,
             Sid = sid,
             RefreshTokenHash = Convert.ToHexString(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(sid))),

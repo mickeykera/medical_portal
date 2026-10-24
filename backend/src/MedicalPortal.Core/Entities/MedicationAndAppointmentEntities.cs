@@ -2,9 +2,10 @@ using MedicalPortal.Core.Enums;
 
 namespace MedicalPortal.Core.Entities;
 
-public class Medication
+public class Medication : ITenantScoped
 {
     public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; } = TenantConstants.DefaultTenantId;
     public string Name { get; set; } = string.Empty;
     public string? GenericName { get; set; }
     public string? Form { get; set; }
@@ -15,9 +16,10 @@ public class Medication
     public virtual ICollection<Prescription> Prescriptions { get; set; } = new List<Prescription>();
 }
 
-public class Prescription
+public class Prescription : ITenantScoped
 {
     public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; } = TenantConstants.DefaultTenantId;
     public Guid PatientId { get; set; }
     public Guid MedicationId { get; set; }
     public Guid ProviderId { get; set; }
@@ -34,9 +36,10 @@ public class Prescription
     public virtual ICollection<RefillRequest> RefillRequests { get; set; } = new List<RefillRequest>();
 }
 
-public class RefillRequest
+public class RefillRequest : ITenantScoped
 {
     public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; } = TenantConstants.DefaultTenantId;
     public Guid PrescriptionId { get; set; }
     public Guid MedicationId { get; set; }
     public RefillStatus Status { get; set; } = RefillStatus.PENDING;
@@ -52,9 +55,10 @@ public class RefillRequest
     public virtual Medication Medication { get; set; } = null!;
 }
 
-public class Appointment
+public class Appointment : ITenantScoped
 {
     public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; } = TenantConstants.DefaultTenantId;
     public Guid PatientId { get; set; }
     public Guid ProviderId { get; set; }
     public Guid? LocationId { get; set; }
@@ -78,9 +82,10 @@ public class Appointment
     public virtual RoomResource? RoomResource { get; set; }
 }
 
-public class AppointmentType
+public class AppointmentType : ITenantScoped
 {
     public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; } = TenantConstants.DefaultTenantId;
     public string Name { get; set; } = string.Empty;
     public string Code { get; set; } = string.Empty;
     public int DurationMinutes { get; set; } = 30;
@@ -91,9 +96,10 @@ public class AppointmentType
     public virtual ICollection<Appointment> Appointments { get; set; } = new List<Appointment>();
 }
 
-public class RoomResource
+public class RoomResource : ITenantScoped
 {
     public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; } = TenantConstants.DefaultTenantId;
     public Guid LocationId { get; set; }
     public string Name { get; set; } = string.Empty;
     public string? Code { get; set; }
@@ -104,9 +110,10 @@ public class RoomResource
     public virtual ICollection<Appointment> Appointments { get; set; } = new List<Appointment>();
 }
 
-public class WeeklyScheduleTemplate
+public class WeeklyScheduleTemplate : ITenantScoped
 {
     public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; } = TenantConstants.DefaultTenantId;
     public Guid? ProviderId { get; set; }
     public Guid? LocationId { get; set; }
     public DayOfWeek DayOfWeek { get; set; }
@@ -119,9 +126,10 @@ public class WeeklyScheduleTemplate
     public virtual Location? Location { get; set; }
 }
 
-public class ScheduleBlock
+public class ScheduleBlock : ITenantScoped
 {
     public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; } = TenantConstants.DefaultTenantId;
     public Guid? ProviderId { get; set; }
     public Guid? LocationId { get; set; }
     public DateTime StartAt { get; set; }

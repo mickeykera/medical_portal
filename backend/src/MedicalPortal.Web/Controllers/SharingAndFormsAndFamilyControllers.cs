@@ -15,6 +15,7 @@ namespace MedicalPortal.Web.Controllers;
 
 [ApiController]
 [RequireAuth]
+[RequireModule("sharing")]
 [EnableRateLimiting("GeneralApiPolicy")]
 public class SharingController : ControllerBase
 {
@@ -147,6 +148,7 @@ public class SharingController : ControllerBase
 [ApiController]
 [Route("api/forms")]
 [RequireAuth]
+[RequireModule("forms")]
 public class FormsController : ControllerBase
 {
     private readonly MedicalPortalDbContext _db;
@@ -263,6 +265,7 @@ public class FormsController : ControllerBase
 
 [ApiController]
 [RequireAuth]
+[RequireModule("proxy")]
 public class FamilyAndSettingsController : ControllerBase
 {
     private readonly MedicalPortalDbContext _db;

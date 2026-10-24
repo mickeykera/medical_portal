@@ -143,6 +143,10 @@ public static class PermissionMatrix
         (UserRole.COMPLIANCE_AUDITOR, AppResource.Billing, AppAction.Read),
         (UserRole.COMPLIANCE_AUDITOR, AppResource.Medications, AppAction.Read),
 
+        // PLATFORM_ADMIN: Multi-tenant and infrastructure management ONLY. NO ACCESS TO PHI.
+        (UserRole.PLATFORM_ADMIN, AppResource.AuditCompliance, AppAction.Read),
+        (UserRole.PLATFORM_ADMIN, AppResource.AuditCompliance, AppAction.Admin),
+
         // PATIENT: Patient chart access
         (UserRole.PATIENT, AppResource.Appointments, AppAction.Read),
         (UserRole.PATIENT, AppResource.Appointments, AppAction.Write),

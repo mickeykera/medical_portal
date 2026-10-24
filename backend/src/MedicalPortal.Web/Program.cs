@@ -1,6 +1,7 @@
 using System.Net;
 using System.Threading.RateLimiting;
 using MedicalPortal.Core.Domain;
+using MedicalPortal.Core.Entities;
 using MedicalPortal.Infrastructure.Auth;
 using MedicalPortal.Infrastructure.Data;
 using MedicalPortal.Infrastructure.DistributedLock;
@@ -12,6 +13,7 @@ using MedicalPortal.Infrastructure.Observability;
 using MedicalPortal.Infrastructure.Payments;
 using MedicalPortal.Infrastructure.Security;
 using MedicalPortal.Infrastructure.Services;
+using MedicalPortal.Infrastructure.Tenancy;
 using MedicalPortal.Web.Filters;
 using MedicalPortal.Web.Hubs;
 using MedicalPortal.Web.Middleware;
@@ -297,6 +299,11 @@ builder.Services.AddScoped<ISnapshotService, SnapshotService>();
 builder.Services.AddScoped<IPlacesService, PlacesService>();
 builder.Services.AddSingleton<IGeocodingService, GeocodingService>();
 builder.Services.AddScoped<IFhirService, FhirService>();
+
+// Multi-Tenancy Services (Tenant isolation, key derivation, provisioning)
+builder.Services.AddScoped<ITenantContext, TenantContext>();
+builder.Services.AddScoped<ITenantService, TenantService>();
+builder.Services.AddSingleton<ITenantKeyProvider, TenantKeyProvider>();
 
 // Clinical Safety Knowledge Bases (Replaceable with licensed clinical pharmacology providers)
 var useDemoClinicalKb = builder.Configuration.GetValue<bool>("Clinical:UseDemoKnowledgeBase", false);
@@ -588,6 +595,7 @@ if (app.Environment.IsDevelopment())
         if (db.Database.IsNpgsql())
         {
             await db.Database.MigrateAsync();
+            await PostgresRlsHelper.ApplyRlsAsync(db);
         }
         else
         {
@@ -697,6 +705,9 @@ app.UseStaticFiles();
 app.UseRouting();
 app.UseCors();
 app.UseRateLimiter();
+
+// Multi-Tenancy Resolution Middleware (resolves tenant from header/host and validates JWT tenant binding)
+app.UseMiddleware<TenantResolutionMiddleware>();
 
 // Health Check Endpoints
 app.MapHealthChecks("/health", new HealthCheckOptions

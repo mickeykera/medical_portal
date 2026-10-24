@@ -79,8 +79,12 @@ public class SessionService : ISessionService
         var refreshToken = customRefreshToken ?? Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant();
         var refreshTokenHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(refreshToken)));
 
+        var account = await _db.UserAccounts.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.Id == userAccountId);
+        var tenantId = account?.TenantId ?? TenantConstants.DefaultTenantId;
+
         var session = new UserSession
         {
+            TenantId = tenantId,
             Sid = sid,
             UserAccountId = userAccountId,
             RefreshTokenHash = refreshTokenHash,

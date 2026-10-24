@@ -1,8 +1,9 @@
 namespace MedicalPortal.Core.Entities;
 
-public class MessageThread
+public class MessageThread : ITenantScoped
 {
     public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; } = TenantConstants.DefaultTenantId;
     public Guid PatientId { get; set; }
     public string Subject { get; set; } = string.Empty;
     public string Category { get; set; } = "General";
@@ -15,8 +16,9 @@ public class MessageThread
     public virtual ICollection<Message> Messages { get; set; } = new List<Message>();
 }
 
-public class MessageThreadParticipant
+public class MessageThreadParticipant : ITenantScoped
 {
+    public Guid TenantId { get; set; } = TenantConstants.DefaultTenantId;
     public Guid ThreadId { get; set; }
     public Guid PersonId { get; set; }
     public Guid? LastReadMessageId { get; set; }
@@ -25,9 +27,10 @@ public class MessageThreadParticipant
     public virtual Person Person { get; set; } = null!;
 }
 
-public class Message
+public class Message : ITenantScoped
 {
     public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; } = TenantConstants.DefaultTenantId;
     public Guid ThreadId { get; set; }
     public Guid SenderPersonId { get; set; }
     public string Body { get; set; } = string.Empty;

@@ -12,8 +12,41 @@ public static class DbSeeder
 
     public static async Task SeedAsync(MedicalPortalDbContext db, IPasswordHasher hasher)
     {
+        if (!await db.Tenants.AnyAsync())
+        {
+            var defaultTenant = new Tenant
+            {
+                Id = TenantConstants.DefaultTenantId,
+                Name = TenantConstants.DefaultTenantName,
+                Slug = TenantConstants.DefaultTenantSlug,
+                Region = "US: Illinois, Springfield",
+                TimeZone = "America/Chicago",
+                LanguagesJson = "[\"en\"]",
+                IsActive = true,
+                MasterKeyFingerprint = "fp_springfield_default",
+                AuditChainHash = "0000000000000000000000000000000000000000000000000000000000000000"
+            };
+            defaultTenant.SetSettings(new TenantSettings
+            {
+                Branding = new TenantBrandingSettings { PrimaryColor = "#0284c7" },
+                Modules = new TenantModuleSettings(),
+                Hosting = new TenantHostingSettings { Isolation = "Shared database" },
+                Integrations = new TenantIntegrationSettings { Ehr = "HMS" },
+                Security = new TenantSecuritySettings()
+            });
+            db.Tenants.Add(defaultTenant);
+            await db.SaveChangesAsync();
+        }
+
         if (await db.Persons.AnyAsync())
         {
+            var accountsToFix = await db.UserAccounts.IgnoreQueryFilters().Where(u => u.TenantId == Guid.Empty).ToListAsync();
+            if (accountsToFix.Count > 0)
+            {
+                foreach (var a in accountsToFix) a.TenantId = TenantConstants.DefaultTenantId;
+                await db.SaveChangesAsync();
+            }
+
             if (!await db.Organizations.AnyAsync())
             {
                 await SeedOrganizationsForExistingDbAsync(db);

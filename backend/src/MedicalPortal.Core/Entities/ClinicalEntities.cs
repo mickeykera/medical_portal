@@ -2,9 +2,10 @@ using MedicalPortal.Core.Enums;
 
 namespace MedicalPortal.Core.Entities;
 
-public class Allergy
+public class Allergy : ITenantScoped
 {
     public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; } = TenantConstants.DefaultTenantId;
     public Guid PatientId { get; set; }
     public string Substance { get; set; } = string.Empty;
     public string DrugClass { get; set; } = string.Empty;
@@ -18,9 +19,10 @@ public class Allergy
     public virtual Patient Patient { get; set; } = null!;
 }
 
-public class Observation
+public class Observation : ITenantScoped
 {
     public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; } = TenantConstants.DefaultTenantId;
     public Guid PatientId { get; set; }
     public ObservationCategory Category { get; set; }
     public string Code { get; set; } = string.Empty;
@@ -40,9 +42,10 @@ public class Observation
     public virtual Patient Patient { get; set; } = null!;
 }
 
-public class Condition
+public class Condition : ITenantScoped
 {
     public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; } = TenantConstants.DefaultTenantId;
     public Guid PatientId { get; set; }
     public string Code { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
@@ -52,9 +55,10 @@ public class Condition
     public virtual Patient Patient { get; set; } = null!;
 }
 
-public class Procedure
+public class Procedure : ITenantScoped
 {
     public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; } = TenantConstants.DefaultTenantId;
     public Guid PatientId { get; set; }
     public string Code { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
@@ -65,8 +69,9 @@ public class Procedure
     public virtual Patient Patient { get; set; } = null!;
 }
 
-public class HealthSnapshot
+public class HealthSnapshot : ITenantScoped
 {
+    public Guid TenantId { get; set; } = TenantConstants.DefaultTenantId;
     public Guid PatientId { get; set; }
     public DateTime GeneratedAt { get; set; } = DateTime.UtcNow;
     public int ActiveConditionCount { get; set; } = 0;
@@ -80,9 +85,10 @@ public class HealthSnapshot
     public virtual Patient Patient { get; set; } = null!;
 }
 
-public class BreakGlassOverride
+public class BreakGlassOverride : ITenantScoped
 {
     public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; } = TenantConstants.DefaultTenantId;
     public Guid ClinicianUserAccountId { get; set; }
     public Guid PatientId { get; set; }
     public string Reason { get; set; } = string.Empty;

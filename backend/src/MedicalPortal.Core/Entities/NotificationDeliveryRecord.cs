@@ -2,9 +2,10 @@ using MedicalPortal.Core.Enums;
 
 namespace MedicalPortal.Core.Entities;
 
-public class NotificationDeliveryRecord
+public class NotificationDeliveryRecord : ITenantScoped
 {
     public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; } = TenantConstants.DefaultTenantId;
     public Guid? RecipientPersonId { get; set; }
     public NotificationChannel Channel { get; set; }
     public string Category { get; set; } = "General";

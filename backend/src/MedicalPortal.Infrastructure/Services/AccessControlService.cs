@@ -52,6 +52,12 @@ public class AccessControlService : IAccessControlService
             return new AccessDecision(false, patientId, false, "patient_not_found");
         }
 
+        // 0. Platform administrators are strictly prohibited from accessing PHI
+        if (actor.Role == UserRole.PLATFORM_ADMIN)
+        {
+            return new AccessDecision(false, patientId, false, "platform_admin_no_phi", target.PersonId);
+        }
+
         // 1. Evaluate Permission Matrix (Role x Resource x Action)
         if (!PermissionMatrix.HasPermission(actor.Role, resource, action))
         {

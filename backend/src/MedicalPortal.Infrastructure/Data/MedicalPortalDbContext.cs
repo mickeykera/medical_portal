@@ -1,14 +1,27 @@
+using System.Reflection;
 using MedicalPortal.Core.Domain;
 using MedicalPortal.Core.Entities;
 using MedicalPortal.Core.Enums;
+using MedicalPortal.Infrastructure.Tenancy;
 using Microsoft.EntityFrameworkCore;
 
 namespace MedicalPortal.Infrastructure.Data;
 
 public class MedicalPortalDbContext : DbContext
 {
-    public MedicalPortalDbContext(DbContextOptions<MedicalPortalDbContext> options) : base(options) { }
+    private readonly ITenantContext? _tenantContext;
 
+    public MedicalPortalDbContext(
+        DbContextOptions<MedicalPortalDbContext> options,
+        ITenantContext? tenantContext = null) : base(options)
+    {
+        _tenantContext = tenantContext;
+    }
+
+    public Guid? CurrentTenantId => _tenantContext?.TenantId;
+    public bool IsTenantResolved => _tenantContext?.IsResolved == true;
+
+    public DbSet<Tenant> Tenants => Set<Tenant>();
     public DbSet<Person> Persons => Set<Person>();
     public DbSet<UserAccount> UserAccounts => Set<UserAccount>();
     public DbSet<UserSession> UserSessions => Set<UserSession>();
@@ -64,9 +77,14 @@ public class MedicalPortalDbContext : DbContext
     {
         base.OnModelCreating(modelBuilder);
 
+        // Tenant configuration
+        modelBuilder.Entity<Tenant>()
+            .HasIndex(t => t.Slug)
+            .IsUnique();
+
         // Person & UserAccount
         modelBuilder.Entity<UserAccount>()
-            .HasIndex(u => u.Email)
+            .HasIndex(u => new { u.TenantId, u.Email })
             .IsUnique();
 
         modelBuilder.Entity<UserAccount>()
@@ -586,12 +604,38 @@ public class MedicalPortalDbContext : DbContext
         {
             b.HasIndex(w => w.EventId).IsUnique();
         });
+
+        // Configure tenant scoping and global query filters
+        foreach (var entityType in modelBuilder.Model.GetEntityTypes())
+        {
+            if (typeof(ITenantScoped).IsAssignableFrom(entityType.ClrType))
+            {
+                modelBuilder.Entity(entityType.ClrType)
+                    .Property(nameof(ITenantScoped.TenantId))
+                    .HasDefaultValue(TenantConstants.DefaultTenantId);
+
+                modelBuilder.Entity(entityType.ClrType)
+                    .HasIndex(nameof(ITenantScoped.TenantId));
+
+                var method = TenantFilterMethod.MakeGenericMethod(entityType.ClrType);
+                method.Invoke(this, new object[] { modelBuilder });
+            }
+        }
+    }
+
+    private static readonly MethodInfo TenantFilterMethod = typeof(MedicalPortalDbContext)
+        .GetMethod(nameof(ConfigureTenantFilter), BindingFlags.NonPublic | BindingFlags.Instance)!;
+
+    private void ConfigureTenantFilter<T>(ModelBuilder builder) where T : class, ITenantScoped
+    {
+        builder.Entity<T>().HasQueryFilter(e => !IsTenantResolved || e.TenantId == CurrentTenantId);
     }
 
     private static readonly SemaphoreSlim _auditLock = new(1, 1);
 
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {
+        EnforceTenantIsolation();
         EnforceAuditLogAppendOnly();
         var hasAddedAuditLogs = ChangeTracker.Entries<AuditLog>().Any(e => e.State == EntityState.Added);
         if (hasAddedAuditLogs)
@@ -613,6 +657,7 @@ public class MedicalPortalDbContext : DbContext
 
     public override async Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
     {
+        EnforceTenantIsolation();
         EnforceAuditLogAppendOnly();
         var hasAddedAuditLogs = ChangeTracker.Entries<AuditLog>().Any(e => e.State == EntityState.Added);
         if (hasAddedAuditLogs)
@@ -630,6 +675,48 @@ public class MedicalPortalDbContext : DbContext
         }
 
         return await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+    }
+
+    private void EnforceTenantIsolation()
+    {
+        if (!IsTenantResolved || !CurrentTenantId.HasValue) return;
+
+        var currentTenantId = CurrentTenantId.Value;
+        var newlyAddedTenantIds = ChangeTracker.Entries<Tenant>()
+            .Where(e => e.State == EntityState.Added)
+            .Select(e => e.Entity.Id)
+            .ToHashSet();
+
+        foreach (var entry in ChangeTracker.Entries<ITenantScoped>())
+        {
+            if (entry.State == EntityState.Added)
+            {
+                if (newlyAddedTenantIds.Contains(entry.Entity.TenantId))
+                {
+                    // Entity is part of a newly provisioned tenant graph
+                    continue;
+                }
+
+                if (entry.Entity.TenantId == Guid.Empty || (entry.Entity.TenantId == TenantConstants.DefaultTenantId && currentTenantId != TenantConstants.DefaultTenantId))
+                {
+                    entry.Entity.TenantId = currentTenantId;
+                }
+                else if (entry.Entity.TenantId != currentTenantId)
+                {
+                    throw new System.Security.SecurityException(
+                        $"Cross-tenant entity creation is prohibited. Context tenant: {currentTenantId}, Entity tenant: {entry.Entity.TenantId}");
+                }
+            }
+            else if (entry.State == EntityState.Modified)
+            {
+                var tenantProp = entry.Property(nameof(ITenantScoped.TenantId));
+                if (tenantProp.IsModified && !Equals(tenantProp.OriginalValue, tenantProp.CurrentValue))
+                {
+                    throw new System.Security.SecurityException(
+                        "Modifying or reassigning an entity across tenants is prohibited.");
+                }
+            }
+        }
     }
 
     private void EnforceAuditLogAppendOnly()

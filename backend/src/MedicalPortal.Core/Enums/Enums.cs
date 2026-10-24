@@ -13,7 +13,8 @@ public enum UserRole
     PHARMACIST,
     DEPT_ADMIN,
     COMPLIANCE_AUDITOR,
-    SYSTEM_ADMIN
+    SYSTEM_ADMIN,
+    PLATFORM_ADMIN
 }
 
 public enum AppointmentStatus

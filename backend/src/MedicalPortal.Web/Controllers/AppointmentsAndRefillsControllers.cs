@@ -15,6 +15,7 @@ namespace MedicalPortal.Web.Controllers;
 [ApiController]
 [Route("api/appointments")]
 [RequireAuth]
+[RequireModule("appointments")]
 [EnableRateLimiting("GeneralApiPolicy")]
 public class AppointmentsController : ControllerBase
 {
@@ -357,6 +358,7 @@ public class AppointmentsController : ControllerBase
 [ApiController]
 [Route("api/refills")]
 [RequireAuth]
+[RequireModule("refills")]
 [EnableRateLimiting("GeneralApiPolicy")]
 public class RefillsController : ControllerBase
 {

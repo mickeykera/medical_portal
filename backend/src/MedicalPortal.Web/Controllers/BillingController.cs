@@ -19,6 +19,7 @@ namespace MedicalPortal.Web.Controllers;
 [ApiController]
 [Route("api/billing")]
 [RequireAuth]
+[RequireModule("billing")]
 [EnableRateLimiting("GeneralApiPolicy")]
 public class BillingController : ControllerBase
 {

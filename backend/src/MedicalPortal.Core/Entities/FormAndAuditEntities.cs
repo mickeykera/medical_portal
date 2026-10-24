@@ -1,8 +1,9 @@
 namespace MedicalPortal.Core.Entities;
 
-public class FormDefinition
+public class FormDefinition : ITenantScoped
 {
     public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; } = TenantConstants.DefaultTenantId;
     public string Slug { get; set; } = string.Empty;
     public string Title { get; set; } = string.Empty;
     public string? Description { get; set; }
@@ -11,9 +12,10 @@ public class FormDefinition
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }
 
-public class FormResponse
+public class FormResponse : ITenantScoped
 {
     public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; } = TenantConstants.DefaultTenantId;
     public Guid PatientId { get; set; }
     public Guid FormDefinitionId { get; set; }
     public string AnswersJson { get; set; } = "{}";
@@ -25,9 +27,10 @@ public class FormResponse
     public virtual FormDefinition FormDefinition { get; set; } = null!;
 }
 
-public class NotificationPreference
+public class NotificationPreference : ITenantScoped
 {
     public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; } = TenantConstants.DefaultTenantId;
     public Guid PersonId { get; set; }
     public string Category { get; set; } = string.Empty;
     public bool EmailEnabled { get; set; } = true;
@@ -38,9 +41,10 @@ public class NotificationPreference
     public virtual Person Person { get; set; } = null!;
 }
 
-public class AuditLog
+public class AuditLog : ITenantScoped
 {
     public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; } = TenantConstants.DefaultTenantId;
     public long SequenceNumber { get; set; }
     public Guid? ActorUserAccountId { get; set; }
     public Guid? PatientId { get; set; }

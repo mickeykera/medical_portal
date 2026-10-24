@@ -9,7 +9,7 @@ using Microsoft.IdentityModel.Tokens;
 
 namespace MedicalPortal.Infrastructure.Auth;
 
-public record AccessTokenClaims(Guid UserAccountId, Guid PersonId, UserRole Role, string Sid, int AuthorizationVersion = 1);
+public record AccessTokenClaims(Guid UserAccountId, Guid PersonId, UserRole Role, string Sid, int AuthorizationVersion = 1, Guid? TenantId = null);
 
 public interface ITokenService
 {
@@ -65,6 +65,7 @@ public class TokenService : ITokenService
             new Claim("role", account.Role.ToString()),
             new Claim("sid", sid),
             new Claim("authVersion", account.AuthorizationVersion.ToString()),
+            new Claim("tenantId", account.TenantId.ToString()),
             new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
         };
 
@@ -110,11 +111,14 @@ public class TokenService : ITokenService
                 authVersion = parsedVersion;
             }
 
+            var tenantIdStr = principal.FindFirst("tenantId")?.Value;
+            Guid? tenantId = Guid.TryParse(tenantIdStr, out var parsedTenantId) ? parsedTenantId : null;
+
             if (Guid.TryParse(userAccountIdStr, out var userAccountId) &&
                 Guid.TryParse(personIdStr, out var personId) &&
                 Enum.TryParse<UserRole>(roleStr, true, out var role))
             {
-                return new AccessTokenClaims(userAccountId, personId, role, sid, authVersion);
+                return new AccessTokenClaims(userAccountId, personId, role, sid, authVersion, tenantId);
             }
 
             return null;

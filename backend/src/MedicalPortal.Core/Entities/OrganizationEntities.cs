@@ -1,8 +1,9 @@
 namespace MedicalPortal.Core.Entities;
 
-public class Organization
+public class Organization : ITenantScoped
 {
     public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; } = TenantConstants.DefaultTenantId;
     public string Name { get; set; } = string.Empty;
     public string Code { get; set; } = string.Empty;
     public string? TaxId { get; set; }
@@ -14,9 +15,10 @@ public class Organization
     public virtual ICollection<Facility> Facilities { get; set; } = new List<Facility>();
 }
 
-public class Facility
+public class Facility : ITenantScoped
 {
     public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; } = TenantConstants.DefaultTenantId;
     public Guid OrganizationId { get; set; }
     public string Name { get; set; } = string.Empty;
     public string Code { get; set; } = string.Empty;
@@ -33,9 +35,10 @@ public class Facility
     public virtual ICollection<UserMembership> Memberships { get; set; } = new List<UserMembership>();
 }
 
-public class Department
+public class Department : ITenantScoped
 {
     public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; } = TenantConstants.DefaultTenantId;
     public Guid FacilityId { get; set; }
     public string Name { get; set; } = string.Empty;
     public string Code { get; set; } = string.Empty;
@@ -50,8 +53,9 @@ public class Department
     public virtual ICollection<UserMembership> Memberships { get; set; } = new List<UserMembership>();
 }
 
-public class ProviderDepartment
+public class ProviderDepartment : ITenantScoped
 {
+    public Guid TenantId { get; set; } = TenantConstants.DefaultTenantId;
     public Guid ProviderId { get; set; }
     public Guid DepartmentId { get; set; }
     public bool IsPrimary { get; set; } = false;
@@ -61,9 +65,10 @@ public class ProviderDepartment
     public virtual Department Department { get; set; } = null!;
 }
 
-public class UserMembership
+public class UserMembership : ITenantScoped
 {
     public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; } = TenantConstants.DefaultTenantId;
     public Guid UserAccountId { get; set; }
     public Guid? FacilityId { get; set; }
     public Guid? DepartmentId { get; set; }

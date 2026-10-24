@@ -2,9 +2,10 @@ using MedicalPortal.Core.Enums;
 
 namespace MedicalPortal.Core.Entities;
 
-public class Statement
+public class Statement : ITenantScoped
 {
     public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; } = TenantConstants.DefaultTenantId;
     public Guid PatientId { get; set; }
     public int TotalCents { get; set; }
     public int AmountPaidCents { get; set; } = 0;
@@ -19,9 +20,10 @@ public class Statement
     public virtual ICollection<PaymentPlan> PaymentPlans { get; set; } = new List<PaymentPlan>();
 }
 
-public class Payment
+public class Payment : ITenantScoped
 {
     public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; } = TenantConstants.DefaultTenantId;
     public Guid StatementId { get; set; }
     public int AmountCents { get; set; }
     public string PaymentToken { get; set; } = string.Empty;
@@ -38,17 +40,19 @@ public class Payment
     public virtual Statement Statement { get; set; } = null!;
 }
 
-public class ProcessedWebhookEvent
+public class ProcessedWebhookEvent : ITenantScoped
 {
     public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; } = TenantConstants.DefaultTenantId;
     public string EventId { get; set; } = string.Empty;
     public string EventType { get; set; } = string.Empty;
     public DateTime ProcessedAt { get; set; } = DateTime.UtcNow;
 }
 
-public class ConsumedPaymentIntent
+public class ConsumedPaymentIntent : ITenantScoped
 {
     public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; } = TenantConstants.DefaultTenantId;
     public string GatewayPaymentIntentId { get; set; } = string.Empty;
     public Guid PatientId { get; set; }
     public int AmountCents { get; set; }
@@ -59,9 +63,10 @@ public class ConsumedPaymentIntent
     public virtual Patient Patient { get; set; } = null!;
 }
 
-public class PaymentPlan
+public class PaymentPlan : ITenantScoped
 {
     public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; } = TenantConstants.DefaultTenantId;
     public Guid PatientId { get; set; }
     public Guid StatementId { get; set; }
     public int TotalCents { get; set; }
@@ -77,9 +82,10 @@ public class PaymentPlan
     public virtual ICollection<PaymentInstallment> Installments { get; set; } = new List<PaymentInstallment>();
 }
 
-public class PaymentInstallment
+public class PaymentInstallment : ITenantScoped
 {
     public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; } = TenantConstants.DefaultTenantId;
     public Guid PlanId { get; set; }
     public int Sequence { get; set; }
     public int AmountCents { get; set; }

@@ -1,8 +1,9 @@
 namespace MedicalPortal.Core.Entities;
 
-public class ProxyGrant
+public class ProxyGrant : ITenantScoped
 {
     public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; } = TenantConstants.DefaultTenantId;
     public Guid GrantorId { get; set; }
     public Guid GranteeId { get; set; }
     public bool CanViewRecords { get; set; } = true;
@@ -20,9 +21,10 @@ public class ProxyGrant
     public virtual Person Grantee { get; set; } = null!;
 }
 
-public class ProxyInvite
+public class ProxyInvite : ITenantScoped
 {
     public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; } = TenantConstants.DefaultTenantId;
     public Guid InviterPersonId { get; set; }
     public string Email { get; set; } = string.Empty;
     public string CodeHash { get; set; } = string.Empty;
@@ -41,9 +43,10 @@ public class ProxyInvite
     public virtual Person Inviter { get; set; } = null!;
 }
 
-public class RecordShare
+public class RecordShare : ITenantScoped
 {
     public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; } = TenantConstants.DefaultTenantId;
     public Guid PatientId { get; set; }
     public string Label { get; set; } = string.Empty;
     public string CodeHash { get; set; } = string.Empty;
@@ -60,9 +63,10 @@ public class RecordShare
     public virtual ICollection<RecordShareAccess> Accesses { get; set; } = new List<RecordShareAccess>();
 }
 
-public class RecordShareAccess
+public class RecordShareAccess : ITenantScoped
 {
     public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; } = TenantConstants.DefaultTenantId;
     public Guid ShareId { get; set; }
     public DateTime AccessedAt { get; set; } = DateTime.UtcNow;
     public string? IpAddress { get; set; }

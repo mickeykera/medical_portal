@@ -24,6 +24,7 @@ public class SystemUptimeController : ControllerBase
 [ApiController]
 [Route("R4")]
 [RequireAuth]
+[RequireModule("fhir")]
 public class FhirController : ControllerBase
 {
     private readonly IFhirService _fhir;
