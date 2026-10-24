@@ -60,7 +60,7 @@ public class PaymentGatewayTests : IClassFixture<WebApplicationFactory<Program>>
         db.Patients.Add(patient);
         await db.SaveChangesAsync();
 
-        var token = tokenService.GenerateAccessToken(account, person.Id);
+        var token = db.CreateAuthenticatedSession(tokenService, account, person.Id);
         return (account, patient, token);
     }
 

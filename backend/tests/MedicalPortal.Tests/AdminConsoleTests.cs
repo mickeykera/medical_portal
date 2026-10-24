@@ -44,7 +44,7 @@ public class AdminConsoleTests : IClassFixture<WebApplicationFactory<Program>>
         db.UserAccounts.Add(account);
         db.SaveChanges();
 
-        var token = tokens.GenerateAccessToken(account, person.Id);
+        var token = db.CreateAuthenticatedSession(tokens, account, person.Id);
         return (account, token);
     }
 

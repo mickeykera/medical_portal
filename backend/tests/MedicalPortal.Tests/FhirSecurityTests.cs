@@ -73,9 +73,9 @@ public class FhirSecurityTests : IClassFixture<WebApplicationFactory<Program>>
             strangerPatient = db.Patients.First(p => p.PersonId == strangerAccount.PersonId);
         }
 
-        var danaToken = tokenService.GenerateAccessToken(danaAccount, danaAccount.PersonId);
-        var drPatelToken = tokenService.GenerateAccessToken(patelAccount, patelAccount.PersonId);
-        var strangerToken = tokenService.GenerateAccessToken(strangerAccount, strangerAccount.PersonId);
+        var danaToken = db.CreateAuthenticatedSession(tokenService, danaAccount, danaAccount.PersonId);
+        var drPatelToken = db.CreateAuthenticatedSession(tokenService, patelAccount, patelAccount.PersonId);
+        var strangerToken = db.CreateAuthenticatedSession(tokenService, strangerAccount, strangerAccount.PersonId);
 
         return (client, danaPatient.Id, mateoPatient.Id, strangerPatient.Id, danaToken, drPatelToken, strangerToken);
     }

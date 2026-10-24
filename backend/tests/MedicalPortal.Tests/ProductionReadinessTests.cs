@@ -64,7 +64,7 @@ public class ProductionReadinessTests : IClassFixture<WebApplicationFactory<Prog
             db.SaveChanges();
         }
 
-        var token = tokens.GenerateAccessToken(account, person.Id);
+        var token = db.CreateAuthenticatedSession(tokens, account, person.Id);
         return (account, token);
     }
 

@@ -54,8 +54,17 @@ public class HmsClient : IHmsClient
                 return _cachedToken;
             }
 
-            var username = _config["Hms:Username"] ?? _config["HMS_USERNAME"] ?? "admin";
-            var password = _config["Hms:Password"] ?? _config["HMS_PASSWORD"] ?? "Admin";
+            var env = _config["ASPNETCORE_ENVIRONMENT"] ?? _config["Environment"];
+            var isProd = string.Equals(env, "Production", StringComparison.OrdinalIgnoreCase);
+
+            var username = _config["Hms:Username"] ?? _config["HMS_USERNAME"] ?? (isProd ? null : "admin");
+            var password = _config["Hms:Password"] ?? _config["HMS_PASSWORD"] ?? (isProd ? null : "Admin");
+
+            if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password))
+            {
+                _logger.LogError("HMS credentials are not configured.");
+                return null;
+            }
 
             var body = JsonSerializer.Serialize(new { username, password });
             using var req = new HttpRequestMessage(HttpMethod.Post, "api/auth/login")

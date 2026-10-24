@@ -238,26 +238,7 @@ public class PublicIpService : IPublicIpService
             _logger.LogDebug(ex, "Failed to resolve public IP via icanhazip.com.");
         }
 
-        // Try tertiary provider: ip-api.com
-        try
-        {
-            var response = await client.GetStringAsync("http://ip-api.com/json", cancellationToken);
-            using var doc = JsonDocument.Parse(response);
-            if (doc.RootElement.TryGetProperty("query", out var queryProp))
-            {
-                var resolved = queryProp.GetString()?.Trim();
-                if (!string.IsNullOrWhiteSpace(resolved) && IPAddress.TryParse(resolved, out _))
-                {
-                    _cache.Set(cacheKey, resolved, TimeSpan.FromMinutes(30));
-                    return resolved;
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogDebug(ex, "Failed to resolve public IP via ip-api.com.");
-        }
-
+        // Return resolved IP from secure providers
         return null;
     }
 
@@ -300,65 +281,8 @@ public class PublicIpService : IPublicIpService
             return cachedInfo;
         }
 
-        HttpClient? client = null;
-        try
-        {
-            client = _httpClientFactory.CreateClient("PublicIpClient");
-            if (client != null)
-            {
-                client.Timeout = TimeSpan.FromSeconds(3.5);
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogDebug(ex, "Could not create HttpClient from factory.");
-        }
-
-        if (client != null)
-        {
-            try
-            {
-                var url = $"http://ip-api.com/json/{Uri.EscapeDataString(targetIp)}?fields=status,message,country,countryCode,region,regionName,city,zip,lat,lon,timezone,isp,query";
-                var response = await client.GetStringAsync(url, cancellationToken);
-
-                using var doc = JsonDocument.Parse(response);
-                var root = doc.RootElement;
-
-                if (root.TryGetProperty("status", out var statusProp) && statusProp.GetString() == "success")
-                {
-                    var city = root.TryGetProperty("city", out var c) ? c.GetString() : null;
-                    var region = root.TryGetProperty("region", out var r) ? r.GetString() : null;
-                    var country = root.TryGetProperty("country", out var cntry) ? cntry.GetString() : null;
-                    var countryCode = root.TryGetProperty("countryCode", out var cc) ? cc.GetString() : null;
-                    var lat = root.TryGetProperty("lat", out var lt) ? lt.GetDouble() : DefaultLatitude;
-                    var lon = root.TryGetProperty("lon", out var ln) ? ln.GetDouble() : DefaultLongitude;
-                    var isp = root.TryGetProperty("isp", out var ispProp) ? ispProp.GetString() : null;
-                    var timezone = root.TryGetProperty("timezone", out var tz) ? tz.GetString() : null;
-
-                    var info = new PublicIpInfo(
-                        IpAddress: targetIp,
-                        IsPublic: true,
-                        City: city,
-                        Region: region,
-                        Country: country,
-                        CountryCode: countryCode,
-                        Latitude: lat,
-                        Longitude: lon,
-                        Isp: isp,
-                        Timezone: timezone,
-                        Source: "ip-api"
-                    );
-
-                    _cache.Set(cacheKey, info, TimeSpan.FromHours(1));
-                    return info;
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed to resolve geolocation for IP {Ip}. Using fallback coordinates.", targetIp);
-            }
-        }
-
+        // SEC-18: Plain-HTTP external geolocation calls (ip-api.com) have been dropped.
+        // Returns safe default coordinates without cleartext network egress.
         var fallbackInfo = new PublicIpInfo(
             IpAddress: targetIp,
             IsPublic: true,

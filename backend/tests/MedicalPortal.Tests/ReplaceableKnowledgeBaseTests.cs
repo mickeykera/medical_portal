@@ -56,7 +56,7 @@ public class ReplaceableKnowledgeBaseTests : IClassFixture<WebApplicationFactory
 
         db.SaveChanges();
 
-        var token = tokens.GenerateAccessToken(account, person.Id);
+        var token = db.CreateAuthenticatedSession(tokens, account, person.Id);
         return (account, token, person.Id, provider);
     }
 

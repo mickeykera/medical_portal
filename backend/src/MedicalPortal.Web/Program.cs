@@ -122,6 +122,17 @@ if (System.Text.Encoding.UTF8.GetByteCount(jwtSecret) < 32)
         "Startup failed: JWT secret must be at least 32 bytes (256 bits) for HMAC-SHA256 security.");
 }
 
+if (builder.Environment.IsProduction())
+{
+    if (jwtSecret.Contains("ThisIsAClusterSecretKey") ||
+        jwtSecret.Contains("placeholder", StringComparison.OrdinalIgnoreCase) ||
+        jwtSecret.Contains("ChangeMe", StringComparison.OrdinalIgnoreCase))
+    {
+        throw new InvalidOperationException(
+            "Production startup failed: Default or placeholder JWT secret is strictly prohibited in production.");
+    }
+}
+
 // Database configuration (PostgreSQL or SQLite fallback)
 var rawConnectionString = builder.Configuration["DATABASE_URL"]
                           ?? builder.Configuration["POSTGRES_CONNECTION_STRING"]
@@ -287,27 +298,69 @@ builder.Services.AddSingleton<IGeocodingService, GeocodingService>();
 builder.Services.AddScoped<IFhirService, FhirService>();
 
 // Clinical Safety Knowledge Bases (Replaceable with licensed clinical pharmacology providers)
-builder.Services.AddSingleton<IInteractionKnowledgeBase, DemoInteractionKnowledgeBase>();
-builder.Services.AddSingleton<IAllergyKnowledgeBase, DemoAllergyKnowledgeBase>();
+var useDemoClinicalKb = builder.Configuration.GetValue<bool>("Clinical:UseDemoKnowledgeBase", false);
+if (builder.Environment.IsProduction())
+{
+    if (useDemoClinicalKb)
+    {
+        throw new InvalidOperationException(
+            "Production startup failed: Demo clinical knowledge bases are strictly prohibited in production.");
+    }
+
+    var rxNormKb = new LicensedRxNormKnowledgeBase("2026.10", "National Clinical Drug Authority / RxNorm");
+    builder.Services.AddSingleton<IInteractionKnowledgeBase>(rxNormKb);
+    builder.Services.AddSingleton<IAllergyKnowledgeBase>(rxNormKb);
+}
+else
+{
+    builder.Services.AddSingleton<IInteractionKnowledgeBase, DemoInteractionKnowledgeBase>();
+    builder.Services.AddSingleton<IAllergyKnowledgeBase, DemoAllergyKnowledgeBase>();
+}
 
 // Multi-Instance Distributed Locking (PostgreSQL session advisory locks across cluster, in-memory fallback for dev)
 builder.Services.AddSingleton<IDistributedLockService, PostgreSqlAdvisoryLockService>();
 
 // Payment Gateway (Stripe with hosted fields / PCI SAQ A, or Fake gateway for tests and dev)
 var stripeSecretKey = builder.Configuration["Stripe:SecretKey"] ?? builder.Configuration["STRIPE_SECRET_KEY"];
-var useFakeGateway = builder.Configuration.GetValue<bool>("Stripe:UseFake") || string.IsNullOrWhiteSpace(stripeSecretKey);
+var useFakeGateway = builder.Configuration.GetValue<bool>("Stripe:UseFake") ||
+                      builder.Configuration.GetValue<bool>("STRIPE_USE_FAKE");
 
-if (useFakeGateway)
+if (builder.Environment.IsProduction())
 {
-    builder.Services.AddSingleton<IPaymentGateway, FakePaymentGateway>();
-}
-else
-{
+    if (useFakeGateway)
+    {
+        throw new InvalidOperationException(
+            "Production startup failed: Fake payment gateway is strictly prohibited in production.");
+    }
+
+    if (string.IsNullOrWhiteSpace(stripeSecretKey) ||
+        stripeSecretKey.Contains("placeholder", StringComparison.OrdinalIgnoreCase) ||
+        stripeSecretKey.Contains("dummy", StringComparison.OrdinalIgnoreCase))
+    {
+        throw new InvalidOperationException(
+            "Production startup failed: Valid production Stripe secret key is required.");
+    }
+
     builder.Services.AddHttpClient<IPaymentGateway, StripePaymentGateway>(client =>
     {
         client.BaseAddress = new Uri("https://api.stripe.com/");
         client.Timeout = TimeSpan.FromSeconds(30);
     });
+}
+else
+{
+    if (useFakeGateway || string.IsNullOrWhiteSpace(stripeSecretKey))
+    {
+        builder.Services.AddSingleton<IPaymentGateway, FakePaymentGateway>();
+    }
+    else
+    {
+        builder.Services.AddHttpClient<IPaymentGateway, StripePaymentGateway>(client =>
+        {
+            client.BaseAddress = new Uri("https://api.stripe.com/");
+            client.Timeout = TimeSpan.FromSeconds(30);
+        });
+    }
 }
 
 // Notification Delivery (BAA-Capable Email: SendGrid/AWS SES/SMTP; BAA-Capable SMS: Twilio/AWS SNS; Fake for tests)
@@ -331,20 +384,69 @@ builder.Services.AddTransient<INotificationSender, BaaNotificationSender>();
 builder.Services.AddScoped<INotificationDeliveryService, NotificationDeliveryService>();
 
 // HMS Integration (Client, Conflict Resolution, Dead-Letter Queue, Webhooks, Sync Worker)
-var useFakeHms = builder.Configuration.GetValue<bool>("Hms:UseFake", true);
-builder.Services.AddSingleton<FakeHmsClient>();
-if (useFakeHms)
+var useFakeHms = builder.Configuration.GetValue<bool>("Hms:UseFake", !builder.Environment.IsProduction()) ||
+                 builder.Configuration.GetValue<bool>("HMS_USE_FAKE", false);
+var hmsBaseUrl = builder.Configuration["Hms:BaseUrl"] ?? builder.Configuration["HMS_BASE_URL"];
+var hmsSecret = builder.Configuration["Hms:WebhookSecret"] ?? builder.Configuration["HMS_WEBHOOK_SECRET"] ??
+                builder.Configuration["Hms:WebhookSecrets"] ?? builder.Configuration["HMS_WEBHOOK_SECRETS"];
+
+if (builder.Environment.IsProduction())
 {
-    builder.Services.AddSingleton<IHmsClient>(sp => sp.GetRequiredService<FakeHmsClient>());
-}
-else
-{
+    if (useFakeHms)
+    {
+        throw new InvalidOperationException(
+            "Production startup failed: Fake HMS client is strictly prohibited in production.");
+    }
+
+    if (string.IsNullOrWhiteSpace(hmsSecret) ||
+        hmsSecret.Contains("demo-hms-webhook-secret", StringComparison.OrdinalIgnoreCase) ||
+        hmsSecret.Contains("placeholder", StringComparison.OrdinalIgnoreCase))
+    {
+        throw new InvalidOperationException(
+            "Production startup failed: Valid production HMS webhook secret is required.");
+    }
+
+    if (string.IsNullOrWhiteSpace(hmsBaseUrl))
+    {
+        throw new InvalidOperationException(
+            "Production startup failed: HMS base URL is required.");
+    }
+
+    if (Uri.TryCreate(hmsBaseUrl, UriKind.Absolute, out var uri))
+    {
+        var isInternal = uri.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase) ||
+                         uri.Host.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase) ||
+                         uri.Host.EndsWith(".local", StringComparison.OrdinalIgnoreCase) ||
+                         uri.Host.EndsWith(".internal", StringComparison.OrdinalIgnoreCase);
+
+        if (uri.Scheme.Equals("http", StringComparison.OrdinalIgnoreCase) && !isInternal)
+        {
+            throw new InvalidOperationException(
+                $"Production startup failed: External HMS endpoint '{hmsBaseUrl}' must use HTTPS.");
+        }
+    }
+
     builder.Services.AddHttpClient<IHmsClient, HmsClient>(client =>
     {
-        var hmsBaseUrl = builder.Configuration["Hms:BaseUrl"] ?? "http://localhost:3210";
         client.BaseAddress = new Uri(hmsBaseUrl.TrimEnd('/') + "/");
         client.Timeout = TimeSpan.FromSeconds(30);
     });
+}
+else
+{
+    builder.Services.AddSingleton<FakeHmsClient>();
+    if (useFakeHms || string.IsNullOrWhiteSpace(hmsBaseUrl))
+    {
+        builder.Services.AddSingleton<IHmsClient>(sp => sp.GetRequiredService<FakeHmsClient>());
+    }
+    else
+    {
+        builder.Services.AddHttpClient<IHmsClient, HmsClient>(client =>
+        {
+            client.BaseAddress = new Uri(hmsBaseUrl.TrimEnd('/') + "/");
+            client.Timeout = TimeSpan.FromSeconds(30);
+        });
+    }
 }
 
 builder.Services.AddScoped<IHmsConflictService, HmsConflictService>();
@@ -398,6 +500,13 @@ builder.Services.AddSwaggerGen(c =>
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
     ?? builder.Configuration["CORS_ALLOWED_ORIGINS"]?.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
     ?? Array.Empty<string>();
+
+builder.Services.AddHsts(options =>
+{
+    options.Preload = true;
+    options.IncludeSubDomains = true;
+    options.MaxAge = TimeSpan.FromDays(365);
+});
 
 builder.Services.AddCors(options =>
 {
@@ -475,15 +584,42 @@ if (app.Environment.IsDevelopment())
 }
 else
 {
-    // Production: Validate services without running auto-migrations
+    // Production: Validate required production services without running auto-migrations
     using var scope = app.Services.CreateScope();
     scope.ServiceProvider.GetRequiredService<ITokenService>();
+
+    var ikb = scope.ServiceProvider.GetService<IInteractionKnowledgeBase>();
+    var akb = scope.ServiceProvider.GetService<IAllergyKnowledgeBase>();
+    if (ikb is DemoInteractionKnowledgeBase || akb is DemoAllergyKnowledgeBase)
+    {
+        throw new InvalidOperationException(
+            "Production startup failed: Demo clinical knowledge bases are registered in production.");
+    }
+
+    var pg = scope.ServiceProvider.GetService<IPaymentGateway>();
+    if (pg is FakePaymentGateway)
+    {
+        throw new InvalidOperationException(
+            "Production startup failed: Fake payment gateway is registered in production.");
+    }
+
+    var hms = scope.ServiceProvider.GetService<IHmsClient>();
+    if (hms is FakeHmsClient)
+    {
+        throw new InvalidOperationException(
+            "Production startup failed: Fake HMS client is registered in production.");
+    }
 }
 
 // Global PHI-Safe Exception Handler (intercepts unhandled exceptions, sanitizes PHI, and returns safe responses)
 app.UseMiddleware<PhiSafeExceptionHandlerMiddleware>();
 
 app.UseForwardedHeaders();
+
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHsts();
+}
 
 // Defensive Security Headers Middleware
 app.Use(async (context, next) =>
@@ -501,6 +637,13 @@ app.Use(async (context, next) =>
         "img-src 'self' data: https:; " +
         "connect-src 'self' ws: wss:; " +
         "frame-ancestors 'none';");
+
+    if (context.Request.IsHttps ||
+        string.Equals(context.Request.Headers["X-Forwarded-Proto"], "https", StringComparison.OrdinalIgnoreCase) ||
+        !app.Environment.IsDevelopment())
+    {
+        context.Response.Headers.Append("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload");
+    }
 
     await next();
 });

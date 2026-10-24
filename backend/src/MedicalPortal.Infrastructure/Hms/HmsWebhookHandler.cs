@@ -48,7 +48,11 @@ public class HmsWebhookHandler : IHmsWebhookHandler
 
         if (secretsList.Count == 0)
         {
-            secretsList.Add("demo-hms-webhook-secret");
+            var env = _config["ASPNETCORE_ENVIRONMENT"] ?? _config["Environment"];
+            if (!string.Equals(env, "Production", StringComparison.OrdinalIgnoreCase))
+            {
+                secretsList.Add("demo-hms-webhook-secret");
+            }
         }
 
         return secretsList;

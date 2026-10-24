@@ -74,9 +74,10 @@ services:
       - FORWARDED_HEADERS_TRUSTED_NETWORKS=172.16.0.0/12,10.0.0.0/8,127.0.0.1/32
       - REDIS_CONNECTION_STRING=redis:6379
       - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=medical_portal;Username=postgres;Password=postgres;
-      - JWT_SECRET=ThisIsAClusterSecretKeyForMultiInstanceDeployments12345!
-      - STRIPE_USE_FAKE=true
-      - HMS_USE_FAKE=true
+      - JWT_SECRET=${JWT_SECRET}
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
+      - HMS_WEBHOOK_SECRET=${HMS_WEBHOOK_SECRET}
+      - HMS_BASE_URL=${HMS_BASE_URL}
     depends_on:
       postgres:
         condition: service_healthy
@@ -102,9 +103,10 @@ services:
       - FORWARDED_HEADERS_TRUSTED_NETWORKS=172.16.0.0/12,10.0.0.0/8,127.0.0.1/32
       - REDIS_CONNECTION_STRING=redis:6379
       - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=medical_portal;Username=postgres;Password=postgres;
-      - JWT_SECRET=ThisIsAClusterSecretKeyForMultiInstanceDeployments12345!
-      - STRIPE_USE_FAKE=true
-      - HMS_USE_FAKE=true
+      - JWT_SECRET=${JWT_SECRET}
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
+      - HMS_WEBHOOK_SECRET=${HMS_WEBHOOK_SECRET}
+      - HMS_BASE_URL=${HMS_BASE_URL}
     depends_on:
       postgres:
         condition: service_healthy

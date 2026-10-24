@@ -62,8 +62,12 @@ public class RequireAuthFilter : IAsyncActionFilter
             return;
         }
 
-        // Server-side session verification by 'sid' (revocation, idle timeout, active account)
-        var sessionResult = await _sessionService.ValidateSessionAsync(claims.Sid, claims.UserAccountId);
+        // Server-side session verification by 'sid' (revocation, idle timeout, active account, role matching, auth version)
+        var sessionResult = await _sessionService.ValidateSessionAsync(
+            claims.Sid,
+            claims.UserAccountId,
+            claims.AuthorizationVersion,
+            claims.Role);
         if (!sessionResult.IsValid)
         {
             if (isCookieAuth)
@@ -102,7 +106,15 @@ public class RequireAuthFilter : IAsyncActionFilter
             }
         }
 
-        context.HttpContext.Items["Actor"] = claims;
+        // Reconcile claims against authoritative database record (prevents claim-forgery privilege escalation)
+        var authoritativeActor = new AccessTokenClaims(
+            sessionResult.Account!.Id,
+            sessionResult.Account.PersonId,
+            sessionResult.Account.Role,
+            claims.Sid,
+            sessionResult.Account.AuthorizationVersion);
+
+        context.HttpContext.Items["Actor"] = authoritativeActor;
         if (sessionResult.Session != null)
         {
             context.HttpContext.Items["Session"] = sessionResult.Session;

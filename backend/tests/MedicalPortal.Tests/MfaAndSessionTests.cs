@@ -495,7 +495,7 @@ public class MfaAndSessionTests : IClassFixture<WebApplicationFactory<Program>>
         var client = _factory.CreateClient();
 
         // Clinician disable request -> 403 Forbidden
-        var clinicianToken = tokenService.GenerateAccessToken(clinician, clinician.PersonId);
+        var clinicianToken = db.CreateAuthenticatedSession(tokenService, clinician, clinician.PersonId);
         using var clinicianReq = new HttpRequestMessage(HttpMethod.Post, "/api/auth/mfa/disable");
         clinicianReq.Headers.Authorization = new AuthenticationHeaderValue("Bearer", clinicianToken);
         clinicianReq.Content = JsonContent.Create(new { password = "ClinicianPass123!" });
@@ -503,7 +503,7 @@ public class MfaAndSessionTests : IClassFixture<WebApplicationFactory<Program>>
         Assert.Equal(HttpStatusCode.Forbidden, clinicianRes.StatusCode);
 
         // Patient disable request -> 200 OK
-        var patientToken = tokenService.GenerateAccessToken(patient, patient.PersonId);
+        var patientToken = db.CreateAuthenticatedSession(tokenService, patient, patient.PersonId);
         using var patientReq = new HttpRequestMessage(HttpMethod.Post, "/api/auth/mfa/disable");
         patientReq.Headers.Authorization = new AuthenticationHeaderValue("Bearer", patientToken);
         patientReq.Content = JsonContent.Create(new { password = "PatientPass123!" });

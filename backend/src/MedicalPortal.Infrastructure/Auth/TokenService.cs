@@ -9,7 +9,7 @@ using Microsoft.IdentityModel.Tokens;
 
 namespace MedicalPortal.Infrastructure.Auth;
 
-public record AccessTokenClaims(Guid UserAccountId, Guid PersonId, UserRole Role, string Sid);
+public record AccessTokenClaims(Guid UserAccountId, Guid PersonId, UserRole Role, string Sid, int AuthorizationVersion = 1);
 
 public interface ITokenService
 {
@@ -64,6 +64,7 @@ public class TokenService : ITokenService
             new Claim(ClaimTypes.Role, account.Role.ToString()),
             new Claim("role", account.Role.ToString()),
             new Claim("sid", sid),
+            new Claim("authVersion", account.AuthorizationVersion.ToString()),
             new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
         };
 
@@ -102,12 +103,18 @@ public class TokenService : ITokenService
             var personIdStr = principal.FindFirst("personId")?.Value;
             var roleStr = principal.FindFirst("role")?.Value ?? principal.FindFirst(ClaimTypes.Role)?.Value;
             var sid = principal.FindFirst("sid")?.Value ?? string.Empty;
+            var authVersionStr = principal.FindFirst("authVersion")?.Value;
+            int authVersion = 1;
+            if (int.TryParse(authVersionStr, out var parsedVersion) && parsedVersion > 0)
+            {
+                authVersion = parsedVersion;
+            }
 
             if (Guid.TryParse(userAccountIdStr, out var userAccountId) &&
                 Guid.TryParse(personIdStr, out var personId) &&
                 Enum.TryParse<UserRole>(roleStr, true, out var role))
             {
-                return new AccessTokenClaims(userAccountId, personId, role, sid);
+                return new AccessTokenClaims(userAccountId, personId, role, sid, authVersion);
             }
 
             return null;

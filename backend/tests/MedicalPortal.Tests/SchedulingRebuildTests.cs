@@ -247,7 +247,7 @@ public class SchedulingRebuildTests : IClassFixture<WebApplicationFactory<Progra
         var db = scope.ServiceProvider.GetRequiredService<MedicalPortalDbContext>();
         var tokenService = scope.ServiceProvider.GetRequiredService<ITokenService>();
         var user = await db.UserAccounts.FirstAsync(u => u.Email == "dana@example.com");
-        var token = tokenService.GenerateAccessToken(user, user.PersonId);
+        var token = db.CreateAuthenticatedSession(tokenService, user, user.PersonId);
 
         var client = _factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
@@ -273,7 +273,7 @@ public class SchedulingRebuildTests : IClassFixture<WebApplicationFactory<Progra
         var db = scope.ServiceProvider.GetRequiredService<MedicalPortalDbContext>();
         var tokenService = scope.ServiceProvider.GetRequiredService<ITokenService>();
         var user = await db.UserAccounts.FirstAsync(u => u.Email == "dana@example.com");
-        var token = tokenService.GenerateAccessToken(user, user.PersonId);
+        var token = db.CreateAuthenticatedSession(tokenService, user, user.PersonId);
 
         var client = _factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
@@ -296,7 +296,7 @@ public class SchedulingRebuildTests : IClassFixture<WebApplicationFactory<Progra
         var db = scope.ServiceProvider.GetRequiredService<MedicalPortalDbContext>();
         var tokenService = scope.ServiceProvider.GetRequiredService<ITokenService>();
         var user = await db.UserAccounts.FirstAsync(u => u.Email == "dana@example.com");
-        var token = tokenService.GenerateAccessToken(user, user.PersonId);
+        var token = db.CreateAuthenticatedSession(tokenService, user, user.PersonId);
         var drPatel = await db.Providers.FirstAsync(p => p.Email == "apatel@clinic.example");
 
         var client = _factory.CreateClient();
@@ -323,7 +323,7 @@ public class SchedulingRebuildTests : IClassFixture<WebApplicationFactory<Progra
         var drPatel = await db.Providers.FirstAsync(p => p.Email == "apatel@clinic.example");
         var clinic = await db.Locations.FirstAsync(l => l.Name == "Riverside Family Clinic");
 
-        var token = tokenService.GenerateAccessToken(patientUser, patientUser.PersonId);
+        var token = db.CreateAuthenticatedSession(tokenService, patientUser, patientUser.PersonId);
         var client = _factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
         client.DefaultRequestHeaders.Add("X-Patient-Id", patient.Id.ToString());
@@ -393,7 +393,7 @@ public class SchedulingRebuildTests : IClassFixture<WebApplicationFactory<Progra
             await db.SaveChangesAsync();
         }
 
-        var token = tokenService.GenerateAccessToken(patientUser, patientUser.PersonId);
+        var token = db.CreateAuthenticatedSession(tokenService, patientUser, patientUser.PersonId);
         var client = _factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
         client.DefaultRequestHeaders.Add("X-Patient-Id", patient.Id.ToString());
@@ -469,7 +469,7 @@ public class SchedulingRebuildTests : IClassFixture<WebApplicationFactory<Progra
         });
         await db.SaveChangesAsync();
 
-        var token = tokenService.GenerateAccessToken(patientUser, patientUser.PersonId);
+        var token = db.CreateAuthenticatedSession(tokenService, patientUser, patientUser.PersonId);
         var client = _factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
         client.DefaultRequestHeaders.Add("X-Patient-Id", patient.Id.ToString());
@@ -504,7 +504,7 @@ public class SchedulingRebuildTests : IClassFixture<WebApplicationFactory<Progra
         var clinic = await db.Locations.FirstAsync(l => l.Name == "Riverside Family Clinic");
         var wellnessType = await db.AppointmentTypes.FirstAsync(at => at.Code == "WELLNESS"); // 45 minutes
 
-        var token = tokenService.GenerateAccessToken(patientUser, patientUser.PersonId);
+        var token = db.CreateAuthenticatedSession(tokenService, patientUser, patientUser.PersonId);
         var client = _factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
         client.DefaultRequestHeaders.Add("X-Patient-Id", patient.Id.ToString());

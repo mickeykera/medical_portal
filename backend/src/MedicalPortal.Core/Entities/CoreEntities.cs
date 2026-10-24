@@ -37,6 +37,7 @@ public class UserAccount
     public DateTime? LockedUntil { get; set; }
     public DateTime? LastLoginAt { get; set; }
     public bool IsActive { get; set; } = true;
+    public int AuthorizationVersion { get; set; } = 1;
     public bool MfaEnabled { get; set; } = false;
     public string? MfaSecret { get; set; }
     public string? MfaRecoveryCodesJson { get; set; }

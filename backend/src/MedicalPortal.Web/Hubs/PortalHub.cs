@@ -10,17 +10,23 @@ namespace MedicalPortal.Web.Hubs;
 public class PortalHub : Hub
 {
     private readonly ITokenService _tokenService;
+    private readonly ISessionService _sessionService;
     private readonly IAccessControlService _accessControl;
     private readonly MedicalPortalDbContext _db;
 
-    public PortalHub(ITokenService tokenService, IAccessControlService accessControl, MedicalPortalDbContext db)
+    public PortalHub(
+        ITokenService tokenService,
+        ISessionService sessionService,
+        IAccessControlService accessControl,
+        MedicalPortalDbContext db)
     {
         _tokenService = tokenService;
+        _sessionService = sessionService;
         _accessControl = accessControl;
         _db = db;
     }
 
-    private AccessTokenClaims? GetActor()
+    private async Task<AccessTokenClaims?> GetActorAsync()
     {
         if (Context.Items.TryGetValue("Actor", out var cached) && cached is AccessTokenClaims claims)
         {
@@ -48,17 +54,35 @@ public class PortalHub : Hub
         if (string.IsNullOrEmpty(token)) return null;
 
         var validated = _tokenService.ValidateAccessToken(token);
-        if (validated != null)
+        if (validated == null) return null;
+
+        // Unify SignalR session validation with HTTP:
+        // Enforce session presence, active account, idle timeout, role matching, and auth version
+        var sessionResult = await _sessionService.ValidateSessionAsync(
+            validated.Sid,
+            validated.UserAccountId,
+            validated.AuthorizationVersion,
+            validated.Role);
+
+        if (!sessionResult.IsValid || sessionResult.Account == null)
         {
-            Context.Items["Actor"] = validated;
+            return null;
         }
 
-        return validated;
+        var authoritativeActor = new AccessTokenClaims(
+            sessionResult.Account.Id,
+            sessionResult.Account.PersonId,
+            sessionResult.Account.Role,
+            validated.Sid,
+            sessionResult.Account.AuthorizationVersion);
+
+        Context.Items["Actor"] = authoritativeActor;
+        return authoritativeActor;
     }
 
     public override async Task OnConnectedAsync()
     {
-        var actor = GetActor();
+        var actor = await GetActorAsync();
         if (actor == null)
         {
             Context.Abort();
@@ -72,7 +96,7 @@ public class PortalHub : Hub
 
     public async Task JoinPatientRoom(string patientId)
     {
-        var actor = GetActor();
+        var actor = await GetActorAsync();
         if (actor == null)
         {
             throw new HubException("Authentication required.");
@@ -94,7 +118,7 @@ public class PortalHub : Hub
 
     public async Task LeavePatientRoom(string patientId)
     {
-        var actor = GetActor();
+        var actor = await GetActorAsync();
         if (actor == null)
         {
             throw new HubException("Authentication required.");
@@ -108,7 +132,7 @@ public class PortalHub : Hub
 
     public async Task JoinClinicianRoom(string providerId)
     {
-        var actor = GetActor();
+        var actor = await GetActorAsync();
         if (actor == null)
         {
             throw new HubException("Authentication required.");
@@ -140,7 +164,7 @@ public class PortalHub : Hub
 
     public async Task JoinComplianceQueue()
     {
-        var actor = GetActor();
+        var actor = await GetActorAsync();
         if (actor == null)
         {
             throw new HubException("Authentication required.");

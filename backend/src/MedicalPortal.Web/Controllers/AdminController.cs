@@ -377,8 +377,11 @@ public class AdminController : ControllerBase
 
         var oldRole = account.Role;
         account.Role = role;
+        account.AuthorizationVersion++;
         account.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync();
+
+        await _sessions.RevokeAllSessionsForUserAsync(account.Id, $"role_changed_to_{role}");
 
         await _audit.LogAsync(
             action: "ADMIN_USER_ROLE_UPDATED",

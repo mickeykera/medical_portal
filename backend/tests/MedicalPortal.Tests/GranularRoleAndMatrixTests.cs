@@ -292,7 +292,7 @@ public class GranularRoleAndMatrixTests : IClassFixture<WebApplicationFactory<Pr
         db.Patients.Add(patient);
         await db.SaveChangesAsync();
 
-        var token = tokenService.GenerateAccessToken(billingAccount, billingAccount.PersonId);
+        var token = db.CreateAuthenticatedSession(tokenService, billingAccount, billingAccount.PersonId);
         var client = _factory.CreateClient();
 
         // Billing role attempting to read clinical export summary (ClinicalNotes resource)
@@ -339,7 +339,7 @@ public class GranularRoleAndMatrixTests : IClassFixture<WebApplicationFactory<Pr
         db.Patients.Add(patient);
         await db.SaveChangesAsync();
 
-        var token = tokenService.GenerateAccessToken(billingAccount, billingAccount.PersonId);
+        var token = db.CreateAuthenticatedSession(tokenService, billingAccount, billingAccount.PersonId);
         var client = _factory.CreateClient();
 
         using var request = new HttpRequestMessage(HttpMethod.Get, "/api/billing/statements");
@@ -385,7 +385,7 @@ public class GranularRoleAndMatrixTests : IClassFixture<WebApplicationFactory<Pr
         db.Patients.Add(patient);
         await db.SaveChangesAsync();
 
-        var token = tokenService.GenerateAccessToken(schedAccount, schedAccount.PersonId);
+        var token = db.CreateAuthenticatedSession(tokenService, schedAccount, schedAccount.PersonId);
         var client = _factory.CreateClient();
 
         // Scheduler attempting to read clinical labs (ClinicalResults resource)
@@ -432,7 +432,7 @@ public class GranularRoleAndMatrixTests : IClassFixture<WebApplicationFactory<Pr
         db.Patients.Add(patient);
         await db.SaveChangesAsync();
 
-        var token = tokenService.GenerateAccessToken(schedAccount, schedAccount.PersonId);
+        var token = db.CreateAuthenticatedSession(tokenService, schedAccount, schedAccount.PersonId);
         var client = _factory.CreateClient();
 
         using var request = new HttpRequestMessage(HttpMethod.Get, "/api/appointments");
@@ -495,7 +495,7 @@ public class GranularRoleAndMatrixTests : IClassFixture<WebApplicationFactory<Pr
         db.Patients.Add(patient);
         await db.SaveChangesAsync();
 
-        var token = tokenService.GenerateAccessToken(staffAccount, staffAccount.PersonId);
+        var token = db.CreateAuthenticatedSession(tokenService, staffAccount, staffAccount.PersonId);
         var client = _factory.CreateClient();
 
         // 1. Request with mismatched department header (Cardiology) -> Forbidden

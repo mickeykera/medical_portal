@@ -76,7 +76,8 @@ public class BreakGlassTests : IClassFixture<WebApplicationFactory<Program>>
     {
         using var scope = _factory.Services.CreateScope();
         var tokenService = scope.ServiceProvider.GetRequiredService<ITokenService>();
-        return tokenService.GenerateAccessToken(account, account.PersonId);
+        var db = scope.ServiceProvider.GetRequiredService<MedicalPortalDbContext>();
+        return db.CreateAuthenticatedSession(tokenService, account, account.PersonId);
     }
 
     [Fact]

@@ -26,7 +26,7 @@ public class CorsAndCsrfTests : IClassFixture<WebApplicationFactory<Program>>
         var tokenService = scope.ServiceProvider.GetRequiredService<ITokenService>();
 
         var danaAccount = db.UserAccounts.Include(u => u.Person).First(u => u.Email == "dana@example.com");
-        return tokenService.GenerateAccessToken(danaAccount, danaAccount.PersonId);
+        return db.CreateAuthenticatedSession(tokenService, danaAccount, danaAccount.PersonId);
     }
 
     [Fact]

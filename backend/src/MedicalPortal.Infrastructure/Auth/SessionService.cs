@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using MedicalPortal.Core.Entities;
+using MedicalPortal.Core.Enums;
 using MedicalPortal.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -18,7 +19,11 @@ public interface ISessionService
         string? userAgent,
         string? customRefreshToken = null);
 
-    Task<SessionValidationResult> ValidateSessionAsync(string sid, Guid? expectedUserAccountId = null);
+    Task<SessionValidationResult> ValidateSessionAsync(
+        string sid,
+        Guid? expectedUserAccountId = null,
+        int? expectedAuthVersion = null,
+        UserRole? expectedRole = null);
 
     Task RevokeSessionAsync(string sid, string reason);
 
@@ -92,7 +97,11 @@ public class SessionService : ISessionService
         return (session, refreshToken);
     }
 
-    public async Task<SessionValidationResult> ValidateSessionAsync(string sid, Guid? expectedUserAccountId = null)
+    public async Task<SessionValidationResult> ValidateSessionAsync(
+        string sid,
+        Guid? expectedUserAccountId = null,
+        int? expectedAuthVersion = null,
+        UserRole? expectedRole = null)
     {
         if (string.IsNullOrWhiteSpace(sid))
         {
@@ -107,25 +116,8 @@ public class SessionService : ISessionService
 
         if (session == null)
         {
-            // If expectedUserAccountId is provided and account exists & is active,
-            // lazily track the session so directly created test tokens become managed.
-            if (expectedUserAccountId.HasValue)
-            {
-                var account = await _db.UserAccounts.Include(u => u.Person).FirstOrDefaultAsync(u => u.Id == expectedUserAccountId.Value);
-                if (account == null)
-                {
-                    return new SessionValidationResult(false, "Account not found.", null, null);
-                }
-                if (!account.IsActive)
-                {
-                    return new SessionValidationResult(false, "Account has been deactivated.", null, account);
-                }
-
-                var (newSession, _) = await CreateSessionAsync(account.Id, sid, null, null);
-                newSession.UserAccount = account;
-                return new SessionValidationResult(true, null, newSession, account);
-            }
-
+            // SEC-01 & SEC-14: Lazy session creation is strictly deleted.
+            // Unknown or forged session identifiers are immediately rejected.
             return new SessionValidationResult(false, "Session not found or expired.", null, null);
         }
 
@@ -140,6 +132,33 @@ public class SessionService : ISessionService
             session.RevokedReason = "account_disabled";
             await _db.SaveChangesAsync();
             return new SessionValidationResult(false, "Account has been deactivated.", session, session.UserAccount);
+        }
+
+        // Reconcile user account ID
+        if (expectedUserAccountId.HasValue && session.UserAccountId != expectedUserAccountId.Value)
+        {
+            session.RevokedAt = now;
+            session.RevokedReason = "account_mismatch";
+            await _db.SaveChangesAsync();
+            return new SessionValidationResult(false, "Session account mismatch.", session, session.UserAccount);
+        }
+
+        // Reconcile user role against database (prevent forged token role privilege escalation)
+        if (expectedRole.HasValue && session.UserAccount.Role != expectedRole.Value)
+        {
+            session.RevokedAt = now;
+            session.RevokedReason = "role_mismatch";
+            await _db.SaveChangesAsync();
+            return new SessionValidationResult(false, "Session role mismatch. Permissions have changed.", session, session.UserAccount);
+        }
+
+        // Reconcile authorization version (immediate revocation on role/permission changes)
+        if (expectedAuthVersion.HasValue && session.UserAccount.AuthorizationVersion != expectedAuthVersion.Value)
+        {
+            session.RevokedAt = now;
+            session.RevokedReason = "auth_version_mismatch";
+            await _db.SaveChangesAsync();
+            return new SessionValidationResult(false, "Session permissions have expired. Please sign in again.", session, session.UserAccount);
         }
 
         if (session.ExpiresAt < now)
