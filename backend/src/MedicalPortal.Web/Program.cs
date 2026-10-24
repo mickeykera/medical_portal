@@ -674,11 +674,13 @@ app.Use(async (context, next) =>
     context.Response.Headers.Append("Permissions-Policy", "geolocation=(self), camera=(), microphone=()");
     context.Response.Headers.Append("Content-Security-Policy",
         "default-src 'self'; " +
-        "script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; " +
-        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
-        "font-src 'self' https://fonts.gstatic.com; " +
-        "img-src 'self' data: https:; " +
+        "script-src 'self'; " +
+        "style-src 'self' 'unsafe-inline'; " +
+        "font-src 'self' data:; " +
+        "img-src 'self' data:; " +
         "connect-src 'self' ws: wss:; " +
+        "object-src 'none'; " +
+        "base-uri 'self'; " +
         "frame-ancestors 'none';");
 
     if (context.Request.IsHttps ||

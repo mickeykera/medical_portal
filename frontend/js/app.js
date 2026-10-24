@@ -9,13 +9,25 @@
   let modalState = null;
   let hubConnection = null;
 
+  function escapeHtml(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
   function showToast(msg) {
     const container = document.getElementById('toast-container');
     if (!container) return;
     const toast = document.createElement('div');
     toast.className = 'notice notice-good';
     toast.style.cssText = 'pointer-events: auto; box-shadow: 0 4px 12px rgba(0,0,0,0.15); margin: 0; min-width: 260px; border-left: 4px solid var(--primary);';
-    toast.innerHTML = `<div>${msg}</div>`;
+    const textDiv = document.createElement('div');
+    textDiv.textContent = msg;
+    toast.appendChild(textDiv);
     container.appendChild(toast);
     setTimeout(() => {
       toast.style.opacity = '0';
@@ -31,16 +43,29 @@
     const card = document.createElement('div');
     card.className = 'card';
     card.style.cssText = 'max-width:440px;width:100%;box-shadow:0 20px 25px -5px rgba(0,0,0,0.2);border-radius:12px;padding:1.5rem;background:#fff;';
-    card.innerHTML = `
-      <h3 style="margin-bottom:0.75rem;font-size:1.15rem;font-weight:600;color:var(--text);">${title}</h3>
-      <p style="color:var(--text-muted);margin-bottom:1.25rem;font-size:0.95rem;line-height:1.5;white-space:pre-wrap;">${message}</p>
-      <div style="display:flex;justify-content:flex-end;">
-        <button id="inapp-ok-btn" class="btn btn-primary">OK</button>
-      </div>
-    `;
+
+    const titleEl = document.createElement('h3');
+    titleEl.style.cssText = 'margin-bottom:0.75rem;font-size:1.15rem;font-weight:600;color:var(--text);';
+    titleEl.textContent = title;
+
+    const msgEl = document.createElement('p');
+    msgEl.style.cssText = 'color:var(--text-muted);margin-bottom:1.25rem;font-size:0.95rem;line-height:1.5;white-space:pre-wrap;';
+    msgEl.textContent = message;
+
+    const actions = document.createElement('div');
+    actions.style.cssText = 'display:flex;justify-content:flex-end;';
+    const okBtn = document.createElement('button');
+    okBtn.id = 'inapp-ok-btn';
+    okBtn.className = 'btn btn-primary';
+    okBtn.textContent = 'OK';
+    okBtn.onclick = () => overlay.remove();
+    actions.appendChild(okBtn);
+
+    card.appendChild(titleEl);
+    card.appendChild(msgEl);
+    card.appendChild(actions);
     overlay.appendChild(card);
     document.body.appendChild(overlay);
-    card.querySelector('#inapp-ok-btn').onclick = () => overlay.remove();
   }
 
   function showInAppConfirm(message, onConfirm, onCancel, title = 'Confirmation Required') {
@@ -50,24 +75,43 @@
     const card = document.createElement('div');
     card.className = 'card';
     card.style.cssText = 'max-width:440px;width:100%;box-shadow:0 20px 25px -5px rgba(0,0,0,0.2);border-radius:12px;padding:1.5rem;background:#fff;';
-    card.innerHTML = `
-      <h3 style="margin-bottom:0.75rem;font-size:1.15rem;font-weight:600;color:var(--text);">${title}</h3>
-      <p style="color:var(--text-muted);margin-bottom:1.25rem;font-size:0.95rem;line-height:1.5;">${message}</p>
-      <div style="display:flex;justify-content:flex-end;gap:0.75rem;">
-        <button id="inapp-cancel-btn" class="btn btn-secondary">Cancel</button>
-        <button id="inapp-confirm-btn" class="btn btn-primary">Confirm</button>
-      </div>
-    `;
-    overlay.appendChild(card);
-    document.body.appendChild(overlay);
-    card.querySelector('#inapp-cancel-btn').onclick = () => {
+
+    const titleEl = document.createElement('h3');
+    titleEl.style.cssText = 'margin-bottom:0.75rem;font-size:1.15rem;font-weight:600;color:var(--text);';
+    titleEl.textContent = title;
+
+    const msgEl = document.createElement('p');
+    msgEl.style.cssText = 'color:var(--text-muted);margin-bottom:1.25rem;font-size:0.95rem;line-height:1.5;white-space:pre-wrap;';
+    msgEl.textContent = message;
+
+    const actions = document.createElement('div');
+    actions.style.cssText = 'display:flex;justify-content:flex-end;gap:0.75rem;';
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.id = 'inapp-cancel-btn';
+    cancelBtn.className = 'btn btn-secondary';
+    cancelBtn.textContent = 'Cancel';
+    cancelBtn.onclick = () => {
       overlay.remove();
       if (onCancel) onCancel();
     };
-    card.querySelector('#inapp-confirm-btn').onclick = () => {
+
+    const confirmBtn = document.createElement('button');
+    confirmBtn.id = 'inapp-confirm-btn';
+    confirmBtn.className = 'btn btn-primary';
+    confirmBtn.textContent = 'Confirm';
+    confirmBtn.onclick = () => {
       overlay.remove();
       if (onConfirm) onConfirm();
     };
+
+    actions.appendChild(cancelBtn);
+    actions.appendChild(confirmBtn);
+    card.appendChild(titleEl);
+    card.appendChild(msgEl);
+    card.appendChild(actions);
+    overlay.appendChild(card);
+    document.body.appendChild(overlay);
   }
 
   async function connectSignalR() {
@@ -263,10 +307,10 @@
           </nav>
           <div class="sidebar-foot">
             <div class="user-card">
-              <div class="avatar">${currentSession.user.firstName[0]}${currentSession.user.lastName[0]}</div>
+              <div class="avatar">${escapeHtml(currentSession.user.firstName?.[0] || '')}${escapeHtml(currentSession.user.lastName?.[0] || '')}</div>
               <div class="user-meta">
-                <div class="user-name">${currentSession.user.firstName} ${currentSession.user.lastName}</div>
-                <div class="user-role">${currentSession.user.role}</div>
+                <div class="user-name">${escapeHtml(currentSession.user.firstName)} ${escapeHtml(currentSession.user.lastName)}</div>
+                <div class="user-role">${escapeHtml(currentSession.user.role)}</div>
               </div>
             </div>
             <button class="nav-item" id="btn-signout" style="color: #f87171;">
@@ -287,15 +331,15 @@
                   <span>Viewing:</span>
                   <select class="topbar-select" id="patient-select">
                     ${currentSession.managing.map(m => `
-                      <option value="${m.patientId}" ${m.patientId === activePatientId ? 'selected' : ''}>
-                        ${m.firstName} ${m.lastName} ${m.isSelf ? '(you)' : ''}
+                      <option value="${escapeHtml(m.patientId)}" ${m.patientId === activePatientId ? 'selected' : ''}>
+                        ${escapeHtml(m.firstName)} ${escapeHtml(m.lastName)} ${m.isSelf ? '(you)' : ''}
                       </option>
                     `).join('')}
                   </select>
                 </label>
               ` : `
                 <span style="font-weight: 600; font-size: 0.875rem;">
-                  ${currentPatient ? `${currentPatient.firstName} ${currentPatient.lastName}` : ''}
+                  ${currentPatient ? `${escapeHtml(currentPatient.firstName)} ${escapeHtml(currentPatient.lastName)}` : ''}
                 </span>
               `}
               <span class="pill good">.NET 8 Online</span>
@@ -460,7 +504,7 @@
       else if (currentTab === 'admin') await loadAdmin(contentEl);
       else if (currentTab === 'settings') await loadSettings(contentEl);
     } catch (err) {
-      contentEl.innerHTML = `<div class="notice notice-bad">${err.message}</div>`;
+      contentEl.innerHTML = `<div class="notice notice-bad">${escapeHtml(err.message)}</div>`;
     }
   }
 
@@ -532,9 +576,9 @@
                 <tbody>
                   ${vitalsRes.vitals.map(v => `
                     <tr>
-                      <td style="font-weight: 500;">${v.label}</td>
-                      <td>${v.value} ${v.unit || ''}</td>
-                      <td style="color: var(--text-muted);">${v.referenceRange || '—'}</td>
+                      <td style="font-weight: 500;">${escapeHtml(v.label)}</td>
+                      <td>${escapeHtml(v.value)} ${escapeHtml(v.unit || '')}</td>
+                      <td style="color: var(--text-muted);">${escapeHtml(v.referenceRange || '—')}</td>
                       <td>${v.isAbnormal ? '<span class="pill bad">Out of Range</span>' : '<span class="pill good">Normal</span>'}</td>
                     </tr>
                   `).join('')}
@@ -559,9 +603,9 @@
                 <tbody>
                   ${medsRes.medications.map(m => `
                     <tr>
-                      <td style="font-weight: 600;">${m.name} ${m.strength || ''}</td>
-                      <td>${m.dosage} (${m.frequency})</td>
-                      <td style="color: var(--text-muted);">${m.instructions || 'As prescribed'}</td>
+                      <td style="font-weight: 600;">${escapeHtml(m.name)} ${escapeHtml(m.strength || '')}</td>
+                      <td>${escapeHtml(m.dosage)} (${escapeHtml(m.frequency)})</td>
+                      <td style="color: var(--text-muted);">${escapeHtml(m.instructions || 'As prescribed')}</td>
                     </tr>
                   `).join('')}
                 </tbody>
@@ -591,12 +635,12 @@
                 ${apptsRes.appointments.map(a => `
                   <tr>
                     <td style="font-weight: 500;">${new Date(a.startAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}</td>
-                    <td>${a.provider.name} (${a.provider.credentials || 'MD'})</td>
-                    <td>${a.reasonForVisit || 'Regular check-up'}</td>
+                    <td>${escapeHtml(a.provider?.name || 'Healthcare Provider')} (${escapeHtml(a.provider?.credentials || 'MD')})</td>
+                    <td>${escapeHtml(a.reasonForVisit || 'Regular check-up')}</td>
                     <td>${pill(a.status)}</td>
                     <td>
                       ${a.status !== 'CANCELLED_BY_PATIENT' && a.status !== 'COMPLETED' ? `
-                        <button class="btn btn-outline btn-sm btn-cancel-appt" data-id="${a.id}">Cancel</button>
+                        <button class="btn btn-outline btn-sm btn-cancel-appt" data-id="${escapeHtml(a.id)}">Cancel</button>
                       ` : '—'}
                     </td>
                   </tr>
@@ -698,9 +742,9 @@
               ${allergiesRes.allergies.map(a => `
                 <div class="notice notice-bad" style="margin-bottom: 0;">
                   <div>
-                    <strong>ALLERGY: ${a.substance} (${a.drugClass})</strong>
-                    <div style="font-size: 0.8125rem;">Severity: ${a.severity} • Reaction: ${a.reaction || 'Not specified'}</div>
-                    <div style="font-size: 0.75rem; color: #7f1d1d; font-family: var(--font-mono);">Class code: ${a.drugClassCode || 'N/A'}</div>
+                    <strong>ALLERGY: ${escapeHtml(a.substance)} (${escapeHtml(a.drugClass || 'Unclassified')})</strong>
+                    <div style="font-size: 0.8125rem;">Severity: ${escapeHtml(a.severity)} • Reaction: ${escapeHtml(a.reaction || 'Not specified')}</div>
+                    <div style="font-size: 0.75rem; color: #7f1d1d; font-family: var(--font-mono);">Class code: ${escapeHtml(a.drugClassCode || 'N/A')}</div>
                   </div>
                 </div>
               `).join('')}
@@ -710,7 +754,7 @@
                 <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
                   ${vitalsRes.vitals.map(v => `
                     <span class="pill ${v.isAbnormal ? 'bad' : 'good'}">
-                      ${v.label}: ${v.value} ${v.unit || ''}
+                      ${escapeHtml(v.label)}: ${escapeHtml(v.value)} ${escapeHtml(v.unit || '')}
                     </span>
                   `).join('')}
                 </div>
@@ -812,9 +856,9 @@
           alertBox.innerHTML = `
             <div class="notice notice-good">
               <div>
-                <strong>✅ Safety Check Passed:</strong> No known contraindications detected for <strong>${drug}</strong> in current reference ruleset.
+                <strong>✅ Safety Check Passed:</strong> No known contraindications detected for <strong>${escapeHtml(drug)}</strong> in current reference ruleset.
                 <div style="font-size:0.75rem; color:var(--text-muted); margin-top:0.35rem; line-height:1.3;">
-                  KB: ${kbVer} &bull; Demonstration rules only; does not claim clinical completeness. Independent clinical evaluation required.
+                  KB: ${escapeHtml(kbVer)} &bull; Demonstration rules only; does not claim clinical completeness. Independent clinical evaluation required.
                 </div>
                 <button class="btn btn-primary btn-sm" id="btn-confirm-prescribe" style="margin-top:0.75rem; display:block;">Authorize & Sign Prescription</button>
               </div>
@@ -833,7 +877,7 @@
                 })
               });
               showToast(`💊 Prescribed ${drug} successfully!`);
-              alertBox.innerHTML = `<div class="notice notice-good">Prescription for <strong>${drug}</strong> written to patient chart and synchronized to pharmacy queue.</div>`;
+              alertBox.innerHTML = `<div class="notice notice-good">Prescription for <strong>${escapeHtml(drug)}</strong> written to patient chart and synchronized to pharmacy queue.</div>`;
             } catch (err) {
               showToast(err.message);
             }
@@ -844,16 +888,16 @@
           if (checkRes.hasAllergyConflict) {
             html += `<div style="font-weight:700; margin-bottom:0.25rem;">⚠️ ALLERGY CONTRAINDICATION:</div>`;
             checkRes.allergyWarnings.forEach(w => {
-              html += `<div style="margin-bottom:0.25rem;">• ${w.reason} <span class="pill bad" style="font-size:0.7rem;">${w.severity}</span></div>`;
+              html += `<div style="margin-bottom:0.25rem;">• ${escapeHtml(w.reason)} <span class="pill bad" style="font-size:0.7rem;">${escapeHtml(w.severity)}</span></div>`;
             });
           }
           if (checkRes.hasDrugInteraction) {
             html += `<div style="font-weight:700; margin-top:0.5rem; margin-bottom:0.25rem;">⚠️ DRUG-DRUG INTERACTION DETECTED:</div>`;
             checkRes.drugInteractions.forEach(w => {
-              html += `<div style="margin-bottom:0.35rem;">• <strong>${w.drug1} + ${w.drug2}</strong>: ${w.description}<br><span style="font-size:0.8rem; color:#7f1d1d;">Guidance: ${w.clinicalGuidance}</span></div>`;
+              html += `<div style="margin-bottom:0.35rem;">• <strong>${escapeHtml(w.drug1)} + ${escapeHtml(w.drug2)}</strong>: ${escapeHtml(w.description)}<br><span style="font-size:0.8rem; color:#7f1d1d;">Guidance: ${escapeHtml(w.clinicalGuidance)}</span></div>`;
             });
           }
-          html += `<div style="font-size:0.75rem; color:#7f1d1d; margin-top:0.5rem; border-top:1px dashed #fca5a5; padding-top:0.25rem;">KB: ${kbVer} &bull; Demonstration rules only; does not claim clinical completeness.</div>`;
+          html += `<div style="font-size:0.75rem; color:#7f1d1d; margin-top:0.5rem; border-top:1px dashed #fca5a5; padding-top:0.25rem;">KB: ${escapeHtml(kbVer)} &bull; Demonstration rules only; does not claim clinical completeness.</div>`;
           if (checkRes.requiresOverride) {
             html += `
               <div style="margin-top: 0.75rem; border-top: 1px solid #f87171; padding-top: 0.5rem;">
@@ -886,14 +930,14 @@
                 })
               });
               showToast(`⚠️ Prescribed ${drug} under clinician override.`);
-              alertBox.innerHTML = `<div class="notice notice-good">Order recorded with safety override audit trail: "${justification}".</div>`;
+              alertBox.innerHTML = `<div class="notice notice-good">Order recorded with safety override audit trail: "${escapeHtml(justification)}".</div>`;
             } catch (err) {
               showToast(err.message);
             }
           });
         }
       } catch (err) {
-        alertBox.innerHTML = `<div class="notice notice-bad">${err.message}</div>`;
+        alertBox.innerHTML = `<div class="notice notice-bad">${escapeHtml(err.message)}</div>`;
       }
     };
 
@@ -1028,13 +1072,13 @@
           <div style="display: flex; flex-direction: column; gap: 0.5rem;" id="threads-list">
             ${threadsRes.threads.length === 0 ? '<p style="color: var(--text-muted); text-align: center; padding: 1rem;">No messages</p>' : ''}
             ${threadsRes.threads.map(t => `
-              <div class="queue-row" data-thread-id="${t.id}">
+              <div class="queue-row" data-thread-id="${escapeHtml(t.id)}">
                 <div>
                   <div style="font-weight: 600; display: flex; align-items: center; gap: 0.5rem;">
-                    ${t.subject}
+                    ${escapeHtml(t.subject)}
                     ${t.unread ? '<span class="pill warn">Unread</span>' : ''}
                   </div>
-                  <div style="font-size: 0.8125rem; color: var(--text-muted);">${t.preview || 'No messages yet'}</div>
+                  <div style="font-size: 0.8125rem; color: var(--text-muted);">${escapeHtml(t.preview || 'No messages yet')}</div>
                 </div>
                 <span style="font-size: 0.75rem; color: var(--text-muted);">${t.lastMessageAt ? new Date(t.lastMessageAt).toLocaleDateString() : ''}</span>
               </div>
@@ -1071,17 +1115,17 @@
 
     card.innerHTML = `
       <div class="card-header">
-        <span class="card-title">${thread.subject}</span>
-        <span class="pill info">${thread.status}</span>
+        <span class="card-title">${escapeHtml(thread.subject)}</span>
+        <span class="pill info">${escapeHtml(thread.status)}</span>
       </div>
       <div style="max-height: 400px; overflow-y: auto; display: flex; flex-direction: column; gap: 0.75rem; padding-right: 0.5rem; margin-bottom: 1rem;">
         ${thread.messages.map(m => `
           <div style="align-self: ${m.mine ? 'flex-end' : 'flex-start'}; max-width: 80%; background: ${m.mine ? 'var(--primary-light)' : 'var(--surface-hover)'}; padding: 0.75rem 1rem; border-radius: var(--radius); border: 1px solid var(--border);">
             <div style="display: flex; justify-content: space-between; gap: 1rem; margin-bottom: 0.25rem;">
-              <span style="font-weight: 600; font-size: 0.75rem; color: var(--text);">${m.senderName} (${m.senderRole})</span>
+              <span style="font-weight: 600; font-size: 0.75rem; color: var(--text);">${escapeHtml(m.senderName)} (${escapeHtml(m.senderRole)})</span>
               <span style="font-size: 0.75rem; color: var(--text-muted);">${new Date(m.sentAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
             </div>
-            <div style="font-size: 0.875rem;">${m.body}</div>
+            <div style="font-size: 0.875rem; white-space: pre-wrap;">${escapeHtml(m.body)}</div>
           </div>
         `).join('')}
       </div>
@@ -1110,7 +1154,7 @@
           <label class="form-label">Recipient Clinician</label>
           <select class="select" id="compose-provider">
             ${careTeam.map(c => `
-              <option value="${c.providerId}">${c.name} (${c.specialty || 'General'})</option>
+              <option value="${escapeHtml(c.providerId)}">${escapeHtml(c.name)} (${escapeHtml(c.specialty || 'General')})</option>
             `).join('')}
           </select>
         </div>
@@ -1175,10 +1219,10 @@
               <tbody>
                 ${statementsRes.statements.map(s => `
                   <tr>
-                    <td style="font-weight: 500;">${s.description || 'Clinical Care Visit'}</td>
-                    <td>${s.formatted.total}</td>
-                    <td>${s.formatted.paid}</td>
-                    <td style="font-weight: 700; color: ${s.balanceCents > 0 ? '#b91c1c' : 'var(--text)'};">${s.formatted.balance}</td>
+                    <td style="font-weight: 500;">${escapeHtml(s.description || 'Clinical Care Visit')}</td>
+                    <td>${escapeHtml(s.formatted.total)}</td>
+                    <td>${escapeHtml(s.formatted.paid)}</td>
+                    <td style="font-weight: 700; color: ${s.balanceCents > 0 ? '#b91c1c' : 'var(--text)'};">${escapeHtml(s.formatted.balance)}</td>
                     <td>${s.dueAt ? new Date(s.dueAt).toLocaleDateString() : '—'}</td>
                     <td>${pill(s.status)}</td>
                   </tr>
@@ -1196,8 +1240,8 @@
           ${plansRes.plans.map(p => `
             <div style="border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem; margin-bottom: 0.75rem;">
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                <span style="font-weight: 600;">Plan for Statement #${p.statementId.substring(0, 8)}</span>
-                <span class="pill good">${p.status}</span>
+                <span style="font-weight: 600;">Plan for Statement #${escapeHtml(p.statementId.substring(0, 8))}</span>
+                <span class="pill good">${escapeHtml(p.status)}</span>
               </div>
               <div style="font-size: 0.875rem; color: var(--text-muted);">
                 ${p.numberOfPayments} monthly payments of <strong>${fmtMoney(p.installmentCents)}</strong> (Total: ${fmtMoney(p.totalCents)})
@@ -1310,11 +1354,11 @@
           <div class="grid grid-3">
             ${currentSession.managing.map(m => `
               <div style="border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem; background: var(--surface-hover);">
-                <div style="font-weight: 700; font-size: 1rem;">${m.firstName} ${m.lastName}</div>
-                <div style="font-size: 0.8125rem; color: var(--text-muted);">DOB: ${m.dateOfBirth} (${m.age} yrs)</div>
+                <div style="font-weight: 700; font-size: 1rem;">${escapeHtml(m.firstName)} ${escapeHtml(m.lastName)}</div>
+                <div style="font-size: 0.8125rem; color: var(--text-muted);">DOB: ${escapeHtml(m.dateOfBirth)} (${escapeHtml(m.age)} yrs)</div>
                 <div style="margin-top: 0.5rem;">
-                  <span class="pill ${m.isSelf ? 'good' : 'info'}">${m.relationship}</span>
-                  <span style="font-size: 0.75rem; color: var(--text-muted); margin-left: 0.5rem;">MRN: ${m.mrn || 'N/A'}</span>
+                  <span class="pill ${m.isSelf ? 'good' : 'info'}">${escapeHtml(m.relationship)}</span>
+                  <span style="font-size: 0.75rem; color: var(--text-muted); margin-left: 0.5rem;">MRN: ${escapeHtml(m.mrn || 'N/A')}</span>
                 </div>
               </div>
             `).join('')}
@@ -1340,8 +1384,8 @@
                 ${invitesRes.invites.length === 0 ? '<tr><td colspan="5" style="text-align: center; color: var(--text-muted);">No pending invitations</td></tr>' : ''}
                 ${invitesRes.invites.map(i => `
                   <tr>
-                    <td style="font-weight: 500;">${i.email}</td>
-                    <td>${i.relationship || 'Guardian'}</td>
+                    <td style="font-weight: 500;">${escapeHtml(i.email)}</td>
+                    <td>${escapeHtml(i.relationship || 'Guardian')}</td>
                     <td>${new Date(i.createdAt).toLocaleDateString()}</td>
                     <td>${new Date(i.expiresAt).toLocaleDateString()}</td>
                     <td>${pill(i.effectiveStatus)}</td>
@@ -1436,8 +1480,8 @@
                 ${sharesRes.shares.map(s => `
                   <tr>
                     <td>
-                      <div style="font-weight: 600;">${s.label}</div>
-                      <div style="font-size: 0.8125rem; color: var(--text-muted);">${s.recipientName || 'External Clinician'} (${s.recipientRole || 'Physician'})</div>
+                      <div style="font-weight: 600;">${escapeHtml(s.label)}</div>
+                      <div style="font-size: 0.8125rem; color: var(--text-muted);">${escapeHtml(s.recipientName || 'External Clinician')} (${escapeHtml(s.recipientRole || 'Physician')})</div>
                     </td>
                     <td>${new Date(s.createdAt).toLocaleDateString()}</td>
                     <td>${new Date(s.expiresAt).toLocaleDateString()}</td>
@@ -1445,7 +1489,7 @@
                     <td>${pill(s.status)}</td>
                     <td>
                       ${s.status === 'ACTIVE' ? `
-                        <button class="btn btn-danger btn-sm btn-revoke-share" data-id="${s.id}">Revoke</button>
+                        <button class="btn btn-danger btn-sm btn-revoke-share" data-id="${escapeHtml(s.id)}">Revoke</button>
                       ` : '—'}
                     </td>
                   </tr>
@@ -1523,12 +1567,12 @@
         });
         resEl.innerHTML = `
           <div class="notice notice-good">
-            <strong>FHIR R4 Bundle Verified</strong>: Total ${bundle.total} resources received.
+            <strong>FHIR R4 Bundle Verified</strong>: Total ${escapeHtml(bundle.total)} resources received.
           </div>
-          <pre style="background: #0f172a; color: #38bdf8; padding: 1rem; border-radius: var(--radius); font-size: 0.75rem; max-height: 250px; overflow: auto;">${JSON.stringify(bundle, null, 2)}</pre>
+          <pre style="background: #0f172a; color: #38bdf8; padding: 1rem; border-radius: var(--radius); font-size: 0.75rem; max-height: 250px; overflow: auto;">${escapeHtml(JSON.stringify(bundle, null, 2))}</pre>
         `;
       } catch (err) {
-        resEl.innerHTML = `<div class="notice notice-bad">${err.message}</div>`;
+        resEl.innerHTML = `<div class="notice notice-bad">${escapeHtml(err.message)}</div>`;
       }
     };
   }
@@ -1547,13 +1591,13 @@
             ${res.providers.map(p => `
               <div style="border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem; display: flex; flex-direction: column; justify-content: space-between;">
                 <div>
-                  <div style="font-weight: 700; font-size: 1.125rem;">${p.name}</div>
-                  <div style="color: var(--primary); font-weight: 500; font-size: 0.875rem;">${p.specialty} (${p.credentials || 'MD'})</div>
+                  <div style="font-weight: 700; font-size: 1.125rem;">${escapeHtml(p.name)}</div>
+                  <div style="color: var(--primary); font-weight: 500; font-size: 0.875rem;">${escapeHtml(p.specialty)} (${escapeHtml(p.credentials || 'MD')})</div>
                   <div style="margin-top: 0.5rem; font-size: 0.8125rem; color: var(--text-muted);">
-                    ${p.locations.map(l => `<div>📍 ${l.name} — ${l.distanceLabel || 'Springfield'}</div>`).join('')}
+                    ${p.locations.map(l => `<div>📍 ${escapeHtml(l.name)} — ${escapeHtml(l.distanceLabel || 'Springfield')}</div>`).join('')}
                   </div>
                 </div>
-                <button class="btn btn-primary btn-sm btn-book-slot" style="margin-top: 1rem;" data-provider-id="${p.providerId}">
+                <button class="btn btn-primary btn-sm btn-book-slot" style="margin-top: 1rem;" data-provider-id="${escapeHtml(p.providerId)}">
                   Check Availability & Book
                 </button>
               </div>
@@ -1654,9 +1698,9 @@
               <div>
                 <span class="card-title">🏥 Medical Facilities & Care Locations</span>
                 <div style="font-size: 0.8125rem; color: var(--text-muted); margin-top: 0.25rem;">
-                  📍 <strong>Origin:</strong> ${currentLabel}
+                  📍 <strong>Origin:</strong> ${escapeHtml(currentLabel)}
                   ${ipInfo ? ` &bull; <span class="pill ${ipInfo.isPublicIp ? 'good' : 'info'}" style="font-size: 0.75rem; padding: 0.15rem 0.5rem;">
-                    🌐 ${ipInfo.isPublicIp ? 'Public IP' : 'Local IP'}: ${ipInfo.ipAddress || 'Unknown'} ${ipInfo.isp ? `(${ipInfo.isp})` : ''}
+                    🌐 ${ipInfo.isPublicIp ? 'Public IP' : 'Local IP'}: ${escapeHtml(ipInfo.ipAddress || 'Unknown')} ${ipInfo.isp ? `(${escapeHtml(ipInfo.isp)})` : ''}
                   </span>` : ''}
                 </div>
               </div>
@@ -1678,20 +1722,20 @@
               ${hasPlaces ? placesRes.places.map(p => `
                 <div style="border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem; background: var(--surface);">
                   <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.25rem;">
-                    <span style="font-weight: 700; font-size: 0.95rem;">${p.name}</span>
-                    <span class="pill good">${p.distanceLabel}</span>
+                    <span style="font-weight: 700; font-size: 0.95rem;">${escapeHtml(p.name)}</span>
+                    <span class="pill good">${escapeHtml(p.distanceLabel)}</span>
                   </div>
-                  <div style="font-size: 0.75rem; text-transform: uppercase; color: var(--primary); font-weight: 600;">${p.type}</div>
+                  <div style="font-size: 0.75rem; text-transform: uppercase; color: var(--primary); font-weight: 600;">${escapeHtml(p.type)}</div>
                   <div style="font-size: 0.8125rem; color: var(--text-muted); margin-top: 0.25rem;">
-                    ${p.addressLine1}, ${p.city}, ${p.state}
+                    ${escapeHtml(p.addressLine1)}, ${escapeHtml(p.city)}, ${escapeHtml(p.state)}
                   </div>
-                  ${p.phone ? `<div style="font-size: 0.8125rem; margin-top: 0.25rem;">📞 ${p.phone}</div>` : ''}
-                  ${p.hours ? `<div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">⏰ ${p.hours}</div>` : ''}
+                  ${p.phone ? `<div style="font-size: 0.8125rem; margin-top: 0.25rem;">📞 ${escapeHtml(p.phone)}</div>` : ''}
+                  ${p.hours ? `<div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">⏰ ${escapeHtml(p.hours)}</div>` : ''}
                 </div>
               `).join('') : `
                 <div style="grid-column: 1 / -1; padding: 2.5rem 1.5rem; text-align: center; color: var(--text-muted); border: 1px dashed var(--border); border-radius: var(--radius);">
                   <div style="font-size: 1.1rem; font-weight: 600; margin-bottom: 0.5rem; color: var(--text-main);">No facilities within ${radiusKm} km of this location</div>
-                  <div>Your public IP location is detected at <strong>${currentLabel}</strong> (${ipInfo?.ipAddress || ''}).</div>
+                  <div>Your public IP location is detected at <strong>${escapeHtml(currentLabel)}</strong> (${escapeHtml(ipInfo?.ipAddress || '')}).</div>
                   <div style="margin-top: 0.5rem;">The seeded medical directory facilities are located in Springfield, IL.</div>
                   <button class="btn btn-primary btn-sm" style="margin-top: 1rem;" id="btn-empty-switch">
                     📍 Switch to Springfield Demo Clinic Directory
@@ -2017,7 +2061,7 @@
       else if (adminSubTab === 'proxy') await renderAdminProxyGrants(subContainer, el);
       else if (adminSubTab === 'shares') await renderAdminShares(subContainer, el);
     } catch (err) {
-      subContainer.innerHTML = `<div class="notice notice-bad">${err.message}</div>`;
+      subContainer.innerHTML = `<div class="notice notice-bad">${escapeHtml(err.message)}</div>`;
     }
   }
 
@@ -2040,13 +2084,13 @@
             <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: flex-end; flex: 1;">
               <div class="form-group" style="margin: 0; min-width: 220px; flex: 1;">
                 <label class="form-label" for="user-search-input">Search Users</label>
-                <input class="input" id="user-search-input" placeholder="Name, email, or MRN..." value="${adminUserFilters.search || ''}">
+                <input class="input" id="user-search-input" placeholder="Name, email, or MRN..." value="${escapeHtml(adminUserFilters.search || '')}">
               </div>
               <div class="form-group" style="margin: 0; min-width: 150px;">
                 <label class="form-label" for="user-role-select">Role Filter</label>
                 <select class="topbar-select" id="user-role-select" style="width: 100%;">
                   <option value="">All Roles (${rolesRes.length})</option>
-                  ${rolesRes.map(r => `<option value="${r.name}" ${adminUserFilters.role === r.name ? 'selected' : ''}>${r.name}</option>`).join('')}
+                  ${rolesRes.map(r => `<option value="${escapeHtml(r.name)}" ${adminUserFilters.role === r.name ? 'selected' : ''}>${escapeHtml(r.name)}</option>`).join('')}
                 </select>
               </div>
               <div class="form-group" style="margin: 0; min-width: 130px;">
@@ -2082,9 +2126,9 @@
               ` : usersRes.items.map(u => `
                 <tr>
                   <td>
-                    <div style="font-weight: 600;">${u.person.fullName || '—'}</div>
-                    <div style="font-size: 0.8125rem; color: var(--text-muted);">${u.email}</div>
-                    ${u.person.mrn ? `<div style="font-size: 0.75rem; color: var(--primary);">MRN: ${u.person.mrn}</div>` : ''}
+                    <div style="font-weight: 600;">${escapeHtml(u.person?.fullName || '—')}</div>
+                    <div style="font-size: 0.8125rem; color: var(--text-muted);">${escapeHtml(u.email)}</div>
+                    ${u.person?.mrn ? `<div style="font-size: 0.75rem; color: var(--primary);">MRN: ${escapeHtml(u.person.mrn)}</div>` : ''}
                   </td>
                   <td>${pill(u.role)}</td>
                   <td>
@@ -2096,7 +2140,7 @@
                       <div style="display: flex; flex-direction: column; gap: 0.2rem;">
                         ${u.memberships.map(m => `
                           <span class="pill info" style="font-size: 0.7rem; justify-content: flex-start; text-align: left;">
-                            ${m.facilityCode || 'FAC'}${m.departmentCode ? ` : ${m.departmentCode}` : ' (All Depts)'} [${m.role}]
+                            ${escapeHtml(m.facilityCode || 'FAC')}${m.departmentCode ? ` : ${escapeHtml(m.departmentCode)}` : ' (All Depts)'} [${escapeHtml(m.role)}]
                           </span>
                         `).join('')}
                       </div>
@@ -2106,12 +2150,12 @@
                   <td style="font-size: 0.8125rem; color: var(--text-muted);">${u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleDateString() : 'Never'}</td>
                   <td style="text-align: right;">
                     <div style="display: inline-flex; gap: 0.35rem; justify-content: flex-end;">
-                      <button type="button" class="btn btn-outline btn-sm" data-edit-role="${u.id}" data-current-role="${u.role}" aria-label="Assign role for ${u.email}">Role</button>
-                      <button type="button" class="btn btn-outline btn-sm" data-manage-memberships="${u.id}" aria-label="Manage memberships for ${u.email}">Scope (${u.memberships.length})</button>
+                      <button type="button" class="btn btn-outline btn-sm" data-edit-role="${escapeHtml(u.id)}" data-current-role="${escapeHtml(u.role)}" aria-label="Assign role for ${escapeHtml(u.email)}">Role</button>
+                      <button type="button" class="btn btn-outline btn-sm" data-manage-memberships="${escapeHtml(u.id)}" aria-label="Manage memberships for ${escapeHtml(u.email)}">Scope (${u.memberships.length})</button>
                       ${u.isActive ? `
-                        <button type="button" class="btn btn-outline btn-sm btn-danger" data-disable-user="${u.id}" data-email="${u.email}" aria-label="Disable account ${u.email}">Disable</button>
+                        <button type="button" class="btn btn-outline btn-sm btn-danger" data-disable-user="${escapeHtml(u.id)}" data-email="${escapeHtml(u.email)}" aria-label="Disable account ${escapeHtml(u.email)}">Disable</button>
                       ` : `
-                        <button type="button" class="btn btn-outline btn-sm btn-primary" data-enable-user="${u.id}" data-email="${u.email}" aria-label="Enable account ${u.email}">Enable</button>
+                        <button type="button" class="btn btn-outline btn-sm btn-primary" data-enable-user="${escapeHtml(u.id)}" data-email="${escapeHtml(u.email)}" aria-label="Enable account ${escapeHtml(u.email)}">Enable</button>
                       `}
                     </div>
                   </td>
@@ -2450,17 +2494,17 @@
               <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 0.75rem; border-bottom: 1px solid var(--border); padding-bottom: 0.75rem; margin-bottom: 0.75rem;">
                 <div>
                   <div style="display: flex; align-items: center; gap: 0.5rem;">
-                    <span style="font-size: 1.1rem; font-weight: 700;">${f.name}</span>
-                    <span class="pill info">${f.code}</span>
+                    <span style="font-size: 1.1rem; font-weight: 700;">${escapeHtml(f.name)}</span>
+                    <span class="pill info">${escapeHtml(f.code)}</span>
                   </div>
                   <div style="font-size: 0.8125rem; color: var(--text-muted); margin-top: 0.25rem;">
-                    📍 ${[f.addressLine1, f.city, f.state, f.postalCode].filter(Boolean).join(', ') || 'No address specified'}
-                    ${f.phone ? ` • 📞 ${f.phone}` : ''}
+                    📍 ${[f.addressLine1, f.city, f.state, f.postalCode].filter(Boolean).map(escapeHtml).join(', ') || 'No address specified'}
+                    ${f.phone ? ` • 📞 ${escapeHtml(f.phone)}` : ''}
                   </div>
                 </div>
                 <div style="display: flex; gap: 0.5rem;">
-                  <button type="button" class="btn btn-outline btn-sm" data-edit-facility="${f.id}">Edit Facility</button>
-                  <button type="button" class="btn btn-primary btn-sm" data-add-dept="${f.id}">+ Add Department</button>
+                  <button type="button" class="btn btn-outline btn-sm" data-edit-facility="${escapeHtml(f.id)}">Edit Facility</button>
+                  <button type="button" class="btn btn-primary btn-sm" data-add-dept="${escapeHtml(f.id)}">+ Add Department</button>
                 </div>
               </div>
 
@@ -2470,7 +2514,7 @@
                   <div style="font-size: 0.8125rem; color: var(--text-muted); padding: 0.5rem 0;">No departments assigned to this facility yet.</div>
                 ` : `
                   <div class="table-wrap">
-                    <table aria-label="Departments Table for ${f.name}">
+                    <table aria-label="Departments Table for ${escapeHtml(f.name)}">
                       <thead>
                         <tr>
                           <th scope="col">Department Name</th>
@@ -2483,12 +2527,12 @@
                       <tbody>
                         ${f.departments.map(d => `
                           <tr>
-                            <td style="font-weight: 600;">${d.name}</td>
-                            <td><span class="pill info">${d.code}</span></td>
-                            <td>${d.specialty || 'General'}</td>
-                            <td style="font-size: 0.8125rem; color: var(--text-muted);">${d.phone || '—'}</td>
+                            <td style="font-weight: 600;">${escapeHtml(d.name)}</td>
+                            <td><span class="pill info">${escapeHtml(d.code)}</span></td>
+                            <td>${escapeHtml(d.specialty || 'General')}</td>
+                            <td style="font-size: 0.8125rem; color: var(--text-muted);">${escapeHtml(d.phone || '—')}</td>
                             <td style="text-align: right;">
-                              <button type="button" class="btn btn-outline btn-sm" data-edit-dept="${d.id}" data-dept-name="${d.name}" data-dept-code="${d.code}" data-dept-spec="${d.specialty || ''}" data-dept-phone="${d.phone || ''}">Edit</button>
+                              <button type="button" class="btn btn-outline btn-sm" data-edit-dept="${escapeHtml(d.id)}" data-dept-name="${escapeHtml(d.name)}" data-dept-code="${escapeHtml(d.code)}" data-dept-spec="${escapeHtml(d.specialty || '')}" data-dept-phone="${escapeHtml(d.phone || '')}">Edit</button>
                             </td>
                           </tr>
                         `).join('')}
@@ -2732,18 +2776,18 @@
                     ${new Date(l.createdAt).toISOString().replace('T', ' ').substring(0, 19)}
                   </td>
                   <td>${pill(l.action)}</td>
-                  <td><code>${l.resourceType}</code> ${l.resourceId ? `<span style="font-size:0.7rem; color:var(--text-muted);">(${l.resourceId.substring(0,8)}...)</span>` : ''}</td>
+                  <td><code>${escapeHtml(l.resourceType)}</code> ${l.resourceId ? `<span style="font-size:0.7rem; color:var(--text-muted);">(${escapeHtml(l.resourceId.substring(0,8))}...)</span>` : ''}</td>
                   <td>
-                    <div style="font-weight: 500;">${l.actor.name}</div>
-                    <div style="font-size: 0.75rem; color: var(--text-muted);">${l.actor.role}</div>
+                    <div style="font-weight: 500;">${escapeHtml(l.actor?.name || 'System')}</div>
+                    <div style="font-size: 0.75rem; color: var(--text-muted);">${escapeHtml(l.actor?.role || '—')}</div>
                   </td>
                   <td>
-                    ${l.patientId ? `<code>${l.patientId.substring(0,8)}...</code>` : '—'}
+                    ${l.patientId ? `<code>${escapeHtml(l.patientId.substring(0,8))}...</code>` : '—'}
                     ${l.isProxy ? '<span class="pill info" style="font-size: 0.65rem;">PROXY</span>' : ''}
                   </td>
-                  <td style="font-size: 0.8125rem; font-family: monospace;">${l.ipAddress || '—'}</td>
-                  <td style="font-size: 0.75rem; font-family: monospace; color: var(--text-muted);" title="${l.hash || 'Unchained'}">
-                    ${l.hash ? l.hash.substring(0, 12) + '...' : '—'}
+                  <td style="font-size: 0.8125rem; font-family: monospace;">${escapeHtml(l.ipAddress || '—')}</td>
+                  <td style="font-size: 0.75rem; font-family: monospace; color: var(--text-muted);" title="${escapeHtml(l.hash || 'Unchained')}">
+                    ${l.hash ? escapeHtml(l.hash.substring(0, 12)) + '...' : '—'}
                   </td>
                 </tr>
               `).join('')}
@@ -2781,12 +2825,12 @@
         } else {
           resEl.innerHTML = `
             <div class="notice notice-bad" style="margin: 0; padding: 0.75rem 1rem;">
-              <strong>⚠️ Audit Chain Corruption Detected</strong>: Log record ${check.corruptedLogId} failed cryptographic hash chain match. Error: ${check.error}
+              <strong>⚠️ Audit Chain Corruption Detected</strong>: Log record ${escapeHtml(check.corruptedLogId)} failed cryptographic hash chain match. Error: ${escapeHtml(check.error)}
             </div>
           `;
         }
       } catch (e) {
-        resEl.innerHTML = `<div class="notice notice-bad">${e.message}</div>`;
+        resEl.innerHTML = `<div class="notice notice-bad">${escapeHtml(e.message)}</div>`;
       }
     };
 
@@ -2852,12 +2896,12 @@
               ` : grants.map(g => `
                 <tr>
                   <td>
-                    <div style="font-weight: 600;">${g.grantor.name}</div>
-                    <div style="font-size: 0.75rem; color: var(--text-muted);">${g.grantor.email || 'No email'} ${g.grantor.mrn ? `• MRN: ${g.grantor.mrn}` : ''}</div>
+                    <div style="font-weight: 600;">${escapeHtml(g.grantor?.name || 'Unknown')}</div>
+                    <div style="font-size: 0.75rem; color: var(--text-muted);">${escapeHtml(g.grantor?.email || 'No email')} ${g.grantor?.mrn ? `• MRN: ${escapeHtml(g.grantor.mrn)}` : ''}</div>
                   </td>
                   <td>
-                    <div style="font-weight: 600;">${g.grantee.name}</div>
-                    <div style="font-size: 0.75rem; color: var(--text-muted);">${g.grantee.email || '—'}</div>
+                    <div style="font-weight: 600;">${escapeHtml(g.grantee?.name || 'Unknown')}</div>
+                    <div style="font-size: 0.75rem; color: var(--text-muted);">${escapeHtml(g.grantee?.email || '—')}</div>
                   </td>
                   <td>
                     <div style="display: flex; gap: 0.25rem; flex-wrap: wrap;">
@@ -2930,13 +2974,13 @@
               ` : shares.map(s => `
                 <tr>
                   <td>
-                    <div style="font-weight: 600;">${s.patientName}</div>
-                    <div style="font-size: 0.75rem; color: var(--text-muted);">MRN: ${s.mrn}</div>
+                    <div style="font-weight: 600;">${escapeHtml(s.patientName || 'Patient')}</div>
+                    <div style="font-size: 0.75rem; color: var(--text-muted);">MRN: ${escapeHtml(s.mrn || '—')}</div>
                   </td>
-                  <td style="font-weight: 500;">${s.label}</td>
+                  <td style="font-weight: 500;">${escapeHtml(s.label)}</td>
                   <td>
-                    <div>${s.recipientName || 'External Recipient'}</div>
-                    <div style="font-size: 0.75rem; color: var(--text-muted);">${s.recipientRole || 'Physician/Specialist'}</div>
+                    <div>${escapeHtml(s.recipientName || 'External Recipient')}</div>
+                    <div style="font-size: 0.75rem; color: var(--text-muted);">${escapeHtml(s.recipientRole || 'Physician/Specialist')}</div>
                   </td>
                   <td>
                     <span class="pill ${s.useCount >= s.maxUses ? 'warn' : 'info'}">${s.useCount} / ${s.maxUses} uses</span>
@@ -2947,7 +2991,7 @@
                   </td>
                   <td style="text-align: right;">
                     ${s.isActive ? `
-                      <button type="button" class="btn btn-outline btn-sm btn-danger" data-revoke-share="${s.id}" aria-label="Revoke record share ${s.label}">Revoke</button>
+                      <button type="button" class="btn btn-outline btn-sm btn-danger" data-revoke-share="${escapeHtml(s.id)}" aria-label="Revoke record share ${escapeHtml(s.label)}">Revoke</button>
                     ` : '<span style="color: var(--text-muted); font-size: 0.75rem;">Inactive</span>'}
                   </td>
                 </tr>

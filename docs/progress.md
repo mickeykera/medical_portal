@@ -1,9 +1,9 @@
 # Modular Low-Cost Hospital Platform & Transformation Progress
 
 **Repository:** `medical_portal`  
-**Current Phase:** Phase 6: Ethiopia Foundations (Dual Calendar Engine & Localization) [APPROVAL GATE]  
+**Current Phase:** Phase 7: Frontend Rebuild & XSS Containment [APPROVAL GATE]  
 **Last Updated:** 2026-10-24  
-**Current Test Suite Baseline:** **328 passed, 0 failed, 0 skipped** (.NET 8)
+**Current Test Suite Baseline:** **333 passed, 0 failed, 0 skipped** (.NET 8)
 
 ---
 
@@ -17,8 +17,8 @@
 | **3** | **Clinical Core Spike (OpenMRS 2.8+ / O3 on PostgreSQL vs Bahmni)** | **Approved** | **GATE 3 (Approved)** | 288 passing tests; selected OpenMRS 2.8+ / O3 on PostgreSQL over Bahmni; proven FHIR R4 JSON REST client for 6 core resources; docker-compose dev stack; ADR 0004 & spike report |
 | **4** | **Fix Portal Authorization & Payments (SEC-05, 06, 07, 08, 09, 10, 15, 16)** | **Approved** | **GATE 4 (Approved)** | 300 passing tests; ConsumedPaymentIntents, FHIR share scope filtering, mandatory dept scope enforcement, HMS RBAC, refill BOLA/IDOR fix, 128-bit email-bound proxy invites, form write permission, segregated billing refunds; ADR 0005 |
 | **5** | **Multi-Tenancy Architecture & Isolation** | **Approved** | **GATE 5 (Approved)** | 311 passing tests; Tenant model, ITenantScoped on 48 tables, EF global filters, SaveChanges isolation validation, Postgres RLS, HKDF keys, PLATFORM_ADMIN zero PHI, API module gating, WCAG AA, Adot provisioning plan & compliance notes; ADR 0006 |
-| **6** | **Ethiopia Foundations (Dual Calendar Engine & Localization)** | **Completed** | **GATE 6 (Pending Approval)** | 328 passing tests; Pure Ethiopian<->Gregorian engine (73,414 days verified), `calendar_dim` SQL table, DHIS2 period formats, En/Am/Om localization catalogs, local vendored offline assets, zero browser dialogs; ADR 0007 |
-| 7 | Frontend Rebuild (TypeScript, React/Vite, Accessible Dialogs) | Planned | Gate 7 | Eliminate stored DOM XSS (SEC-02), ban browser dialogs, strict CSP without unsafe-inline |
+| **6** | **Ethiopia Foundations (Dual Calendar Engine & Localization)** | **Approved** | **GATE 6 (Approved)** | 328 passing tests; Pure Ethiopian<->Gregorian engine (73,414 days verified), `calendar_dim` SQL table, DHIS2 period formats, En/Am/Om localization catalogs, local vendored offline assets, zero browser dialogs; ADR 0007 |
+| **7** | **Frontend Rebuild & XSS Containment (SEC-02)** | **Completed** | **GATE 7 (Pending Approval)** | 333 passing tests; Stored DOM XSS eliminated, escapeHtml encoder, textContent DOM assignment, strict CSP without unsafe-inline or remote CDNs, ClinicalSummaryGenerator encoding, print script; ADR 0008 |
 | 8 | Clinical Core Integration & EMR Sync | Planned | Gate 8 | Replace HMS adapter with Core FHIR R4 client; retire duplicated clinical tables; remove demo rules |
 | 9 | Offline-First Facility Stack & LAN Operations | Planned | Gate 9 | Local LAN server as system of record, outbox sync, 24h network cut chaos tests |
 | 10 | National Interoperability (DHIS2, eCHIS, MFR) | Planned | Gate 10 | DHIS2 aggregate push for HMIS, eCHIS referral interface/fake, MFR sync |
@@ -236,6 +236,30 @@ Passed!  - Failed: 0, Passed: 259, Skipped: 0, Total: 259, Duration: 27 s - Medi
 
 ---
 
+## 🛡️ Phase 7 Frontend Rebuild & XSS Containment Verification
+
+- **Branch:** `phase-7-frontend-rebuild`
+- **Findings Addressed:** SEC-02 (Stored DOM XSS across the portal)
+- **Architectural Reference:** [ADR 0008: Stored DOM XSS Containment and Strict Content Security Policy (CSP)](adr/0008-stored-xss-containment-and-strict-csp.md)
+- **Key Changes Implemented:**
+  - **Server-Side Clinical Summary Encoding:**
+    - Applied `WebUtility.HtmlEncode` to all provider names (`patient.PrimaryProvider.FirstName`, `patient.PrimaryProvider.LastName`), textual observation values (`v.ValueText`), units (`v.Unit`), and reference ranges in [`ClinicalSummaryGenerator.cs`](file:///home/michael/projects/app/medical_portal/backend/src/MedicalPortal.Core/Domain/ClinicalSummaryGenerator.cs).
+    - Removed inline event handler `onclick="window.print()"` from the export summary button; introduced same-origin external script [`frontend/js/print.js`](file:///home/michael/projects/app/medical_portal/frontend/js/print.js).
+  - **Strict Content-Security-Policy (CSP):**
+    - Enforced `script-src 'self'` without `'unsafe-inline'` and without `'unsafe-eval'` in [`Program.cs`](file:///home/michael/projects/app/medical_portal/backend/src/MedicalPortal.Web/Program.cs) and [`nginx.conf`](file:///home/michael/projects/app/medical_portal/nginx.conf).
+    - Removed remote script and font CDN origins (`cdnjs.cloudflare.com`, `fonts.googleapis.com`, `fonts.gstatic.com`).
+    - Added `object-src 'none'`, `base-uri 'self'`, and `frame-ancestors 'none'`.
+  - **Client-Side Contextual Escaping & DOM Node Assignment:**
+    - Introduced universal `escapeHtml` contextual encoder in [`frontend/js/app.js`](file:///home/michael/projects/app/medical_portal/frontend/js/app.js).
+    - Refactored `showToast`, `showInAppAlert`, and `showInAppConfirm` to assign user-supplied messages and titles via DOM element `.textContent` rather than `.innerHTML` string interpolation.
+    - Contextually escaped all dynamic data across overview, encounter cockpit, allergies, medications, message threads/replies, billing statements, proxy relationships, record shares, facility locators, and admin console workforce tables.
+- **Negative & Abuse Test Suite:**
+  - Added [`backend/tests/MedicalPortal.Tests/XssContainmentAndCspTests.cs`](file:///home/michael/projects/app/medical_portal/backend/tests/MedicalPortal.Tests/XssContainmentAndCspTests.cs) (5 tests covering strict CSP header verification, anti-sniff and frame-deny security headers, multi-entity XSS injection encoding into ClinicalSummaryGenerator, frontend static hygiene, and offline print script).
+- **Automated Test Results:**
+  - Full test suite passing: **333 passed, 0 failed, 0 skipped**.
+
+---
+
 ## 🔍 Security Audit Verification Matrix (SEC-01 .. SEC-22, SAFE-01)
 
 Every audit finding from `docs/security-audit-2026-10-24.md` has been verified against the current codebase:
@@ -243,7 +267,7 @@ Every audit finding from `docs/security-audit-2026-10-24.md` has been verified a
 | Finding ID | Severity | Category | Status in Code | Code Evidence & Current Behavior | Planned Remediation |
 |---|:---:|---|:---:|---|---|
 | **SEC-01** | **Critical** | Auth Bypass / Privilege Escalation | **CLOSED** | Lazy session creation removed in `SessionService.cs`. Token claims reconciled with authoritative DB in `AuthFilters.cs`. `AuthorizationVersion` increments immediately revoke tokens. Static cluster key removed from `docker-compose.yml`. Covered by negative tests in `CriticalSecurityContainmentTests.cs`. | Closed in Phase 2 |
-| **SEC-02** | **Critical** | Stored DOM XSS | **OPEN** | `app.js:12,417,545,650,2034` assigns user input directly to `.innerHTML` without contextual escaping. `ClinicalSummaryGenerator.cs:135,220` interpolates unencoded strings into HTML. `Program.cs:496` CSP permits `'unsafe-inline'`. | Phase 7 |
+| **SEC-02** | **Critical** | Stored DOM XSS | **CLOSED** | Contextual encoding applied in `ClinicalSummaryGenerator.cs` (provider names, observation texts, units). Strict CSP (`script-src 'self'`) without `'unsafe-inline'` or CDNs enforced in `Program.cs` and `nginx.conf`. In-app toasts/dialogs refactored to `.textContent`. Contextual `escapeHtml` applied across all template interpolations in `app.js`. Covered by negative tests in `XssContainmentAndCspTests.cs`. | Closed in Phase 7 |
 | **SEC-03** | **Critical** | Plaintext Production Transport | **CLOSED** | HSTS middleware configured in `Program.cs` (`Strict-Transport-Security: max-age=31536000; includeSubDomains; preload`). Production fail-fast assertions prohibit plain-HTTP endpoints for external integrations. | Closed in Phase 2 |
 | **SEC-04** | **Critical** | Silent Fake Payments in Production | **CLOSED** | Removed `STRIPE_USE_FAKE=true` from `docker-compose.yml`. Added pre-build and post-build startup validations in `Program.cs` that abort if `Stripe:UseFake` is true, if `Stripe:SecretKey` is placeholder/empty, or if `FakePaymentGateway` is resolved in Production. Negative tests in `CriticalSecurityContainmentTests.cs`. | Closed in Phase 2 |
 | **SEC-05** | **High** | Payment Intent Replay & Misattribution | **CLOSED** | `ConsumedPaymentIntent` entity records processed payment intents with unique index on `GatewayPaymentIntentId` and composite index on `(PatientId, IdempotencyKey)`. `BillingController.cs` asserts `intent.PatientId == TargetPatientId` and rejects replayed intents with 409 Conflict. Covered in `AuthorizationAndPaymentsSecurityTests.cs`. | Closed in Phase 4 |
