@@ -178,6 +178,7 @@ public class AdminConsoleTests : IClassFixture<WebApplicationFactory<Program>>
         // 1. Disable user
         using var disableReq = new HttpRequestMessage(HttpMethod.Post, $"/api/admin/users/{targetUser.Id}/disable");
         disableReq.Headers.Authorization = new AuthenticationHeaderValue("Bearer", adminToken);
+        disableReq.Headers.Add("X-Step-Up-Token", tokens.GenerateStepUpToken(admin.Id, "disable_user"));
         var disableRes = await client.SendAsync(disableReq);
         Assert.Equal(HttpStatusCode.OK, disableRes.StatusCode);
 
@@ -241,6 +242,7 @@ public class AdminConsoleTests : IClassFixture<WebApplicationFactory<Program>>
 
         using var req = new HttpRequestMessage(HttpMethod.Put, $"/api/admin/users/{targetUser.Id}/role");
         req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", adminToken);
+        req.Headers.Add("X-Step-Up-Token", tokens.GenerateStepUpToken(admin.Id, "update_role"));
         req.Content = JsonContent.Create(new { role = "COMPLIANCE_AUDITOR" });
 
         var res = await client.SendAsync(req);

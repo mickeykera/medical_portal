@@ -73,5 +73,13 @@
   "cal.enkutatash": "Ayyaana Bara Haaraa (Inquxaaxash)",
   "cal.pagume": "Qaammee (Ji'a 13ffaa)",
   "cal.fiscalYear": "Bara Baajata Itoophiyaa",
-  "cal.quarter": "Kurmaana Baajataa"
+  "cal.quarter": "Kurmaana Baajataa",
+  "admin.overview": "Waliigala",
+  "admin.users": "Fayyadamtoota fi Hayyama",
+  "admin.organization": "Dhaabbata",
+  "admin.audit": "Galmee Ooditii",
+  "admin.security": "Imaammata Nageenyaa",
+  "admin.integrations": "Walsimsiisa",
+  "admin.billing": "Qindaa'ina Kaffaltii",
+  "admin.tenant": "Qindaa'ina Hospitaalaa"
 }

@@ -713,4 +713,170 @@ public class AuthController : ControllerBase
         }
         return $"MRN-{Guid.NewGuid().ToString("N")[..8].ToUpperInvariant()}";
     }
+
+    public record StepUpRequest(string Password, string? Action = null);
+
+    [HttpPost("step-up")]
+    public async Task<IActionResult> StepUp([FromBody] StepUpRequest request)
+    {
+        Guid? accountId = null;
+        if (HttpContext.Items["Actor"] is AccessTokenClaims actor)
+        {
+            accountId = actor.UserAccountId;
+        }
+        else if (Request.Headers.TryGetValue("Authorization", out var authHeader) &&
+                 authHeader.ToString().StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+        {
+            var token = authHeader.ToString().Substring("Bearer ".Length).Trim();
+            var claims = _tokens.ValidateAccessToken(token);
+            if (claims != null) accountId = claims.UserAccountId;
+        }
+        else if (Request.Cookies.TryGetValue("mp_session", out var cookieToken))
+        {
+            var claims = _tokens.ValidateAccessToken(cookieToken);
+            if (claims != null) accountId = claims.UserAccountId;
+        }
+
+        if (!accountId.HasValue)
+            return Unauthorized(new { error = "Authentication required." });
+
+        if (string.IsNullOrWhiteSpace(request.Password))
+            return BadRequest(new { error = "Password is required for step-up verification." });
+
+        var account = await _db.UserAccounts.FirstOrDefaultAsync(u => u.Id == accountId.Value);
+        if (account == null || !_hasher.VerifyPassword(account.PasswordHash, request.Password))
+        {
+            return Unauthorized(new { error = "Step-up authentication failed: incorrect password." });
+        }
+
+        var stepUpToken = _tokens.GenerateStepUpToken(account.Id, request.Action);
+
+        await _audit.LogAsync(
+            action: "AUTH_STEP_UP_VERIFIED",
+            resourceType: "UserAccount",
+            resourceId: account.Id.ToString(),
+            actorUserAccountId: account.Id,
+            metadata: new { action = request.Action ?? "general_step_up" },
+            ipAddress: HttpContext.Connection.RemoteIpAddress?.ToString(),
+            userAgent: Request.Headers.UserAgent.ToString()
+        );
+
+        return Ok(new
+        {
+            ok = true,
+            stepUpToken,
+            expiresInSeconds = 300,
+            message = "Step-up re-authentication successful."
+        });
+    }
+
+    public record AcceptInviteRequest(string Token, string Password);
+
+    [HttpPost("invites/accept")]
+    public async Task<IActionResult> AcceptInvite([FromBody] AcceptInviteRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Token))
+            return BadRequest(new { error = "Invite token is required." });
+
+        if (string.IsNullOrWhiteSpace(request.Password) || request.Password.Length < 8)
+            return BadRequest(new { error = "Password must be at least 8 characters long." });
+
+        var tokenHash = Convert.ToHexString(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(request.Token.Trim())));
+        var invite = await _db.UserInvites.FirstOrDefaultAsync(i =>
+            i.TokenHash == tokenHash && i.AcceptedAtUtc == null && i.ExpiresAtUtc > DateTime.UtcNow);
+
+        if (invite == null)
+            return NotFound(new { error = "Invalid or expired invitation token." });
+
+        var existingAccount = await _db.UserAccounts.AnyAsync(u => u.Email == invite.Email);
+        if (existingAccount)
+            return Conflict(new { error = "An account with this email already exists." });
+
+        var person = new Person
+        {
+            FirstName = invite.FirstName,
+            LastName = invite.LastName,
+            Email = invite.Email,
+            DateOfBirth = invite.DateOfBirth ?? new DateTime(1990, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+        _db.Persons.Add(person);
+
+        var account = new UserAccount
+        {
+            Person = person,
+            Email = invite.Email,
+            PasswordHash = _hasher.HashPassword(request.Password),
+            Role = invite.Role,
+            IsActive = true,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+        _db.UserAccounts.Add(account);
+
+        if (invite.Role == UserRole.PATIENT)
+        {
+            var mrn = await GenerateUniqueMrnAsync();
+            _db.Patients.Add(new Patient { Person = person, Mrn = mrn, CreatedAt = DateTime.UtcNow });
+        }
+        else if (invite.Role is UserRole.CLINICIAN or UserRole.PHYSICIAN)
+        {
+            var provider = new Provider
+            {
+                AccountId = account.Id,
+                FirstName = invite.FirstName,
+                LastName = invite.LastName,
+                Credentials = invite.Role == UserRole.PHYSICIAN ? "MD" : "PA-C",
+                Specialty = "General Practice",
+                CreatedAt = DateTime.UtcNow
+            };
+            _db.Providers.Add(provider);
+
+            if (invite.DepartmentId.HasValue)
+            {
+                _db.ProviderDepartments.Add(new ProviderDepartment
+                {
+                    Provider = provider,
+                    DepartmentId = invite.DepartmentId.Value,
+                    IsPrimary = true
+                });
+            }
+        }
+
+        if (invite.FacilityId.HasValue || invite.DepartmentId.HasValue)
+        {
+            _db.UserMemberships.Add(new UserMembership
+            {
+                UserAccount = account,
+                FacilityId = invite.FacilityId,
+                DepartmentId = invite.DepartmentId,
+                Role = invite.Role.ToString(),
+                CreatedAt = DateTime.UtcNow
+            });
+        }
+
+        invite.AcceptedAtUtc = DateTime.UtcNow;
+        invite.CreatedUserAccountId = account.Id;
+
+        await _db.SaveChangesAsync();
+
+        await _audit.LogAsync(
+            action: "USER_INVITE_ACCEPTED",
+            resourceType: "UserAccount",
+            resourceId: account.Id.ToString(),
+            actorUserAccountId: account.Id,
+            metadata: new { email = account.Email, role = account.Role.ToString(), inviteId = invite.Id },
+            ipAddress: HttpContext.Connection.RemoteIpAddress?.ToString(),
+            userAgent: Request.Headers.UserAgent.ToString()
+        );
+
+        return Ok(new
+        {
+            ok = true,
+            email = account.Email,
+            role = account.Role.ToString(),
+            message = "Account activated successfully. You can now sign in."
+        });
+    }
 }

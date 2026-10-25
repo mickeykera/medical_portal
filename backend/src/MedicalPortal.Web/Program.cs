@@ -751,6 +751,40 @@ if (app.Environment.IsDevelopment())
             {
                 await db.Database.EnsureCreatedAsync();
             }
+
+            await db.Database.ExecuteSqlRawAsync(@"
+CREATE TABLE IF NOT EXISTS ""UserInvites"" (
+    ""Id"" TEXT NOT NULL PRIMARY KEY,
+    ""TenantId"" TEXT NOT NULL,
+    ""Email"" TEXT NOT NULL,
+    ""Role"" TEXT NOT NULL,
+    ""FirstName"" TEXT NOT NULL,
+    ""LastName"" TEXT NOT NULL,
+    ""DateOfBirth"" TEXT NULL,
+    ""FacilityId"" TEXT NULL,
+    ""DepartmentId"" TEXT NULL,
+    ""TokenHash"" TEXT NOT NULL,
+    ""ExpiresAtUtc"" TEXT NOT NULL,
+    ""AcceptedAtUtc"" TEXT NULL,
+    ""CreatedUserAccountId"" TEXT NULL,
+    ""InvitedByUserAccountId"" TEXT NOT NULL,
+    ""CreatedAtUtc"" TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS ""RefundRequests"" (
+    ""Id"" TEXT NOT NULL PRIMARY KEY,
+    ""TenantId"" TEXT NOT NULL,
+    ""PaymentId"" TEXT NOT NULL,
+    ""AmountCents"" INTEGER NOT NULL,
+    ""Currency"" TEXT NOT NULL,
+    ""Reason"" TEXT NOT NULL,
+    ""Status"" TEXT NOT NULL,
+    ""RequestedByUserAccountId"" TEXT NOT NULL,
+    ""ReviewedByUserAccountId"" TEXT NULL,
+    ""ReviewedAtUtc"" TEXT NULL,
+    ""ReviewNotes"" TEXT NULL,
+    ""CreatedAtUtc"" TEXT NOT NULL
+);
+");
         }
 
         var devSecret = builder.Configuration["DEV_TOTP_SECRET"] ?? Environment.GetEnvironmentVariable("DEV_TOTP_SECRET");

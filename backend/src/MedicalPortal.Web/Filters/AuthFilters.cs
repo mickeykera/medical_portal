@@ -231,7 +231,7 @@ public class RequireAdminFilter : IAsyncActionFilter
             return;
         }
 
-        var isAdminOrAuditor = actor.Role is UserRole.ADMIN or UserRole.SYSTEM_ADMIN or UserRole.COMPLIANCE_AUDITOR;
+        var isAdminOrAuditor = actor.Role is UserRole.ADMIN or UserRole.SYSTEM_ADMIN or UserRole.COMPLIANCE_AUDITOR or UserRole.DEPT_ADMIN or UserRole.PLATFORM_ADMIN;
         if (!isAdminOrAuditor)
         {
             context.Result = new ObjectResult(new { error = "This action is restricted to compliance administrators." })

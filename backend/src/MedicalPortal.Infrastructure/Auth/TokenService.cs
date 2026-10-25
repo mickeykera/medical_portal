@@ -17,6 +17,8 @@ public interface ITokenService
     AccessTokenClaims? ValidateAccessToken(string token);
     string GenerateMfaChallengeToken(Guid userAccountId);
     Guid? ValidateMfaChallengeToken(string token);
+    string GenerateStepUpToken(Guid userAccountId, string? action = null);
+    bool ValidateStepUpToken(string token, Guid userAccountId, string? requiredAction = null);
     int ExpirationMinutes { get; }
 }
 
@@ -184,6 +186,79 @@ public class TokenService : ITokenService
         catch
         {
             return null;
+        }
+    }
+
+    public string GenerateStepUpToken(Guid userAccountId, string? action = null)
+    {
+        var claims = new List<Claim>
+        {
+            new Claim("userAccountId", userAccountId.ToString()),
+            new Claim("stepUp", "true"),
+            new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
+        };
+        if (!string.IsNullOrEmpty(action))
+        {
+            claims.Add(new Claim("stepUpAction", action));
+        }
+
+        var tokenDescriptor = new SecurityTokenDescriptor
+        {
+            Subject = new ClaimsIdentity(claims),
+            Expires = DateTime.UtcNow.AddMinutes(5), // 5 minute step-up window
+            Issuer = Issuer,
+            Audience = Audience,
+            SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(_key), SecurityAlgorithms.HmacSha256Signature)
+        };
+
+        var tokenHandler = new JwtSecurityTokenHandler();
+        var token = tokenHandler.CreateToken(tokenDescriptor);
+        return tokenHandler.WriteToken(token);
+    }
+
+    public bool ValidateStepUpToken(string token, Guid userAccountId, string? requiredAction = null)
+    {
+        if (string.IsNullOrWhiteSpace(token)) return false;
+
+        var tokenHandler = new JwtSecurityTokenHandler();
+        var validationParameters = new TokenValidationParameters
+        {
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(_key),
+            ValidateIssuer = true,
+            ValidIssuer = Issuer,
+            ValidateAudience = true,
+            ValidAudience = Audience,
+            ValidateLifetime = true,
+            ClockSkew = TimeSpan.FromSeconds(30)
+        };
+
+        try
+        {
+            var principal = tokenHandler.ValidateToken(token, validationParameters, out _);
+            var isStepUp = principal.FindFirst("stepUp")?.Value == "true";
+            if (!isStepUp) return false;
+
+            var accountClaim = principal.FindFirst("userAccountId")?.Value;
+            if (!Guid.TryParse(accountClaim, out var claimAccountId) || claimAccountId != userAccountId)
+            {
+                return false;
+            }
+
+            if (!string.IsNullOrEmpty(requiredAction))
+            {
+                var actionClaim = principal.FindFirst("stepUpAction")?.Value;
+                if (!string.IsNullOrEmpty(actionClaim) && !string.Equals(actionClaim, requiredAction, StringComparison.OrdinalIgnoreCase))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+        catch
+        {
+            return false;
         }
     }
 }

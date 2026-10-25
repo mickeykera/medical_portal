@@ -202,6 +202,11 @@
     return data;
   }
 
+  // Expose core utilities for modular SPA dashboard extensions
+  window.api = api;
+  window.showToast = showToast;
+  window.escapeHtml = escapeHtml;
+
   // --- Icons ---
   const ICONS = {
     activity: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>',
@@ -302,7 +307,7 @@
     }
 
     const isClinician = ['CLINICIAN', 'ADMIN', 'SYSTEM_ADMIN', 'PHYSICIAN', 'NURSE'].includes(currentSession.user.role);
-    const isAdmin = ['ADMIN', 'SYSTEM_ADMIN', 'DEPT_ADMIN'].includes(currentSession.user.role);
+    const isAdmin = ['ADMIN', 'SYSTEM_ADMIN', 'DEPT_ADMIN', 'PLATFORM_ADMIN'].includes(currentSession.user.role);
 
     const patientTabs = [
       { id: 'overview', label: 'Overview', icon: 'dashboard' },
@@ -2106,6 +2111,11 @@
   let adminAuditFilters = { resourceType: '', action: '' };
 
   async function loadAdmin(el) {
+    if (window.AdminDashboard && typeof window.AdminDashboard.render === 'function') {
+      await window.AdminDashboard.render(el, currentSession);
+      return;
+    }
+
     el.innerHTML = `
       <div style="display: flex; flex-direction: column; gap: 1.5rem;">
         <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">

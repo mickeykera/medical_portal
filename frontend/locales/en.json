@@ -73,5 +73,13 @@
   "cal.enkutatash": "Enkutatash (Ethiopian New Year)",
   "cal.pagume": "Pagume (13th Month)",
   "cal.fiscalYear": "Ethiopian Fiscal Year",
-  "cal.quarter": "Fiscal Quarter"
+  "cal.quarter": "Fiscal Quarter",
+  "admin.overview": "Overview",
+  "admin.users": "Users & Access",
+  "admin.organization": "Organization",
+  "admin.audit": "Audit Log",
+  "admin.security": "Security Policy",
+  "admin.integrations": "Integrations",
+  "admin.billing": "Billing Settings",
+  "admin.tenant": "Tenant Settings"
 }

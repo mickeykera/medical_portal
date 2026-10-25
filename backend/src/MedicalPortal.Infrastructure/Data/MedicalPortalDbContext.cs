@@ -79,6 +79,8 @@ public class MedicalPortalDbContext : DbContext
     public DbSet<Dhis2ReportDataset> Dhis2Reports => Set<Dhis2ReportDataset>();
     public DbSet<EchisReferral> EchisReferrals => Set<EchisReferral>();
     public DbSet<PatientDuplicateCandidate> PatientDuplicateCandidates => Set<PatientDuplicateCandidate>();
+    public DbSet<UserInvite> UserInvites => Set<UserInvite>();
+    public DbSet<PaymentRefundRequest> RefundRequests => Set<PaymentRefundRequest>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -117,6 +119,17 @@ public class MedicalPortalDbContext : DbContext
             .HasOne(u => u.Person)
             .WithMany(p => p.Accounts)
             .HasForeignKey(u => u.PersonId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // UserInvite
+        modelBuilder.Entity<UserInvite>()
+            .HasIndex(i => i.TokenHash);
+
+        // PaymentRefundRequest
+        modelBuilder.Entity<PaymentRefundRequest>()
+            .HasOne(r => r.Payment)
+            .WithMany()
+            .HasForeignKey(r => r.PaymentId)
             .OnDelete(DeleteBehavior.Cascade);
 
         // UserSession

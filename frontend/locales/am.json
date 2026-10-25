@@ -73,5 +73,13 @@
   "cal.enkutatash": "እንቁጣጣሽ (የዘመን መለወጫ)",
   "cal.pagume": "ጳጉሜ (13ኛው ወር)",
   "cal.fiscalYear": "የኢትዮጵያ የበጀት ዓመት",
-  "cal.quarter": "የበጀት ሩብ ዓመት"
+  "cal.quarter": "የበጀት ሩብ ዓመት",
+  "admin.overview": "አጠቃላይ እይታ",
+  "admin.users": "ተጠቃሚዎች እና ፈቃዶች",
+  "admin.organization": "ድርጅት እና ክፍሎች",
+  "admin.audit": "የኦዲት መዝገብ",
+  "admin.security": "የደህንነት ፖሊሲ",
+  "admin.integrations": "የስርዓት ቅንጅቶች",
+  "admin.billing": "የክፍያ ቅንብሮች",
+  "admin.tenant": "የሆስፒታል ቅንብሮች"
 }
