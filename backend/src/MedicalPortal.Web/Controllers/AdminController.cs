@@ -1196,11 +1196,14 @@ public class AdminController : ControllerBase
     }
 
     public record CreateFacilityRequest(
+        Guid? OrganizationId,
         string Name,
         string Code,
         string? AddressLine1 = null,
+        string? AddressLine2 = null,
         string? City = "Addis Ababa",
         string? State = "Addis Ababa",
+        string? PostalCode = null,
         string? Phone = null);
 
     [HttpPost("facilities")]
@@ -1212,22 +1215,29 @@ public class AdminController : ControllerBase
         if (string.IsNullOrWhiteSpace(request.Name) || string.IsNullOrWhiteSpace(request.Code))
             return BadRequest(new { error = "Facility name and code are required." });
 
-        var org = await _db.Organizations.FirstOrDefaultAsync();
-        if (org == null)
+        var orgId = request.OrganizationId;
+        if (!orgId.HasValue)
         {
-            org = new Organization { Name = "Addis Care Health Network", Code = "ACHN" };
-            _db.Organizations.Add(org);
-            await _db.SaveChangesAsync();
+            var org = await _db.Organizations.FirstOrDefaultAsync();
+            if (org == null)
+            {
+                org = new Organization { Name = "Addis Care Health Network", Code = "ACHN" };
+                _db.Organizations.Add(org);
+                await _db.SaveChangesAsync();
+            }
+            orgId = org.Id;
         }
 
         var facility = new Facility
         {
-            OrganizationId = org.Id,
+            OrganizationId = orgId.Value,
             Name = request.Name.Trim(),
             Code = request.Code.Trim().ToUpperInvariant(),
             AddressLine1 = request.AddressLine1?.Trim() ?? "Bole Road",
+            AddressLine2 = request.AddressLine2?.Trim(),
             City = request.City?.Trim() ?? "Addis Ababa",
             State = request.State?.Trim() ?? "Addis Ababa",
+            PostalCode = request.PostalCode?.Trim(),
             Phone = request.Phone?.Trim(),
             CreatedAt = DateTime.UtcNow
         };
