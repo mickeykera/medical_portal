@@ -181,6 +181,18 @@ public class AuthController : ControllerBase
         {
             accountId = actor.UserAccountId;
         }
+        else if (Request.Headers.TryGetValue("Authorization", out var authHeader) &&
+                 authHeader.ToString().StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+        {
+            var token = authHeader.ToString().Substring("Bearer ".Length).Trim();
+            var claims = _tokens.ValidateAccessToken(token);
+            if (claims != null) accountId = claims.UserAccountId;
+        }
+        else if (Request.Cookies.TryGetValue("mp_session", out var cookieToken))
+        {
+            var claims = _tokens.ValidateAccessToken(cookieToken);
+            if (claims != null) accountId = claims.UserAccountId;
+        }
         else if (!string.IsNullOrWhiteSpace(request?.MfaToken))
         {
             accountId = _tokens.ValidateMfaChallengeToken(request.MfaToken);
@@ -228,6 +240,18 @@ public class AuthController : ControllerBase
         if (HttpContext.Items["Actor"] is AccessTokenClaims actor)
         {
             accountId = actor.UserAccountId;
+        }
+        else if (Request.Headers.TryGetValue("Authorization", out var authHeader) &&
+                 authHeader.ToString().StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+        {
+            var token = authHeader.ToString().Substring("Bearer ".Length).Trim();
+            var claims = _tokens.ValidateAccessToken(token);
+            if (claims != null) accountId = claims.UserAccountId;
+        }
+        else if (Request.Cookies.TryGetValue("mp_session", out var cookieToken))
+        {
+            var claims = _tokens.ValidateAccessToken(cookieToken);
+            if (claims != null) accountId = claims.UserAccountId;
         }
         else if (!string.IsNullOrWhiteSpace(request.MfaToken))
         {

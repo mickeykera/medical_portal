@@ -11,14 +11,19 @@ namespace MedicalPortal.Infrastructure.Data;
 public static class DbSeeder
 {
     public const string DemoPassword = "ChangeMe!Demo2024";
-    public const string DevClinicianTotpSecret = "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP";
 
-    public static async Task SeedAsync(MedicalPortalDbContext db, IPasswordHasher hasher, bool isProduction = false)
+    public static async Task SeedAsync(MedicalPortalDbContext db, IPasswordHasher hasher, bool isProduction = false, string? devTotpSecret = null)
     {
         if (isProduction)
         {
             throw new InvalidOperationException("Production startup failed: Seeding is strictly prohibited in production.");
         }
+
+        var env = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Development";
+        var isDevelopment = string.Equals(env, "Development", StringComparison.OrdinalIgnoreCase);
+        var activeDevTotpSecret = devTotpSecret ?? Environment.GetEnvironmentVariable("DEV_TOTP_SECRET");
+        var useDevTotp = isDevelopment && !string.IsNullOrWhiteSpace(activeDevTotpSecret);
+
         if (!await db.Tenants.AnyAsync())
         {
             var defaultTenant = new Tenant
@@ -76,12 +81,87 @@ public static class DbSeeder
             }
 
             var devPatel = await db.UserAccounts.FirstOrDefaultAsync(u => u.Email == "apatel@clinic.example");
-            if (devPatel != null && (!devPatel.MfaEnabled || devPatel.MfaSecret != DevClinicianTotpSecret))
+            if (devPatel != null)
             {
-                devPatel.MfaEnabled = true;
-                devPatel.MfaSecret = DevClinicianTotpSecret;
-                devPatel.MfaEnrolledAt = DateTime.UtcNow;
+                if (useDevTotp)
+                {
+                    devPatel.MfaEnabled = true;
+                    devPatel.MfaSecret = activeDevTotpSecret;
+                    devPatel.MfaEnrolledAt = DateTime.UtcNow;
+                }
+                else
+                {
+                    devPatel.MfaEnabled = false;
+                    devPatel.MfaSecret = null;
+                    devPatel.MfaEnrolledAt = null;
+                }
                 await db.SaveChangesAsync();
+            }
+
+            var devAdmin = await db.UserAccounts.FirstOrDefaultAsync(u => u.Email == "admin@clinic.example");
+            if (devAdmin != null)
+            {
+                if (useDevTotp)
+                {
+                    devAdmin.MfaEnabled = true;
+                    devAdmin.MfaSecret = activeDevTotpSecret;
+                    devAdmin.MfaEnrolledAt = DateTime.UtcNow;
+                }
+                else
+                {
+                    devAdmin.MfaEnabled = false;
+                    devAdmin.MfaSecret = null;
+                    devAdmin.MfaEnrolledAt = null;
+                }
+                await db.SaveChangesAsync();
+            }
+            else
+            {
+                var existingAdminPerson = await db.Persons.FirstOrDefaultAsync(p => p.Email == "admin@clinic.example");
+                if (existingAdminPerson == null)
+                {
+                    existingAdminPerson = new Person
+                    {
+                        FirstName = "Hospital",
+                        LastName = "Administrator",
+                        DateOfBirth = new DateTime(1982, 1, 15, 0, 0, 0, DateTimeKind.Utc),
+                        Email = "admin@clinic.example",
+                        Phone = "+251 91 155 0100",
+                        AddressLine1 = "Kirkos Subcity, House 102",
+                        City = "Addis Ababa",
+                        State = "Addis Ababa",
+                        PostalCode = "1000"
+                    };
+                    db.Persons.Add(existingAdminPerson);
+                    await db.SaveChangesAsync();
+                }
+
+                devAdmin = new UserAccount
+                {
+                    Person = existingAdminPerson,
+                    PersonId = existingAdminPerson.Id,
+                    Email = "admin@clinic.example",
+                    PasswordHash = hasher.HashPassword(DemoPassword),
+                    Role = UserRole.ADMIN,
+                    TenantId = TenantConstants.DefaultTenantId,
+                    MfaEnabled = useDevTotp,
+                    MfaSecret = useDevTotp ? activeDevTotpSecret : null,
+                    MfaEnrolledAt = useDevTotp ? DateTime.UtcNow : null
+                };
+                db.UserAccounts.Add(devAdmin);
+                await db.SaveChangesAsync();
+
+                var srmcFac = await db.Facilities.FirstOrDefaultAsync(f => f.Code == "SRMC");
+                if (srmcFac != null)
+                {
+                    db.UserMemberships.Add(new UserMembership
+                    {
+                        UserAccount = devAdmin,
+                        Facility = srmcFac,
+                        Role = "ADMIN"
+                    });
+                    await db.SaveChangesAsync();
+                }
             }
 
             var defTenant = await db.Tenants.FirstOrDefaultAsync(t => t.Id == TenantConstants.DefaultTenantId);
@@ -332,12 +412,40 @@ public static class DbSeeder
             Email = "apatel@clinic.example",
             PasswordHash = passwordHash,
             Role = UserRole.CLINICIAN,
-            MfaEnabled = true,
-            MfaSecret = DevClinicianTotpSecret,
-            MfaEnrolledAt = DateTime.UtcNow
+            TenantId = TenantConstants.DefaultTenantId,
+            MfaEnabled = useDevTotp,
+            MfaSecret = useDevTotp ? activeDevTotpSecret : null,
+            MfaEnrolledAt = useDevTotp ? DateTime.UtcNow : null
         };
         db.UserAccounts.Add(patelAccount);
         drPatel.Account = patelAccount;
+
+        var adminPerson = new Person
+        {
+            FirstName = "Hospital",
+            LastName = "Administrator",
+            DateOfBirth = new DateTime(1982, 1, 15, 0, 0, 0, DateTimeKind.Utc),
+            Email = "admin@clinic.example",
+            Phone = "+251 91 155 0100",
+            AddressLine1 = "Kirkos Subcity, House 102",
+            City = "Addis Ababa",
+            State = "Addis Ababa",
+            PostalCode = "1000"
+        };
+        db.Persons.Add(adminPerson);
+
+        var adminAccount = new UserAccount
+        {
+            Person = adminPerson,
+            Email = "admin@clinic.example",
+            PasswordHash = passwordHash,
+            Role = UserRole.ADMIN,
+            TenantId = TenantConstants.DefaultTenantId,
+            MfaEnabled = useDevTotp,
+            MfaSecret = useDevTotp ? activeDevTotpSecret : null,
+            MfaEnrolledAt = useDevTotp ? DateTime.UtcNow : null
+        };
+        db.UserAccounts.Add(adminAccount);
 
         // --- Organizations, Facilities & Departments ------------------------
         var org = new Organization
@@ -692,6 +800,12 @@ public static class DbSeeder
                 UserAccount = parentAccount,
                 Facility = facilitySrmc,
                 Role = "PATIENT"
+            },
+            new UserMembership
+            {
+                UserAccount = adminAccount,
+                Facility = facilitySrmc,
+                Role = "ADMIN"
             }
         });
 

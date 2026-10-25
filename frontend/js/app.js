@@ -479,23 +479,11 @@
               <div id="login-error" style="color: #dc2626; font-size: 0.8125rem; margin-bottom: 0.75rem;"></div>
               <button class="btn btn-primary" style="width: 100%;" type="submit">Sign In</button>
             </form>
-
-            <div class="demo-buttons">
-              <div style="font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); font-weight: 600; text-align: center;">
-                One-Click Seed Accounts
-              </div>
-              <button class="btn btn-outline" id="demo-patient">
-                👤 Sign in as Dana Rivera (Patient with Dependents)
-              </button>
-              <button class="btn btn-outline" id="demo-clinician">
-                🩺 Sign in as Dr. Amara Patel, MD (Clinician)
-              </button>
-            </div>
           </div>
 
           <div id="login-mfa-box" style="display: none;">
             <div class="notice notice-info" style="margin-bottom: 1rem; font-size: 0.875rem;">
-              Two-factor authentication code required. Enter the 6-digit code from your authenticator app (or run <code>./scripts/dev-totp.sh</code>).
+              Two-factor authentication code required. Enter the 6-digit code from your authenticator app.
             </div>
             <form id="form-mfa">
               <div class="form-group">
@@ -586,16 +574,6 @@
         const pass = document.getElementById('login-password').value;
         await doLogin(email, pass);
       };
-    }
-
-    const demoPatientBtn = document.getElementById('demo-patient');
-    if (demoPatientBtn) {
-      demoPatientBtn.onclick = () => doLogin('dana@example.com', 'ChangeMe!Demo2024');
-    }
-
-    const demoClinicianBtn = document.getElementById('demo-clinician');
-    if (demoClinicianBtn) {
-      demoClinicianBtn.onclick = () => doLogin('apatel@clinic.example', 'ChangeMe!Demo2024');
     }
   }
 

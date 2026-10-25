@@ -640,11 +640,14 @@ All sensitive values and environment-specific settings are configured via enviro
 
 | Role | Email | Password | MFA / TOTP | Description |
 |------|-------|----------|------------|-------------|
-| **Patient** | `dana@example.com` | `ChangeMe!Demo2024` | None (Optional) | Dana Rivera (Managing self + proxy access for children Mateo and Sofia) |
+| **Patient** | `dana@example.com` | `ChangeMe!Demo2024` | Optional | Dana Rivera (Managing self + proxy access for children Mateo and Sofia) |
 | **Clinician** | `apatel@clinic.example` | `ChangeMe!Demo2024` | Required (`./scripts/dev-totp.sh`) | Dr. Amara Patel, MD (Family Medicine, full clinical dashboard access) |
+| **Admin** | `admin@clinic.example` | `ChangeMe!Demo2024` | Required (`./scripts/dev-totp.sh`) | Hospital Administrator (Addis Central General Hospital admin dashboard) |
 
 > [!NOTE]
-> For local development, Dr. Patel is seeded with a fixed dev TOTP secret (`JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP`). Run `./scripts/dev-totp.sh` or `dotnet run --project backend/src/MedicalPortal.Web -- --totp` to generate the active 6-digit TOTP code. Production startup guards strictly reject this dev secret and shortcut.
+> Run `./scripts/dev-setup.sh` once to generate a gitignored `.env` file with random `JWT_SECRET`, `HMS_WEBHOOK_SECRET`, and `DEV_TOTP_SECRET`.
+> The seeder automatically associates `DEV_TOTP_SECRET` with the seeded Clinician (`apatel@clinic.example`) and Admin (`admin@clinic.example`) accounts when running in Development.
+> Run `./scripts/dev-totp.sh` to read `DEV_TOTP_SECRET` from `.env` and output the current 6-digit TOTP code and seconds remaining (using `oathtool` or Python 3). Production startup guards strictly reject any `DEV_TOTP_SECRET` and dev accounts.
 
 ---
 

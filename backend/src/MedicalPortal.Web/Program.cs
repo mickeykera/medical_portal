@@ -39,6 +39,12 @@ AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Load .env into configuration for Development environments
+if (!builder.Environment.IsProduction())
+{
+    LoadDotEnvIntoConfiguration(builder.Configuration);
+}
+
 // Register Structured-Logging PHI Scrubber
 builder.Logging.AddPhiScrubber();
 
@@ -141,6 +147,16 @@ if (builder.Environment.IsProduction())
     {
         throw new InvalidOperationException(
             "Production startup failed: Default or placeholder JWT secret is strictly prohibited in production.");
+    }
+
+    var devTotpSecret = builder.Configuration["DEV_TOTP_SECRET"]
+        ?? Environment.GetEnvironmentVariable("DEV_TOTP_SECRET")
+        ?? builder.Configuration["Auth:DevTotpSecret"];
+
+    if (!string.IsNullOrWhiteSpace(devTotpSecret))
+    {
+        throw new InvalidOperationException(
+            "Production startup failed: DEV_TOTP_SECRET is strictly prohibited in production.");
     }
 
     if (builder.Configuration.GetValue<bool>("Auth:AllowDevTotpShortcut") ||
@@ -682,7 +698,8 @@ if (args.Contains("--migrate"))
     {
         var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
         Console.WriteLine("Seeding database...");
-        await DbSeeder.SeedAsync(db, hasher);
+        var seedSecret = builder.Configuration["DEV_TOTP_SECRET"] ?? Environment.GetEnvironmentVariable("DEV_TOTP_SECRET");
+        await DbSeeder.SeedAsync(db, hasher, isProduction: false, devTotpSecret: seedSecret);
         Console.WriteLine("Database seeded successfully.");
     }
     return;
@@ -691,9 +708,19 @@ if (args.Contains("--migrate"))
 // Support dedicated CLI commands: dotnet run -- --totp
 if (args.Contains("--totp") || args.Contains("totp") || args.Contains("--clinician-totp"))
 {
+    if (app.Environment.IsProduction())
+    {
+        throw new InvalidOperationException("Production startup failed: Dev TOTP CLI is strictly prohibited in production.");
+    }
+    var secret = builder.Configuration["DEV_TOTP_SECRET"] ?? Environment.GetEnvironmentVariable("DEV_TOTP_SECRET");
+    if (string.IsNullOrWhiteSpace(secret))
+    {
+        Console.Error.WriteLine("Error: DEV_TOTP_SECRET is not configured. Run ./scripts/dev-setup.sh first.");
+        return;
+    }
     var totpService = app.Services.GetRequiredService<ITotpService>();
-    var code = totpService.GenerateTotpCode(DbSeeder.DevClinicianTotpSecret);
-    Console.WriteLine($"Dev Clinician Current TOTP Code: {code}");
+    var code = totpService.GenerateTotpCode(secret);
+    Console.WriteLine($"Dev Current TOTP Code: {code}");
     Console.WriteLine(code);
     return;
 }
@@ -726,7 +753,8 @@ if (app.Environment.IsDevelopment())
             }
         }
 
-        await DbSeeder.SeedAsync(db, hasher);
+        var devSecret = builder.Configuration["DEV_TOTP_SECRET"] ?? Environment.GetEnvironmentVariable("DEV_TOTP_SECRET");
+        await DbSeeder.SeedAsync(db, hasher, isProduction: false, devTotpSecret: devSecret);
     }
     finally
     {
@@ -775,12 +803,22 @@ else
         {
             if (db.Database.CanConnect())
             {
-                var devClinicianWithDevSecret = db.UserAccounts
-                    .Any(u => u.MfaSecret == DbSeeder.DevClinicianTotpSecret);
-                if (devClinicianWithDevSecret)
+                var devEmails = new[]
+                {
+                    "apatel@clinic.example",
+                    "admin@clinic.example",
+                    "dana@example.com"
+                };
+
+                var devAccountExists = db.UserAccounts.IgnoreQueryFilters()
+                    .Any(u => devEmails.Contains(u.Email) ||
+                              u.Email.EndsWith("@clinic.example") ||
+                              u.MfaSecret == "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP");
+
+                if (devAccountExists)
                 {
                     throw new InvalidOperationException(
-                        "Production startup failed: Dev clinician TOTP secret is strictly prohibited in production.");
+                        "Production startup failed: Dev accounts are strictly prohibited in production.");
                 }
             }
         }
@@ -918,4 +956,42 @@ app.Run();
 public partial class Program
 {
     private static readonly SemaphoreSlim DbInitLock = new(1, 1);
+
+    private static void LoadDotEnvIntoConfiguration(ConfigurationManager config)
+    {
+        var current = Directory.GetCurrentDirectory();
+        string? envPath = null;
+        var dir = new DirectoryInfo(current);
+        while (dir != null)
+        {
+            var candidate = Path.Combine(dir.FullName, ".env");
+            if (File.Exists(candidate))
+            {
+                envPath = candidate;
+                break;
+            }
+            dir = dir.Parent;
+        }
+
+        if (envPath != null && File.Exists(envPath))
+        {
+            var dict = new Dictionary<string, string?>();
+            foreach (var line in File.ReadAllLines(envPath))
+            {
+                var trimmed = line.Trim();
+                if (string.IsNullOrWhiteSpace(trimmed) || trimmed.StartsWith("#")) continue;
+                var idx = trimmed.IndexOf('=');
+                if (idx > 0)
+                {
+                    var key = trimmed.Substring(0, idx).Trim();
+                    var val = trimmed.Substring(idx + 1).Trim();
+                    dict[key] = val;
+                }
+            }
+            if (dict.Count > 0)
+            {
+                config.AddInMemoryCollection(dict);
+            }
+        }
+    }
 }

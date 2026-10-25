@@ -612,9 +612,12 @@ public class MfaAndSessionTests : IClassFixture<WebApplicationFactory<Program>>
         var mfaToken = loginBody.GetProperty("mfaToken").GetString();
         Assert.False(string.IsNullOrWhiteSpace(mfaToken));
 
-        // 2. Generate current TOTP code using the fixed dev secret
+        // 2. Generate current TOTP code using the seeded clinician's MFA secret
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<MedicalPortalDbContext>();
+        var clinician = await db.UserAccounts.FirstAsync(u => u.Email == "apatel@clinic.example");
         var totp = _factory.Services.GetRequiredService<ITotpService>();
-        var currentCode = totp.GenerateTotpCode(DbSeeder.DevClinicianTotpSecret);
+        var currentCode = totp.GenerateTotpCode(clinician.MfaSecret!);
 
         // 3. Verify MFA step
         var verifyRes = await client.PostAsJsonAsync("/api/auth/mfa/verify", new
