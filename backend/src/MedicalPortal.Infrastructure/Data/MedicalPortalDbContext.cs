@@ -112,6 +112,10 @@ public class MedicalPortalDbContext : DbContext
             .HasConversion<string>();
 
         modelBuilder.Entity<UserAccount>()
+            .Property(u => u.IsDevAccount)
+            .HasDefaultValue(false);
+
+        modelBuilder.Entity<UserAccount>()
             .Property(u => u.MfaSecret)
             .HasConversion<EncryptedStringConverter>();
 

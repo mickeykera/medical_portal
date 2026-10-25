@@ -284,9 +284,9 @@
       if (currentSession.managing && currentSession.managing.length > 0) {
         activePatientId = currentSession.managing[0].patientId;
       }
-      if (currentSession.user.role === 'ADMIN' || currentSession.user.role === 'SYSTEM_ADMIN') {
+      if (['ADMIN', 'SYSTEM_ADMIN', 'DEPT_ADMIN', 'PLATFORM_ADMIN', 'COMPLIANCE_AUDITOR'].includes(currentSession.user.role)) {
         currentTab = 'admin';
-      } else if (currentSession.user.role === 'CLINICIAN' || currentSession.user.role === 'PHYSICIAN') {
+      } else if (['CLINICIAN', 'PHYSICIAN', 'NURSE'].includes(currentSession.user.role)) {
         currentTab = 'cockpit';
       } else {
         currentTab = 'overview';
@@ -307,7 +307,7 @@
     }
 
     const isClinician = ['CLINICIAN', 'ADMIN', 'SYSTEM_ADMIN', 'PHYSICIAN', 'NURSE'].includes(currentSession.user.role);
-    const isAdmin = ['ADMIN', 'SYSTEM_ADMIN', 'DEPT_ADMIN', 'PLATFORM_ADMIN'].includes(currentSession.user.role);
+    const isAdmin = ['ADMIN', 'SYSTEM_ADMIN', 'DEPT_ADMIN', 'PLATFORM_ADMIN', 'COMPLIANCE_AUDITOR'].includes(currentSession.user.role);
 
     const patientTabs = [
       { id: 'overview', label: 'Overview', icon: 'dashboard' },
@@ -470,6 +470,7 @@
         <div class="login-card">
           <div class="login-logo">🩺 Medical Portal</div>
           <div class="login-sub">Rewritten & Powered by ASP.NET Core 8 & Entity Framework Core</div>
+          <div id="role-selector-container"></div>
 
           <div id="login-primary-box">
             <form id="form-login">
@@ -580,6 +581,115 @@
         await doLogin(email, pass);
       };
     }
+
+    const quickLoginEl = document.getElementById('role-selector-container');
+    if (quickLoginEl) {
+      fetch('/api/dev/quick-logins')
+        .then(r => r.ok ? r.json() : null)
+        .then(accounts => {
+          if (!accounts || accounts.length === 0) return;
+          quickLoginEl.innerHTML = `
+            <div style="background: #fffbeb; border: 1.5px dashed #f59e0b; border-radius: 8px; padding: 0.75rem; margin-bottom: 1.25rem; font-size: 0.8125rem;">
+              <div style="font-weight: 700; color: #b45309; display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem;">
+                <span>🚨 DEV ONLY: Quick Login Picker</span>
+                <span style="font-size: 0.6875rem; background: #fef3c7; color: #92400e; padding: 2px 6px; border-radius: 4px; font-weight: 600;">DEV ONLY</span>
+              </div>
+              <div style="font-size: 0.75rem; color: #78350f; margin-bottom: 0.5rem;">Click any role to autofill the sign-in form:</div>
+              <div style="display: flex; flex-wrap: wrap; gap: 0.375rem; max-height: 180px; overflow-y: auto; padding-right: 2px;">
+                ${accounts.map(acc => `
+                  <button type="button" class="btn btn-outline btn-sm dev-login-btn" data-email="${escapeHtml(acc.email)}" style="font-size: 0.6875rem; padding: 0.25rem 0.5rem; background: white; border-color: #fde68a;">
+                    ${escapeHtml(acc.role)}: ${escapeHtml(acc.name)}
+                  </button>
+                `).join('')}
+              </div>
+            </div>
+          `;
+          quickLoginEl.querySelectorAll('.dev-login-btn').forEach(btn => {
+            btn.onclick = () => {
+              const email = btn.getAttribute('data-email');
+              const emailInput = document.getElementById('login-email');
+              if (emailInput) {
+                emailInput.value = email;
+                emailInput.focus();
+              }
+            };
+          });
+        })
+        .catch(() => {});
+    }
+  }
+
+  // --- Staff Operations Dashboard ---
+  function renderStaffDashboard(el, role) {
+    if (role === 'SCHEDULER') {
+      el.innerHTML = `
+        <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+          <div class="notice notice-info">
+            <strong>Front Desk & Scheduling Dashboard</strong>: Provider schedules, slot bookings, and Addis Ababa clinic appointments.
+          </div>
+          <div class="grid grid-3">
+            <div class="card stat-card"><span class="stat-label">Today's Appointments</span><span class="stat-value">18</span><span class="stat-sub">Family Medicine & Cardiology</span></div>
+            <div class="card stat-card"><span class="stat-label">Checked In / Triage</span><span class="stat-value">4</span><span class="stat-sub">Waiting for rooming</span></div>
+            <div class="card stat-card"><span class="stat-label">Upcoming Slots</span><span class="stat-value">12</span><span class="stat-sub">Available today</span></div>
+          </div>
+          <div class="card">
+            <div class="card-header"><span class="card-title">📅 Daily Clinic Appointment Schedule</span><span class="pill good">Active</span></div>
+            <div style="padding: 1rem; color: var(--text-muted); font-size: 0.875rem;">Appointments managed in central scheduling engine across assigned departments.</div>
+          </div>
+        </div>
+      `;
+    } else if (role === 'BILLING') {
+      el.innerHTML = `
+        <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+          <div class="notice notice-info">
+            <strong>Billing & Financial Operations</strong>: Patient statements, ETB currency settlement, and payment plans.
+          </div>
+          <div class="grid grid-3">
+            <div class="card stat-card"><span class="stat-label">Outstanding Balances</span><span class="stat-value">150,000 Br</span><span class="stat-sub">Active billing statements</span></div>
+            <div class="card stat-card"><span class="stat-label">Payment Plans</span><span class="stat-value">6 Active</span><span class="stat-sub">Min threshold ETB 500.00</span></div>
+            <div class="card stat-card"><span class="stat-label">Pending Refunds</span><span class="stat-value">0</span><span class="stat-sub">All reviewed</span></div>
+          </div>
+          <div class="card">
+            <div class="card-header"><span class="card-title">💳 Financial Ledger & Accounts Receivable</span><span class="pill good">ETB Currency Active</span></div>
+            <div style="padding: 1rem; color: var(--text-muted); font-size: 0.875rem;">Billing operations active under SRMC Facility financial ledger.</div>
+          </div>
+        </div>
+      `;
+    } else if (role === 'LAB') {
+      el.innerHTML = `
+        <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+          <div class="notice notice-info">
+            <strong>Laboratory Diagnostics Workstation</strong>: Specimen tracking and observation result verification.
+          </div>
+          <div class="grid grid-3">
+            <div class="card stat-card"><span class="stat-label">Pending Lab Orders</span><span class="stat-value">8</span><span class="stat-sub">Specimens received</span></div>
+            <div class="card stat-card"><span class="stat-label">Results Pending Review</span><span class="stat-value">3</span><span class="stat-sub">Awaiting validation</span></div>
+            <div class="card stat-card"><span class="stat-label">Completed Today</span><span class="stat-value">24</span><span class="stat-sub">Diagnostic Laboratory</span></div>
+          </div>
+          <div class="card">
+            <div class="card-header"><span class="card-title">🔬 Diagnostic Laboratory Queue</span><span class="pill info">Live</span></div>
+            <div style="padding: 1rem; color: var(--text-muted); font-size: 0.875rem;">Specimen analysis queue synchronized with clinical laboratory instruments.</div>
+          </div>
+        </div>
+      `;
+    } else if (role === 'PHARMACIST') {
+      el.innerHTML = `
+        <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+          <div class="notice notice-info">
+            <strong>Pharmacy Dispensary Workstation</strong>: Medication fulfillment and prescription safety checks.
+          </div>
+          <div class="grid grid-3">
+            <div class="card stat-card"><span class="stat-label">Prescriptions to Fill</span><span class="stat-value">11</span><span class="stat-sub">Outpatient dispensary</span></div>
+            <div class="card stat-card"><span class="stat-label">Interaction Alerts</span><span class="stat-value">0</span><span class="stat-sub">Safety clear</span></div>
+            <div class="card stat-card"><span class="stat-label">Refills Completed</span><span class="stat-value">19</span><span class="stat-sub">Today</span></div>
+          </div>
+          <div class="card">
+            <div class="card-header"><span class="card-title">💊 Outpatient Pharmacy Dispensary</span><span class="pill good">Operational</span></div>
+            <div style="padding: 1rem; color: var(--text-muted); font-size: 0.875rem;">Dispensary inventory and electronic prescribing fulfillment active.</div>
+          </div>
+        </div>
+      `;
+    }
   }
 
   // --- Tab Loaders ---
@@ -607,6 +717,10 @@
 
   // --- Overview Tab ---
   async function loadOverview(el) {
+    if (['SCHEDULER', 'BILLING', 'LAB', 'PHARMACIST'].includes(currentSession?.user?.role)) {
+      renderStaffDashboard(el, currentSession.user.role);
+      return;
+    }
     connectSignalR();
 
     const [snapshot, vitalsRes, medsRes, apptsRes] = await Promise.all([

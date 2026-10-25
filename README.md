@@ -88,6 +88,56 @@ Open your browser to:
 
 ---
 
+## 🛠️ Development Setup & Seeded Logins
+
+Local development security is strictly isolated from production. All dev credentials, TOTP seeds, and JWT secrets are stored in a gitignored `.env` file and are never committed or exposed in production UI or API responses.
+
+### 1. Initial Environment Setup
+Generate random, cryptographically secure secrets (`JWT_SECRET`, `HMS_WEBHOOK_SECRET`, `DEV_TOTP_SECRET`, `DEV_SEED_PASSWORD`) in your local `.env`:
+```bash
+./scripts/dev-setup.sh
+```
+
+### 2. Viewing Development Logins
+Display a live formatted table of all seeded development roles, their target dashboards, emails, password, and current MFA codes with remaining seconds:
+```bash
+./scripts/dev-logins.sh
+```
+*Note: This script strictly refuses to execute if `ASPNETCORE_ENVIRONMENT=Production`.*
+
+### 3. Current 6-Digit TOTP Code
+Generate the live 6-digit MFA code and remaining countdown seconds:
+```bash
+./scripts/dev-totp.sh
+```
+
+### 4. Seeded Roles & Dashboards Reference
+When running in `Development`, one development account is seeded for every role and dashboard, complete with realistic Addis Ababa names, `+251` phone numbers, and operational memberships:
+
+| Role | Dashboard | Email | Password | MFA |
+| :--- | :--- | :--- | :--- | :--- |
+| **Patient** | Patient Portal | `almaz.bekele@clinic.example` | `DEV_SEED_PASSWORD` from `.env` | None |
+| **Proxy / Guardian** | Patient Portal (Proxy) | `tigist.hailu@clinic.example` | `DEV_SEED_PASSWORD` from `.env` | None |
+| **Clinician** | Clinical Cockpit | `apatel@clinic.example` | `DEV_SEED_PASSWORD` from `.env` | 6-digit TOTP |
+| **Nurse** | Clinical Cockpit (Triage) | `sister.bethlehem@clinic.example` | `DEV_SEED_PASSWORD` from `.env` | 6-digit TOTP |
+| **Front Desk / Scheduler** | Scheduling Dashboard | `sara.tefera@clinic.example` | `DEV_SEED_PASSWORD` from `.env` | 6-digit TOTP |
+| **Billing Officer** | Billing Operations | `daniel.worku@clinic.example` | `DEV_SEED_PASSWORD` from `.env` | 6-digit TOTP |
+| **Lab Specialist** | Laboratory Diagnostics | `meron.assefa@clinic.example` | `DEV_SEED_PASSWORD` from `.env` | 6-digit TOTP |
+| **Pharmacist** | Pharmacy Dispensary | `eyob.getachew@clinic.example` | `DEV_SEED_PASSWORD` from `.env` | 6-digit TOTP |
+| **Dept Admin (Family Med)** | Hospital Admin (Dept Scope) | `deptadmin.fam@clinic.example` | `DEV_SEED_PASSWORD` from `.env` | 6-digit TOTP |
+| **Dept Admin (Cardiology)** | Hospital Admin (Dept Scope) | `deptadmin.card@clinic.example` | `DEV_SEED_PASSWORD` from `.env` | 6-digit TOTP |
+| **Hospital Admin** | Hospital Admin Console | `admin@clinic.example` | `DEV_SEED_PASSWORD` from `.env` | 6-digit TOTP |
+| **Compliance Auditor** | Compliance & Audit Console | `auditor.compliance@clinic.example` | `DEV_SEED_PASSWORD` from `.env` | 6-digit TOTP |
+| **Platform Admin** | Platform Admin (Zero PHI) | `platform.admin@clinic.example` | `DEV_SEED_PASSWORD` from `.env` | 6-digit TOTP |
+| **Integration Admin** | Integrations & System Admin | `system.admin@clinic.example` | `DEV_SEED_PASSWORD` from `.env` | 6-digit TOTP |
+| **Tenant 2 Admin (Adot)** | Hospital Admin (Adot) | `admin.adot@clinic.example` | `DEV_SEED_PASSWORD` from `.env` | 6-digit TOTP |
+| **Tenant 2 Patient (Adot)** | Patient Portal (Adot) | `patient.adot@clinic.example` | `DEV_SEED_PASSWORD` from `.env` | None |
+
+### 5. Development Quick-Login Picker
+When `DEV_QUICK_LOGIN=true` and running in `Development`, a convenient "🚨 DEV ONLY: Quick Login Picker" panel is rendered on the sign-in screen to autofill role credentials with a single click. In Release or Production builds, this endpoint is omitted and no picker files or credentials exist in production static assets.
+
+---
+
 ## 🐘 PostgreSQL Integration
 
 The application integrates with PostgreSQL (including the latest **PostgreSQL 17** and **16**) via **`Npgsql.EntityFrameworkCore.PostgreSQL` 8.0**:

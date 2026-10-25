@@ -4,6 +4,8 @@
 **/obj/
 **/node_modules/
 docs/
+scripts/
+.env*
 TestResults/
 **/TestResults/
 *.trx

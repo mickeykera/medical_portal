@@ -44,6 +44,7 @@ public class UserAccount : ITenantScoped
     public string? MfaSecret { get; set; }
     public string? MfaRecoveryCodesJson { get; set; }
     public DateTime? MfaEnrolledAt { get; set; }
+    public bool IsDevAccount { get; set; } = false;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 

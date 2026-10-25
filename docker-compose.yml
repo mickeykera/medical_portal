@@ -44,6 +44,10 @@ services:
       - STRIPE_USE_FAKE=true
       - Hms__UseFake=true
       - HMS_USE_FAKE=true
+      - JWT_SECRET=${JWT_SECRET:-}
+      - DEV_SEED_PASSWORD=${DEV_SEED_PASSWORD:-}
+      - DEV_TOTP_SECRET=${DEV_TOTP_SECRET:-}
+      - DEV_QUICK_LOGIN=${DEV_QUICK_LOGIN:-true}
     depends_on:
       postgres:
         condition: service_healthy

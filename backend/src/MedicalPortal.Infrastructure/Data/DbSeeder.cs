@@ -12,7 +12,12 @@ public static class DbSeeder
 {
     public const string DemoPassword = "ChangeMe!Demo2024";
 
-    public static async Task SeedAsync(MedicalPortalDbContext db, IPasswordHasher hasher, bool isProduction = false, string? devTotpSecret = null)
+    public static async Task SeedAsync(
+        MedicalPortalDbContext db,
+        IPasswordHasher hasher,
+        bool isProduction = false,
+        string? devTotpSecret = null,
+        string? devSeedPassword = null)
     {
         if (isProduction)
         {
@@ -23,6 +28,7 @@ public static class DbSeeder
         var isDevelopment = string.Equals(env, "Development", StringComparison.OrdinalIgnoreCase);
         var activeDevTotpSecret = devTotpSecret ?? Environment.GetEnvironmentVariable("DEV_TOTP_SECRET");
         var useDevTotp = isDevelopment && !string.IsNullOrWhiteSpace(activeDevTotpSecret);
+        var activeDevSeedPassword = devSeedPassword ?? Environment.GetEnvironmentVariable("DEV_SEED_PASSWORD") ?? DemoPassword;
 
         if (!await db.Tenants.AnyAsync())
         {
@@ -368,10 +374,14 @@ public static class DbSeeder
             {
                 await SeedSchedulingForExistingDbAsync(db);
             }
+            if (isDevelopment)
+            {
+                await SeedDevelopmentLoginsAsync(db, hasher, isDevelopment, activeDevSeedPassword, activeDevTotpSecret, useDevTotp);
+            }
             return; // Already seeded
         }
 
-        var passwordHash = hasher.HashPassword(DemoPassword);
+        var passwordHash = hasher.HashPassword(activeDevSeedPassword);
 
         // --- Providers -----------------------------------------------------
         var drPatel = new Provider
@@ -413,6 +423,7 @@ public static class DbSeeder
             PasswordHash = passwordHash,
             Role = UserRole.CLINICIAN,
             TenantId = TenantConstants.DefaultTenantId,
+            IsDevAccount = isDevelopment,
             MfaEnabled = useDevTotp,
             MfaSecret = useDevTotp ? activeDevTotpSecret : null,
             MfaEnrolledAt = useDevTotp ? DateTime.UtcNow : null
@@ -441,6 +452,7 @@ public static class DbSeeder
             PasswordHash = passwordHash,
             Role = UserRole.ADMIN,
             TenantId = TenantConstants.DefaultTenantId,
+            IsDevAccount = isDevelopment,
             MfaEnabled = useDevTotp,
             MfaSecret = useDevTotp ? activeDevTotpSecret : null,
             MfaEnrolledAt = useDevTotp ? DateTime.UtcNow : null
@@ -775,7 +787,8 @@ public static class DbSeeder
             Person = parentPerson,
             Email = "dana@example.com",
             PasswordHash = passwordHash,
-            Role = UserRole.PATIENT
+            Role = UserRole.PATIENT,
+            IsDevAccount = isDevelopment
         };
         db.UserAccounts.Add(parentAccount);
 
@@ -1105,6 +1118,631 @@ public static class DbSeeder
         {
             var snapService = new SnapshotService(db);
             await snapService.RefreshSnapshotAsync(p.Id);
+        }
+
+        if (isDevelopment)
+        {
+            await SeedDevelopmentLoginsAsync(db, hasher, isDevelopment, activeDevSeedPassword, activeDevTotpSecret, useDevTotp);
+        }
+    }
+
+    private static async Task SeedDevelopmentLoginsAsync(
+        MedicalPortalDbContext db,
+        IPasswordHasher hasher,
+        bool isDevelopment,
+        string devPassword,
+        string? devTotpSecret,
+        bool useDevTotp)
+    {
+        var defaultTenantId = TenantConstants.DefaultTenantId;
+
+        // Resolve or create facilities and departments for SRMC
+        var facilitySrmc = await db.Facilities.IgnoreQueryFilters().FirstOrDefaultAsync(f => f.Code == "SRMC" && f.TenantId == defaultTenantId);
+        if (facilitySrmc == null)
+        {
+            var org = await db.Organizations.IgnoreQueryFilters().FirstOrDefaultAsync(o => o.TenantId == defaultTenantId);
+            if (org == null)
+            {
+                org = new Organization
+                {
+                    TenantId = defaultTenantId,
+                    Name = "Addis Care Health Network (DEMO)",
+                    Code = "SHS",
+                    TaxId = "ET-1234567"
+                };
+                db.Organizations.Add(org);
+                await db.SaveChangesAsync();
+            }
+            facilitySrmc = new Facility
+            {
+                TenantId = defaultTenantId,
+                OrganizationId = org.Id,
+                Name = "Addis Central General Hospital (DEMO)",
+                Code = "SRMC",
+                AddressLine1 = "Bole Road, Olympia Area",
+                City = "Addis Ababa",
+                State = "Addis Ababa",
+                PostalCode = "1000",
+                Phone = "+251 11 661 0200"
+            };
+            db.Facilities.Add(facilitySrmc);
+            await db.SaveChangesAsync();
+        }
+
+        var extraDepts = await db.Departments.IgnoreQueryFilters()
+            .Where(d => d.FacilityId == facilitySrmc.Id && (d.Code == "LAB" || d.Code == "PHARM"))
+            .ToListAsync();
+        if (extraDepts.Any())
+        {
+            db.Departments.RemoveRange(extraDepts);
+            await db.SaveChangesAsync();
+        }
+
+        var deptFamMed = await db.Departments.IgnoreQueryFilters().FirstOrDefaultAsync(d => d.Code == "FAM-MED" && d.TenantId == defaultTenantId);
+        if (deptFamMed == null)
+        {
+            deptFamMed = new Department
+            {
+                TenantId = defaultTenantId,
+                FacilityId = facilitySrmc.Id,
+                Name = "Family Medicine & Primary Care",
+                Code = "FAM-MED",
+                Specialty = "Family Medicine",
+                Phone = "+251 11 661 0201"
+            };
+            db.Departments.Add(deptFamMed);
+            await db.SaveChangesAsync();
+        }
+
+        var deptCardiology = await db.Departments.IgnoreQueryFilters().FirstOrDefaultAsync(d => d.Code == "CARD-INT" && d.TenantId == defaultTenantId);
+        if (deptCardiology == null)
+        {
+            deptCardiology = new Department
+            {
+                TenantId = defaultTenantId,
+                FacilityId = facilitySrmc.Id,
+                Name = "Cardiology & Internal Medicine",
+                Code = "CARD-INT",
+                Specialty = "Cardiology",
+                Phone = "+251 11 661 0202"
+            };
+            db.Departments.Add(deptCardiology);
+            await db.SaveChangesAsync();
+        }
+
+
+        // 3. Clinician: Dr. Amara Patel
+        var patelAccount = await EnsureDevAccountAsync(
+            db, hasher, defaultTenantId,
+            "apatel@clinic.example", "Amara", "Patel",
+            new DateTime(1980, 4, 12, 0, 0, 0, DateTimeKind.Utc),
+            "+251 91 345 6789", "Bole Subcity, House 101",
+            UserRole.CLINICIAN, devPassword, isDevelopment,
+            mfaRequired: useDevTotp, mfaSecret: devTotpSecret);
+
+        var drPatel = await db.Providers.IgnoreQueryFilters().FirstOrDefaultAsync(p => p.Email == "apatel@clinic.example");
+        if (drPatel == null)
+        {
+            drPatel = new Provider
+            {
+                TenantId = defaultTenantId,
+                FirstName = "Amara",
+                LastName = "Patel",
+                Credentials = "MD",
+                Specialty = "Family Medicine",
+                Npi = "1000000001",
+                Email = "apatel@clinic.example",
+                AccountId = patelAccount.Id
+            };
+            db.Providers.Add(drPatel);
+            await db.SaveChangesAsync();
+        }
+        else if (drPatel.AccountId == null)
+        {
+            drPatel.AccountId = patelAccount.Id;
+            await db.SaveChangesAsync();
+        }
+
+        await EnsureMembershipAsync(db, defaultTenantId, patelAccount.Id, facilitySrmc.Id, deptFamMed.Id, "CLINICIAN");
+
+        // 1. Patient: Almaz Bekele
+        var almazAccount = await EnsureDevAccountAsync(
+            db, hasher, defaultTenantId,
+            "almaz.bekele@clinic.example", "Almaz", "Bekele",
+            new DateTime(1992, 5, 14, 0, 0, 0, DateTimeKind.Utc),
+            "+251 91 123 4567", "Bole Subcity, Woreda 03, House 412",
+            UserRole.PATIENT, devPassword, isDevelopment,
+            mfaRequired: false, mfaSecret: null);
+
+        var almazPatient = await db.Patients.IgnoreQueryFilters().Include(p => p.Snapshot).FirstOrDefaultAsync(p => p.PersonId == almazAccount.PersonId || p.Mrn == "MRN-ET-1001");
+        if (almazPatient == null)
+        {
+            almazPatient = new Patient
+            {
+                TenantId = defaultTenantId,
+                PersonId = almazAccount.PersonId,
+                Mrn = "MRN-ET-1001",
+                PrimaryProviderId = drPatel.Id
+            };
+            db.Patients.Add(almazPatient);
+            await db.SaveChangesAsync();
+
+            var almazStatement = new Statement
+            {
+                TenantId = defaultTenantId,
+                PatientId = almazPatient.Id,
+                TotalCents = 150000,
+                AmountPaidCents = 0,
+                BalanceCents = 150000,
+                DueAt = DateTime.UtcNow.AddDays(25),
+                Status = StatementStatus.OPEN,
+                Description = "Comprehensive clinic visit and laboratory panel"
+            };
+            db.Statements.Add(almazStatement);
+
+            var almazAppt = new Appointment
+            {
+                TenantId = defaultTenantId,
+                PatientId = almazPatient.Id,
+                ProviderId = drPatel.Id,
+                DepartmentId = deptFamMed.Id,
+                StartAt = DateTime.UtcNow.AddDays(3),
+                EndAt = DateTime.UtcNow.AddDays(3).AddMinutes(30),
+                Status = AppointmentStatus.CONFIRMED,
+                ReasonForVisit = "Routine follow-up & wellness check"
+            };
+            db.Appointments.Add(almazAppt);
+            await db.SaveChangesAsync();
+
+            var snapService = new SnapshotService(db);
+            await snapService.RefreshSnapshotAsync(almazPatient.Id);
+        }
+        else if (almazPatient.PersonId != almazAccount.PersonId)
+        {
+            almazPatient.PersonId = almazAccount.PersonId;
+            await db.SaveChangesAsync();
+        }
+
+        await EnsureMembershipAsync(db, defaultTenantId, almazAccount.Id, facilitySrmc.Id, null, "PATIENT");
+
+        if (!await db.CareTeams.IgnoreQueryFilters().AnyAsync(ct => ct.ProviderId == drPatel.Id && ct.PatientId == almazPatient.Id))
+        {
+            db.CareTeams.Add(new PatientCareTeam
+            {
+                TenantId = defaultTenantId,
+                ProviderId = drPatel.Id,
+                PatientId = almazPatient.Id,
+                Role = "Primary Care Physician",
+                IsPrimary = true
+            });
+            await db.SaveChangesAsync();
+        }
+
+        // 2. Proxy / Guardian: Tigist Hailu -> linked to dependent child Yonas Hailu
+        var tigistAccount = await EnsureDevAccountAsync(
+            db, hasher, defaultTenantId,
+            "tigist.hailu@clinic.example", "Tigist", "Hailu",
+            new DateTime(1988, 11, 20, 0, 0, 0, DateTimeKind.Utc),
+            "+251 91 234 5678", "Yeka Subcity, Woreda 07, House 215",
+            UserRole.PATIENT, devPassword, isDevelopment,
+            mfaRequired: false, mfaSecret: null);
+
+        var yonasPerson = await db.Persons.IgnoreQueryFilters().FirstOrDefaultAsync(p => p.Email == "yonas.hailu@clinic.example" && p.TenantId == defaultTenantId);
+        if (yonasPerson == null)
+        {
+            yonasPerson = new Person
+            {
+                TenantId = defaultTenantId,
+                FirstName = "Yonas",
+                LastName = "Hailu",
+                DateOfBirth = new DateTime(2017, 8, 15, 0, 0, 0, DateTimeKind.Utc),
+                SexAtBirth = "M",
+                Email = "yonas.hailu@clinic.example",
+                Phone = "+251 91 234 5678",
+                City = "Addis Ababa"
+            };
+            db.Persons.Add(yonasPerson);
+            await db.SaveChangesAsync();
+        }
+
+        var yonasPatient = await db.Patients.IgnoreQueryFilters().FirstOrDefaultAsync(p => p.PersonId == yonasPerson.Id || p.Mrn == "MRN-ET-1002");
+        if (yonasPatient == null)
+        {
+            yonasPatient = new Patient
+            {
+                TenantId = defaultTenantId,
+                PersonId = yonasPerson.Id,
+                Mrn = "MRN-ET-1002",
+                PrimaryProviderId = drPatel.Id
+            };
+            db.Patients.Add(yonasPatient);
+            await db.SaveChangesAsync();
+
+            var snapService = new SnapshotService(db);
+            await snapService.RefreshSnapshotAsync(yonasPatient.Id);
+        }
+        else if (yonasPatient.PersonId != yonasPerson.Id)
+        {
+            yonasPatient.PersonId = yonasPerson.Id;
+            await db.SaveChangesAsync();
+        }
+
+        if (!await db.ProxyGrants.IgnoreQueryFilters().AnyAsync(g => g.GrantorId == yonasPerson.Id && g.GranteeId == tigistAccount.PersonId))
+        {
+            db.ProxyGrants.Add(new ProxyGrant
+            {
+                TenantId = defaultTenantId,
+                GrantorId = yonasPerson.Id,
+                GranteeId = tigistAccount.PersonId,
+                CanViewRecords = true,
+                CanManageAppointments = true,
+                CanMessage = true,
+                CanRequestRefills = true,
+                CanPayBills = false,
+                CanManageSharing = false,
+                ConsentGivenAt = DateTime.UtcNow
+            });
+            await db.SaveChangesAsync();
+        }
+
+        await EnsureMembershipAsync(db, defaultTenantId, tigistAccount.Id, facilitySrmc.Id, null, "PATIENT");
+
+        if (!await db.CareTeams.IgnoreQueryFilters().AnyAsync(ct => ct.ProviderId == drPatel.Id && ct.PatientId == yonasPatient.Id))
+        {
+            db.CareTeams.Add(new PatientCareTeam
+            {
+                TenantId = defaultTenantId,
+                ProviderId = drPatel.Id,
+                PatientId = yonasPatient.Id,
+                Role = "Pediatrician",
+                IsPrimary = true
+            });
+            await db.SaveChangesAsync();
+        }
+
+        // 4. Nurse: Sister Bethlehem Girma
+        var nurseAccount = await EnsureDevAccountAsync(
+            db, hasher, defaultTenantId,
+            "sister.bethlehem@clinic.example", "Sister Bethlehem", "Girma",
+            new DateTime(1989, 3, 22, 0, 0, 0, DateTimeKind.Utc),
+            "+251 91 456 7890", "Lideta Subcity, House 78",
+            UserRole.NURSE, devPassword, isDevelopment,
+            mfaRequired: useDevTotp, mfaSecret: devTotpSecret);
+        await EnsureMembershipAsync(db, defaultTenantId, nurseAccount.Id, facilitySrmc.Id, deptFamMed.Id, "NURSE");
+
+        // 5. Front Desk / Scheduler: Sara Tefera
+        var schedAccount = await EnsureDevAccountAsync(
+            db, hasher, defaultTenantId,
+            "sara.tefera@clinic.example", "Sara", "Tefera",
+            new DateTime(1993, 7, 19, 0, 0, 0, DateTimeKind.Utc),
+            "+251 91 567 8901", "Arada Subcity, House 145",
+            UserRole.SCHEDULER, devPassword, isDevelopment,
+            mfaRequired: useDevTotp, mfaSecret: devTotpSecret);
+        await EnsureMembershipAsync(db, defaultTenantId, schedAccount.Id, facilitySrmc.Id, deptFamMed.Id, "SCHEDULER");
+        await EnsureMembershipAsync(db, defaultTenantId, schedAccount.Id, facilitySrmc.Id, deptCardiology.Id, "SCHEDULER");
+
+        // 6. Billing Officer: Daniel Worku
+        var billingAccount = await EnsureDevAccountAsync(
+            db, hasher, defaultTenantId,
+            "daniel.worku@clinic.example", "Daniel", "Worku",
+            new DateTime(1987, 10, 5, 0, 0, 0, DateTimeKind.Utc),
+            "+251 91 678 9012", "Nifas Silk-Lafto Subcity, House 503",
+            UserRole.BILLING, devPassword, isDevelopment,
+            mfaRequired: useDevTotp, mfaSecret: devTotpSecret);
+        await EnsureMembershipAsync(db, defaultTenantId, billingAccount.Id, facilitySrmc.Id, null, "BILLING");
+
+        // 7. Lab Specialist: Meron Assefa
+        var labAccount = await EnsureDevAccountAsync(
+            db, hasher, defaultTenantId,
+            "meron.assefa@clinic.example", "Meron", "Assefa",
+            new DateTime(1991, 1, 30, 0, 0, 0, DateTimeKind.Utc),
+            "+251 91 789 0123", "Gullele Subcity, House 312",
+            UserRole.LAB, devPassword, isDevelopment,
+            mfaRequired: useDevTotp, mfaSecret: devTotpSecret);
+        await EnsureMembershipAsync(db, defaultTenantId, labAccount.Id, facilitySrmc.Id, null, "LAB");
+
+        // 8. Pharmacist: Eyob Getachew
+        var pharmAccount = await EnsureDevAccountAsync(
+            db, hasher, defaultTenantId,
+            "eyob.getachew@clinic.example", "Eyob", "Getachew",
+            new DateTime(1986, 12, 14, 0, 0, 0, DateTimeKind.Utc),
+            "+251 91 890 1234", "Kolfe Keranio Subcity, House 89",
+            UserRole.PHARMACIST, devPassword, isDevelopment,
+            mfaRequired: useDevTotp, mfaSecret: devTotpSecret);
+        await EnsureMembershipAsync(db, defaultTenantId, pharmAccount.Id, facilitySrmc.Id, null, "PHARMACIST");
+
+        // 9. Department Admin 1: Dr. Dawit Tadesse (Family Medicine only)
+        var deptAdminFam = await EnsureDevAccountAsync(
+            db, hasher, defaultTenantId,
+            "deptadmin.fam@clinic.example", "Dr. Dawit", "Tadesse",
+            new DateTime(1978, 6, 18, 0, 0, 0, DateTimeKind.Utc),
+            "+251 91 901 2345", "Bole Subcity, House 604",
+            UserRole.DEPT_ADMIN, devPassword, isDevelopment,
+            mfaRequired: useDevTotp, mfaSecret: devTotpSecret);
+        await EnsureMembershipAsync(db, defaultTenantId, deptAdminFam.Id, facilitySrmc.Id, deptFamMed.Id, "DEPT_ADMIN");
+
+        // 10. Department Admin 2: Dr. Rahel Solomon (Cardiology only)
+        var deptAdminCard = await EnsureDevAccountAsync(
+            db, hasher, defaultTenantId,
+            "deptadmin.card@clinic.example", "Dr. Rahel", "Solomon",
+            new DateTime(1981, 9, 25, 0, 0, 0, DateTimeKind.Utc),
+            "+251 91 012 3456", "Kirkos Subcity, House 230",
+            UserRole.DEPT_ADMIN, devPassword, isDevelopment,
+            mfaRequired: useDevTotp, mfaSecret: devTotpSecret);
+        await EnsureMembershipAsync(db, defaultTenantId, deptAdminCard.Id, facilitySrmc.Id, deptCardiology.Id, "DEPT_ADMIN");
+
+        // 11. Hospital Admin: admin@clinic.example
+        var hospitalAdmin = await EnsureDevAccountAsync(
+            db, hasher, defaultTenantId,
+            "admin@clinic.example", "Hospital", "Administrator",
+            new DateTime(1982, 1, 15, 0, 0, 0, DateTimeKind.Utc),
+            "+251 91 155 0100", "Kirkos Subcity, House 102",
+            UserRole.ADMIN, devPassword, isDevelopment,
+            mfaRequired: useDevTotp, mfaSecret: devTotpSecret);
+        await EnsureMembershipAsync(db, defaultTenantId, hospitalAdmin.Id, facilitySrmc.Id, null, "ADMIN");
+
+        // 12. Compliance Auditor: Abebe Kebede
+        var auditorAccount = await EnsureDevAccountAsync(
+            db, hasher, defaultTenantId,
+            "auditor.compliance@clinic.example", "Abebe", "Kebede",
+            new DateTime(1983, 4, 9, 0, 0, 0, DateTimeKind.Utc),
+            "+251 91 222 3344", "Arada Subcity, House 301",
+            UserRole.COMPLIANCE_AUDITOR, devPassword, isDevelopment,
+            mfaRequired: useDevTotp, mfaSecret: devTotpSecret);
+        await EnsureMembershipAsync(db, defaultTenantId, auditorAccount.Id, facilitySrmc.Id, null, "COMPLIANCE_AUDITOR");
+
+        // 13. Platform Admin: Zero PHI
+        await EnsureDevAccountAsync(
+            db, hasher, defaultTenantId,
+            "platform.admin@clinic.example", "Platform", "Administrator",
+            new DateTime(1980, 2, 17, 0, 0, 0, DateTimeKind.Utc),
+            "+251 91 333 4455", "Bole Subcity, House 550",
+            UserRole.PLATFORM_ADMIN, devPassword, isDevelopment,
+            mfaRequired: useDevTotp, mfaSecret: devTotpSecret);
+
+        // 14. Integration Admin: Yohannes Tadesse
+        var systemAdmin = await EnsureDevAccountAsync(
+            db, hasher, defaultTenantId,
+            "system.admin@clinic.example", "Yohannes", "Tadesse",
+            new DateTime(1985, 8, 21, 0, 0, 0, DateTimeKind.Utc),
+            "+251 91 444 5566", "Kirkos Subcity, House 771",
+            UserRole.SYSTEM_ADMIN, devPassword, isDevelopment,
+            mfaRequired: useDevTotp, mfaSecret: devTotpSecret);
+        await EnsureMembershipAsync(db, defaultTenantId, systemAdmin.Id, facilitySrmc.Id, null, "SYSTEM_ADMIN");
+
+        // --- SECOND TENANT: Adot Hospital Addis ---
+        var adotTenant = await db.Tenants.IgnoreQueryFilters().FirstOrDefaultAsync(t => t.Slug.ToLower() == "adot-hospital");
+        if (adotTenant == null)
+        {
+            var defaultAdotId = new Guid("00000000-0000-0000-0000-000000000002");
+            adotTenant = new Tenant
+            {
+                Id = defaultAdotId,
+                Name = "Adot Hospital Addis",
+                Slug = "adot-hospital",
+                Region = "Ethiopia, Addis Ababa",
+                TimeZone = "Africa/Addis_Ababa",
+                LanguagesJson = "[\"en\", \"am\"]",
+                IsActive = true,
+                MasterKeyFingerprint = "fp_adot_tenant",
+                AuditChainHash = "0000000000000000000000000000000000000000000000000000000000000000"
+            };
+            adotTenant.SetSettings(new TenantSettings
+            {
+                Branding = new TenantBrandingSettings { PrimaryColor = "#10b981" },
+                Modules = new TenantModuleSettings(),
+                Hosting = new TenantHostingSettings { Isolation = "Shared database" },
+                Integrations = new TenantIntegrationSettings { Ehr = "HMS" },
+                Security = new TenantSecuritySettings(),
+                Currency = new TenantCurrencySettings
+                {
+                    Code = "ETB",
+                    Symbol = "Br",
+                    MinorUnitDigits = 2,
+                    Locale = "en-ET",
+                    MinPaymentPlanAmountMinorUnits = 50000
+                },
+                Location = new TenantLocationSettings
+                {
+                    Country = "Ethiopia",
+                    City = "Addis Ababa",
+                    TimeZone = "Africa/Addis_Ababa"
+                }
+            });
+            db.Tenants.Add(adotTenant);
+            await db.SaveChangesAsync();
+        }
+        var adotTenantId = adotTenant.Id;
+
+        var adotOrg = await db.Organizations.IgnoreQueryFilters().FirstOrDefaultAsync(o => o.TenantId == adotTenantId);
+        if (adotOrg == null)
+        {
+            adotOrg = new Organization
+            {
+                TenantId = adotTenantId,
+                Name = "Adot Healthcare System",
+                Code = "ADOT-ORG",
+                TaxId = "ET-9876543",
+                Phone = "+251 11 662 0100"
+            };
+            db.Organizations.Add(adotOrg);
+            await db.SaveChangesAsync();
+        }
+
+        var adotFacility = await db.Facilities.IgnoreQueryFilters().FirstOrDefaultAsync(f => f.TenantId == adotTenantId);
+        if (adotFacility == null)
+        {
+            adotFacility = new Facility
+            {
+                TenantId = adotTenantId,
+                OrganizationId = adotOrg.Id,
+                Name = "Adot General Hospital",
+                Code = "ADOT-GH",
+                AddressLine1 = "Bole Subcity, Adot Complex",
+                City = "Addis Ababa",
+                State = "Addis Ababa",
+                PostalCode = "1000",
+                Phone = "+251 11 662 0200"
+            };
+            db.Facilities.Add(adotFacility);
+            await db.SaveChangesAsync();
+        }
+
+        // 15. Second Tenant Admin: Marta Hailu
+        var adotAdmin = await EnsureDevAccountAsync(
+            db, hasher, adotTenantId,
+            "admin.adot@clinic.example", "Marta", "Hailu",
+            new DateTime(1984, 11, 11, 0, 0, 0, DateTimeKind.Utc),
+            "+251 91 555 6677", "Bole Subcity, Adot Complex",
+            UserRole.ADMIN, devPassword, isDevelopment,
+            mfaRequired: useDevTotp, mfaSecret: devTotpSecret);
+        await EnsureMembershipAsync(db, adotTenantId, adotAdmin.Id, adotFacility.Id, null, "ADMIN");
+
+        // 16. Second Tenant Patient: Kalkidan Yilma
+        var adotPatientAccount = await EnsureDevAccountAsync(
+            db, hasher, adotTenantId,
+            "patient.adot@clinic.example", "Kalkidan", "Yilma",
+            new DateTime(1995, 3, 12, 0, 0, 0, DateTimeKind.Utc),
+            "+251 91 666 7788", "Bole Subcity, Woreda 06",
+            UserRole.PATIENT, devPassword, isDevelopment,
+            mfaRequired: false, mfaSecret: null);
+
+        var adotPatient = await db.Patients.IgnoreQueryFilters().FirstOrDefaultAsync(p => p.PersonId == adotPatientAccount.PersonId || p.Mrn == "MRN-ADOT-001");
+        if (adotPatient == null)
+        {
+            adotPatient = new Patient
+            {
+                TenantId = adotTenantId,
+                PersonId = adotPatientAccount.PersonId,
+                Mrn = "MRN-ADOT-001"
+            };
+            db.Patients.Add(adotPatient);
+            await db.SaveChangesAsync();
+
+            var snapService = new SnapshotService(db);
+            await snapService.RefreshSnapshotAsync(adotPatient.Id);
+        }
+        else if (adotPatient.PersonId != adotPatientAccount.PersonId)
+        {
+            adotPatient.PersonId = adotPatientAccount.PersonId;
+            await db.SaveChangesAsync();
+        }
+        await EnsureMembershipAsync(db, adotTenantId, adotPatientAccount.Id, adotFacility.Id, null, "PATIENT");
+
+        // Ensure legacy dev patient dana@example.com is marked as dev account
+        var danaAccount = await db.UserAccounts.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.Email == "dana@example.com");
+        if (danaAccount != null)
+        {
+            danaAccount.IsDevAccount = isDevelopment;
+            danaAccount.PasswordHash = hasher.HashPassword(devPassword);
+            await db.SaveChangesAsync();
+        }
+    }
+
+    private static async Task<UserAccount> EnsureDevAccountAsync(
+        MedicalPortalDbContext db,
+        IPasswordHasher hasher,
+        Guid tenantId,
+        string email,
+        string firstName,
+        string lastName,
+        DateTime dob,
+        string phone,
+        string address,
+        UserRole role,
+        string password,
+        bool isDevelopment,
+        bool mfaRequired,
+        string? mfaSecret)
+    {
+        var person = await db.Persons.IgnoreQueryFilters().FirstOrDefaultAsync(p => p.Email == email && p.TenantId == tenantId);
+        if (person == null)
+        {
+            person = new Person
+            {
+                TenantId = tenantId,
+                FirstName = firstName,
+                LastName = lastName,
+                DateOfBirth = dob,
+                Email = email,
+                Phone = phone,
+                AddressLine1 = address,
+                City = "Addis Ababa",
+                State = "Addis Ababa",
+                PostalCode = "1000"
+            };
+            db.Persons.Add(person);
+            await db.SaveChangesAsync();
+        }
+        else
+        {
+            person.FirstName = firstName;
+            person.LastName = lastName;
+            person.Phone = phone;
+            person.AddressLine1 = address;
+            await db.SaveChangesAsync();
+        }
+
+        var account = await db.UserAccounts.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.Email == email && u.TenantId == tenantId);
+        if (account == null)
+        {
+            account = new UserAccount
+            {
+                TenantId = tenantId,
+                Person = person,
+                PersonId = person.Id,
+                Email = email,
+                PasswordHash = hasher.HashPassword(password),
+                Role = role,
+                IsDevAccount = isDevelopment,
+                MfaEnabled = mfaRequired,
+                MfaSecret = mfaRequired ? mfaSecret : null,
+                MfaEnrolledAt = mfaRequired ? DateTime.UtcNow : null
+            };
+            db.UserAccounts.Add(account);
+            await db.SaveChangesAsync();
+        }
+        else
+        {
+            account.PersonId = person.Id;
+            account.PasswordHash = hasher.HashPassword(password);
+            account.Role = role;
+            account.IsDevAccount = isDevelopment;
+            account.MfaEnabled = mfaRequired;
+            account.MfaSecret = mfaRequired ? mfaSecret : null;
+            account.MfaEnrolledAt = mfaRequired ? (account.MfaEnrolledAt ?? DateTime.UtcNow) : null;
+            await db.SaveChangesAsync();
+        }
+
+        return account;
+    }
+
+    private static async Task EnsureMembershipAsync(
+        MedicalPortalDbContext db,
+        Guid tenantId,
+        Guid accountId,
+        Guid? facilityId,
+        Guid? departmentId,
+        string role)
+    {
+        if (facilityId == null && departmentId == null) return;
+        var exists = await db.UserMemberships.IgnoreQueryFilters().AnyAsync(m =>
+            m.TenantId == tenantId &&
+            m.UserAccountId == accountId &&
+            m.FacilityId == facilityId &&
+            m.DepartmentId == departmentId);
+
+        if (!exists)
+        {
+            db.UserMemberships.Add(new UserMembership
+            {
+                TenantId = tenantId,
+                UserAccountId = accountId,
+                FacilityId = facilityId,
+                DepartmentId = departmentId,
+                Role = role
+            });
+            await db.SaveChangesAsync();
         }
     }
 

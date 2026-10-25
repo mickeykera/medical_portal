@@ -159,6 +159,25 @@ if (builder.Environment.IsProduction())
             "Production startup failed: DEV_TOTP_SECRET is strictly prohibited in production.");
     }
 
+    var devSeedPassword = builder.Configuration["DEV_SEED_PASSWORD"]
+        ?? Environment.GetEnvironmentVariable("DEV_SEED_PASSWORD");
+
+    if (!string.IsNullOrWhiteSpace(devSeedPassword))
+    {
+        throw new InvalidOperationException(
+            "Production startup failed: DEV_SEED_PASSWORD is strictly prohibited in production.");
+    }
+
+    var devQuickLogin = builder.Configuration.GetValue<bool>("DEV_QUICK_LOGIN")
+        || builder.Configuration.GetValue<bool>("DevQuickLogin")
+        || string.Equals(Environment.GetEnvironmentVariable("DEV_QUICK_LOGIN"), "true", StringComparison.OrdinalIgnoreCase);
+
+    if (devQuickLogin)
+    {
+        throw new InvalidOperationException(
+            "Production startup failed: DEV_QUICK_LOGIN is strictly prohibited in production.");
+    }
+
     if (builder.Configuration.GetValue<bool>("Auth:AllowDevTotpShortcut") ||
         builder.Configuration.GetValue<bool>("AUTH_ALLOW_DEV_TOTP_SHORTCUT"))
     {
@@ -699,7 +718,8 @@ if (args.Contains("--migrate"))
         var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
         Console.WriteLine("Seeding database...");
         var seedSecret = builder.Configuration["DEV_TOTP_SECRET"] ?? Environment.GetEnvironmentVariable("DEV_TOTP_SECRET");
-        await DbSeeder.SeedAsync(db, hasher, isProduction: false, devTotpSecret: seedSecret);
+        var seedPassword = builder.Configuration["DEV_SEED_PASSWORD"] ?? Environment.GetEnvironmentVariable("DEV_SEED_PASSWORD");
+        await DbSeeder.SeedAsync(db, hasher, isProduction: false, devTotpSecret: seedSecret, devSeedPassword: seedPassword);
         Console.WriteLine("Database seeded successfully.");
     }
     return;
@@ -785,10 +805,16 @@ CREATE TABLE IF NOT EXISTS ""RefundRequests"" (
     ""CreatedAtUtc"" TEXT NOT NULL
 );
 ");
+            try
+            {
+                await db.Database.ExecuteSqlRawAsync(@"ALTER TABLE ""UserAccounts"" ADD COLUMN ""IsDevAccount"" INTEGER NOT NULL DEFAULT 0;");
+            }
+            catch { }
         }
 
         var devSecret = builder.Configuration["DEV_TOTP_SECRET"] ?? Environment.GetEnvironmentVariable("DEV_TOTP_SECRET");
-        await DbSeeder.SeedAsync(db, hasher, isProduction: false, devTotpSecret: devSecret);
+        var devPassword = builder.Configuration["DEV_SEED_PASSWORD"] ?? Environment.GetEnvironmentVariable("DEV_SEED_PASSWORD");
+        await DbSeeder.SeedAsync(db, hasher, isProduction: false, devTotpSecret: devSecret, devSeedPassword: devPassword);
     }
     finally
     {
@@ -845,7 +871,8 @@ else
                 };
 
                 var devAccountExists = db.UserAccounts.IgnoreQueryFilters()
-                    .Any(u => devEmails.Contains(u.Email) ||
+                    .Any(u => u.IsDevAccount ||
+                              devEmails.Contains(u.Email) ||
                               u.Email.EndsWith("@clinic.example") ||
                               u.MfaSecret == "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP");
 
@@ -982,6 +1009,35 @@ app.MapHealthChecks("/health/ready", new HealthCheckOptions
 // SignalR Hub
 app.MapHub<PortalHub>("/hubs/portal");
 
+// Dev-Only Quick Login Picker Endpoint
+if (app.Environment.IsDevelopment())
+{
+    app.MapGet("/api/dev/quick-logins", async (MedicalPortalDbContext db, IConfiguration config) =>
+    {
+        if (!config.GetValue<bool>("DEV_QUICK_LOGIN"))
+        {
+            return Results.NotFound();
+        }
+
+        var accounts = await db.UserAccounts
+            .IgnoreQueryFilters()
+            .Where(u => u.IsDevAccount)
+            .Include(u => u.Person)
+            .OrderBy(u => u.Role)
+            .Select(u => new
+            {
+                email = u.Email,
+                role = u.Role.ToString(),
+                name = u.Person != null ? $"{u.Person.FirstName} {u.Person.LastName}".Trim() : u.Email,
+                hasMfa = u.MfaEnabled,
+                tenantSlug = u.TenantId == TenantConstants.DefaultTenantId ? TenantConstants.DefaultTenantSlug : "adot-hospital"
+            })
+            .ToListAsync();
+
+        return Results.Ok(accounts);
+    });
+}
+
 app.MapControllers();
 app.MapFallbackToFile("index.html");
 
@@ -1019,7 +1075,10 @@ public partial class Program
                 {
                     var key = trimmed.Substring(0, idx).Trim();
                     var val = trimmed.Substring(idx + 1).Trim();
-                    dict[key] = val;
+                    if (string.IsNullOrEmpty(config[key]))
+                    {
+                        dict[key] = val;
+                    }
                 }
             }
             if (dict.Count > 0)

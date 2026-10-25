@@ -9,6 +9,7 @@ ENV_FILE="$REPO_ROOT/.env"
 JWT_SECRET=$(python3 -c "import secrets; print(secrets.token_hex(32))")
 HMS_WEBHOOK_SECRET=$(python3 -c "import secrets; print(secrets.token_hex(16))")
 DEV_TOTP_SECRET=$(python3 -c "import secrets, base64; print(base64.b32encode(secrets.token_bytes(20)).decode('utf-8').rstrip('='))")
+DEV_SEED_PASSWORD=$(python3 -c "import secrets, string; alphabet = string.ascii_letters + string.digits + '@#%!'; print(''.join(secrets.choice(alphabet) for _ in range(24)))")
 
 cat <<EOF > "$ENV_FILE"
 # Local Development Configuration (.env)
@@ -20,6 +21,8 @@ ASPNETCORE_ENVIRONMENT=Development
 JWT_SECRET=${JWT_SECRET}
 HMS_WEBHOOK_SECRET=${HMS_WEBHOOK_SECRET}
 DEV_TOTP_SECRET=${DEV_TOTP_SECRET}
+DEV_SEED_PASSWORD=${DEV_SEED_PASSWORD}
+DEV_QUICK_LOGIN=true
 
 # Integrations (Development Fake Mode)
 STRIPE_SECRET_KEY=sk_test_placeholder_dev_secret_key_do_not_use_in_prod
@@ -29,4 +32,4 @@ HMS_USE_FAKE=true
 EOF
 
 chmod 600 "$ENV_FILE"
-echo "Successfully generated $ENV_FILE with random JWT_SECRET, HMS_WEBHOOK_SECRET, and DEV_TOTP_SECRET."
+echo "Successfully generated $ENV_FILE with random JWT_SECRET, HMS_WEBHOOK_SECRET, DEV_TOTP_SECRET, and DEV_SEED_PASSWORD."
