@@ -11,7 +11,7 @@ public class MedicalPortalDbContextFactory : IDesignTimeDbContextFactory<Medical
 
         var connectionString = Environment.GetEnvironmentVariable("DATABASE_URL")
             ?? Environment.GetEnvironmentVariable("POSTGRES_CONNECTION_STRING")
-            ?? "Host=localhost;Port=5432;Database=medical_portal;Username=postgres;Password=postgres;";
+            ?? "Host=localhost;Port=5432;Database=medical_portal;Username=postgres;Password=design-time-placeholder";
 
         var npgsqlConnection = PostgresConnectionHelper.ToNpgsqlConnectionString(connectionString);
 

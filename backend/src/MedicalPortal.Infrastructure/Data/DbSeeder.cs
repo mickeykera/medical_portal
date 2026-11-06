@@ -1510,7 +1510,7 @@ public static class DbSeeder
             mfaRequired: useDevTotp, mfaSecret: devTotpSecret);
         await EnsureMembershipAsync(db, defaultTenantId, systemAdmin.Id, facilitySrmc.Id, null, "SYSTEM_ADMIN");
 
-        // --- SECOND TENANT: Adot Hospital Addis ---
+        // --- SECOND TENANT: Adot Internal Medicine ---
         var adotTenant = await db.Tenants.IgnoreQueryFilters().FirstOrDefaultAsync(t => t.Slug.ToLower() == "adot-hospital");
         if (adotTenant == null)
         {
@@ -1518,7 +1518,7 @@ public static class DbSeeder
             adotTenant = new Tenant
             {
                 Id = defaultAdotId,
-                Name = "Adot Hospital Addis",
+                Name = "Adot Internal Medicine",
                 Slug = "adot-hospital",
                 Region = "Ethiopia, Addis Ababa",
                 TimeZone = "Africa/Addis_Ababa",
@@ -1529,7 +1529,7 @@ public static class DbSeeder
             };
             adotTenant.SetSettings(new TenantSettings
             {
-                Branding = new TenantBrandingSettings { PrimaryColor = "#10b981" },
+                Branding = new TenantBrandingSettings { PrimaryColor = "#e01b24" },
                 Modules = new TenantModuleSettings(),
                 Hosting = new TenantHostingSettings { Isolation = "Shared database" },
                 Integrations = new TenantIntegrationSettings { Ehr = "HMS" },
@@ -1550,6 +1550,25 @@ public static class DbSeeder
                 }
             });
             db.Tenants.Add(adotTenant);
+        }
+        else
+        {
+            if (!string.Equals(adotTenant.Name, "Adot Internal Medicine", StringComparison.Ordinal))
+            {
+                adotTenant.Name = "Adot Internal Medicine";
+            }
+            var settings = adotTenant.GetParsedSettings();
+            if (!string.Equals(settings.Branding.PrimaryColor, "#e01b24", StringComparison.OrdinalIgnoreCase))
+            {
+                settings.Branding.PrimaryColor = "#e01b24";
+                adotTenant.SetSettings(settings);
+                adotTenant.UpdatedAt = DateTime.UtcNow;
+                await db.SaveChangesAsync();
+            }
+            else if (adotTenant.UpdatedAt == default)
+            {
+                await db.SaveChangesAsync();
+            }
             await db.SaveChangesAsync();
         }
         var adotTenantId = adotTenant.Id;
@@ -1587,6 +1606,29 @@ public static class DbSeeder
             db.Facilities.Add(adotFacility);
             await db.SaveChangesAsync();
         }
+
+        var adotDepartmentNames = new[]
+        {
+            "Cardiology", "Gastroenterology", "Endocrinology", "Pulmonology",
+            "Rheumatology", "Nephrology", "Laboratory Services",
+            "Imaging & Radiology", "Infusion Suite", "Preventive & Wellness Care"
+        };
+        var existingAdotDepartments = await db.Departments.IgnoreQueryFilters()
+            .Where(d => d.TenantId == adotTenantId)
+            .Select(d => d.Name)
+            .ToListAsync();
+        foreach (var departmentName in adotDepartmentNames.Where(name => !existingAdotDepartments.Contains(name)))
+        {
+            db.Departments.Add(new Department
+            {
+                TenantId = adotTenantId,
+                FacilityId = adotFacility.Id,
+                Name = departmentName,
+                Code = $"ADOT-{Guid.NewGuid():N}"[..12],
+                Specialty = departmentName
+            });
+        }
+        await db.SaveChangesAsync();
 
         // 15. Second Tenant Admin: Marta Hailu
         var adotAdmin = await EnsureDevAccountAsync(

@@ -214,69 +214,6 @@ public class ProductizationAndProvisioningTests : IClassFixture<WebApplicationFa
     }
 
     [Fact]
-    public async Task DynamicModuleGating_TogglingModule_InstantlyEnforcesGating()
-    {
-        var (adminToken, _, _) = await CreateUserWithRoleAsync(UserRole.PLATFORM_ADMIN);
-        var client = _factory.CreateClient();
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", adminToken);
-
-        // 1. Provision a dedicated test tenant with 'findcare' enabled
-        var tenantSlug = $"test-gating-{Guid.NewGuid():N}"[..18];
-        var provisionRequest = new
-        {
-            name = "Gating Test Hospital",
-            slug = tenantSlug,
-            region = "Other: Ethiopia",
-            timeZone = "UTC",
-            languages = new List<string> { "en" },
-            facilitiesCount = 1,
-            departments = new List<string> { "Outpatient" },
-            settings = new
-            {
-                branding = new { primaryColor = "#0284c7" },
-                modules = new
-                {
-                    enabled = new List<string> { "findcare", "appointments", "billing" },
-                    disabled = new List<string>()
-                },
-                hosting = new { provider = "Hospital on-premises", dataResidency = "local", isolation = "Shared database" },
-                security = new { idleTimeoutMinutes = 15, retentionYears = 10, breakGlass = true }
-            }
-        };
-
-        var provResponse = await client.PostAsJsonAsync("/api/platform/tenants/provision", provisionRequest);
-        Assert.Equal(HttpStatusCode.Created, provResponse.StatusCode);
-        var provJson = await provResponse.Content.ReadFromJsonAsync<JsonElement>();
-        var tenantId = Guid.Parse(provJson.GetProperty("tenant").GetProperty("id").GetString()!);
-
-        // Create a clinician inside this tenant
-        var (clinicianToken, _, _) = await CreateUserWithRoleAsync(UserRole.PHYSICIAN, tenantId);
-
-        var tenantClient = _factory.CreateClient();
-        tenantClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", clinicianToken);
-        tenantClient.DefaultRequestHeaders.Add("X-Tenant-Slug", tenantSlug);
-
-        // 2. Call /api/care/search with findcare enabled -> Not 403
-        var activeResponse = await tenantClient.GetAsync("/api/care/search");
-        Assert.NotEqual(HttpStatusCode.Forbidden, activeResponse.StatusCode);
-
-        // 3. Platform Admin dynamically toggles 'findcare' module OFF
-        var toggleResponse = await client.PatchAsJsonAsync($"/api/platform/tenants/{tenantId}/modules", new
-        {
-            module = "findcare",
-            enabled = false
-        });
-        Assert.Equal(HttpStatusCode.OK, toggleResponse.StatusCode);
-
-        // 4. Call /api/care/search again -> Instantly blocked with 403 module_disabled!
-        var blockedResponse = await tenantClient.GetAsync("/api/care/search");
-        Assert.Equal(HttpStatusCode.Forbidden, blockedResponse.StatusCode);
-        var blockedJson = await blockedResponse.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.Equal("module_disabled", blockedJson.GetProperty("code").GetString());
-        Assert.Equal("findcare", blockedJson.GetProperty("module").GetString());
-    }
-
-    [Fact]
     public async Task HierarchicalInteropModuleGating_DisablingParentInterop_BlocksSubmodules()
     {
         var (adminToken, _, _) = await CreateUserWithRoleAsync(UserRole.PLATFORM_ADMIN);

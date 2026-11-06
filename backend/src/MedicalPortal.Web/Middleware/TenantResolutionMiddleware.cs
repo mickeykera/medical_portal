@@ -1,7 +1,9 @@
 using System.Text.Json;
 using MedicalPortal.Core.Entities;
 using MedicalPortal.Infrastructure.Auth;
+using MedicalPortal.Infrastructure.Data;
 using MedicalPortal.Infrastructure.Tenancy;
+using Microsoft.EntityFrameworkCore;
 
 namespace MedicalPortal.Web.Middleware;
 
@@ -9,14 +11,18 @@ public class TenantResolutionMiddleware
 {
     private readonly RequestDelegate _next;
     private readonly ILogger<TenantResolutionMiddleware> _logger;
-
     public TenantResolutionMiddleware(RequestDelegate next, ILogger<TenantResolutionMiddleware> logger)
     {
         _next = next;
         _logger = logger;
     }
 
-    public async Task InvokeAsync(HttpContext context, ITenantService tenantService, ITenantContext tenantContext, ITokenService tokenService)
+    public async Task InvokeAsync(
+        HttpContext context,
+        ITenantService tenantService,
+        ITenantContext tenantContext,
+        ITokenService tokenService,
+        MedicalPortalDbContext db)
     {
         var path = context.Request.Path.Value ?? string.Empty;
 
@@ -38,6 +44,10 @@ public class TenantResolutionMiddleware
         var slugHeader = context.Request.Headers[TenantConstants.TenantSlugHeader].FirstOrDefault();
         if (!string.IsNullOrWhiteSpace(slugHeader))
         {
+            if (slugHeader.Contains(','))
+            {
+                slugHeader = slugHeader.Split(',')[0].Trim();
+            }
             tenant = await tenantService.GetTenantBySlugAsync(slugHeader, context.RequestAborted);
             if (tenant == null)
             {
@@ -56,19 +66,26 @@ public class TenantResolutionMiddleware
         if (tenant == null)
         {
             var idHeader = context.Request.Headers[TenantConstants.TenantIdHeader].FirstOrDefault();
-            if (!string.IsNullOrWhiteSpace(idHeader) && Guid.TryParse(idHeader, out var tenantId))
+            if (!string.IsNullOrWhiteSpace(idHeader))
             {
-                tenant = await tenantService.GetTenantByIdAsync(tenantId, context.RequestAborted);
-                if (tenant == null)
+                if (idHeader.Contains(','))
                 {
-                    context.Response.StatusCode = StatusCodes.Status404NotFound;
-                    context.Response.ContentType = "application/json";
-                    await context.Response.WriteAsync(JsonSerializer.Serialize(new
+                    idHeader = idHeader.Split(',')[0].Trim();
+                }
+                if (Guid.TryParse(idHeader, out var tenantId))
+                {
+                    tenant = await tenantService.GetTenantByIdAsync(tenantId, context.RequestAborted);
+                    if (tenant == null)
                     {
-                        error = $"Tenant with ID '{tenantId}' not found.",
-                        code = "tenant_not_found"
-                    }));
-                    return;
+                        context.Response.StatusCode = StatusCodes.Status404NotFound;
+                        context.Response.ContentType = "application/json";
+                        await context.Response.WriteAsync(JsonSerializer.Serialize(new
+                        {
+                            error = $"Tenant with ID '{tenantId}' not found.",
+                            code = "tenant_not_found"
+                        }));
+                        return;
+                    }
                 }
             }
         }
@@ -151,6 +168,27 @@ public class TenantResolutionMiddleware
         context.Items["TenantId"] = tenant.Id;
         context.Response.Headers[TenantConstants.TenantSlugHeader] = tenant.Slug;
 
-        await _next(context);
+        await using var transaction = db.Database.IsNpgsql()
+            ? await db.Database.BeginTransactionAsync(context.RequestAborted)
+            : null;
+        if (transaction != null)
+        {
+            await db.Database.ExecuteSqlInterpolatedAsync(
+                $"SELECT set_config('app.current_tenant_id', {tenant.Id.ToString()}, true)",
+                context.RequestAborted);
+        }
+
+        try
+        {
+            await _next(context);
+            if (transaction != null)
+                await transaction.CommitAsync(context.RequestAborted);
+        }
+        catch
+        {
+            if (transaction != null)
+                await transaction.RollbackAsync(context.RequestAborted);
+            throw;
+        }
     }
 }

@@ -19,6 +19,12 @@ public class MedicalPortalDbContext : DbContext
         _tenantContext = tenantContext;
     }
 
+    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+    {
+        if (_tenantContext != null)
+            optionsBuilder.AddInterceptors(new TenantRlsConnectionInterceptor(_tenantContext));
+    }
+
     public Guid? CurrentTenantId => _tenantContext?.TenantId;
     public bool IsTenantResolved => _tenantContext?.IsResolved == true;
 
@@ -81,6 +87,32 @@ public class MedicalPortalDbContext : DbContext
     public DbSet<PatientDuplicateCandidate> PatientDuplicateCandidates => Set<PatientDuplicateCandidate>();
     public DbSet<UserInvite> UserInvites => Set<UserInvite>();
     public DbSet<PaymentRefundRequest> RefundRequests => Set<PaymentRefundRequest>();
+    public DbSet<Encounter> Encounters => Set<Encounter>();
+    public DbSet<Bed> Beds => Set<Bed>();
+    public DbSet<ClinicalOrder> ClinicalOrders => Set<ClinicalOrder>();
+    public DbSet<Tariff> Tariffs => Set<Tariff>();
+    public DbSet<ChargeItem> ChargeItems => Set<ChargeItem>();
+    public DbSet<Receipt> Receipts => Set<Receipt>();
+    public DbSet<InventoryItem> InventoryItems => Set<InventoryItem>();
+    public DbSet<InventoryStore> InventoryStores => Set<InventoryStore>();
+    public DbSet<StockBatch> StockBatches => Set<StockBatch>();
+    public DbSet<StockLedgerEntry> StockLedgerEntries => Set<StockLedgerEntry>();
+    public DbSet<InventoryRequisition> InventoryRequisitions => Set<InventoryRequisition>();
+    public DbSet<InventoryRequisitionLine> InventoryRequisitionLines => Set<InventoryRequisitionLine>();
+    public DbSet<ControlledDrugEntry> ControlledDrugEntries => Set<ControlledDrugEntry>();
+    public DbSet<InventoryCountSheet> InventoryCountSheets => Set<InventoryCountSheet>();
+    public DbSet<InventoryCountLine> InventoryCountLines => Set<InventoryCountLine>();
+    public DbSet<AcuteCareEpisode> AcuteCareEpisodes => Set<AcuteCareEpisode>();
+    public DbSet<AcuteCareTransferRequest> AcuteCareTransferRequests => Set<AcuteCareTransferRequest>();
+    public DbSet<AcuteCareBooking> AcuteCareBookings => Set<AcuteCareBooking>();
+    public DbSet<DiagnosticWorkItem> DiagnosticWorkItems => Set<DiagnosticWorkItem>();
+    public DbSet<MortuaryCase> MortuaryCases => Set<MortuaryCase>();
+    public DbSet<MortuaryCustodyEvent> MortuaryCustodyEvents => Set<MortuaryCustodyEvent>();
+    public DbSet<SupportServiceTask> SupportServiceTasks => Set<SupportServiceTask>();
+    public DbSet<DietOrder> DietOrders => Set<DietOrder>();
+    public DbSet<LinenLedgerEntry> LinenLedgerEntries => Set<LinenLedgerEntry>();
+    public DbSet<KpiDefinition> KpiDefinitions => Set<KpiDefinition>();
+    public DbSet<KpiSnapshot> KpiSnapshots => Set<KpiSnapshot>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -220,6 +252,11 @@ public class MedicalPortalDbContext : DbContext
             .WithMany(d => d.Locations)
             .HasForeignKey(l => l.DepartmentId)
             .OnDelete(DeleteBehavior.SetNull);
+        modelBuilder.Entity<Location>()
+            .HasOne(l => l.ParentLocation)
+            .WithMany(l => l.ChildLocations)
+            .HasForeignKey(l => l.ParentLocationId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         // Clinical
         modelBuilder.Entity<Allergy>()
@@ -571,6 +608,187 @@ public class MedicalPortalDbContext : DbContext
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
+        modelBuilder.Entity<Encounter>(b =>
+        {
+            b.HasIndex(e => new { e.PatientId, e.Status });
+            b.HasIndex(e => new { e.TenantId, e.StartedAt });
+            b.HasOne(e => e.Patient)
+                .WithMany()
+                .HasForeignKey(e => e.PatientId)
+                .OnDelete(DeleteBehavior.Cascade);
+            b.HasOne(e => e.Location)
+                .WithMany()
+                .HasForeignKey(e => e.LocationId)
+                .OnDelete(DeleteBehavior.Restrict);
+            b.HasOne(e => e.Bed)
+                .WithMany()
+                .HasForeignKey(e => e.BedId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<Bed>(b =>
+        {
+            b.HasIndex(bed => new { bed.TenantId, bed.Code }).IsUnique();
+            b.HasIndex(bed => new { bed.TenantId, bed.State });
+            b.HasOne(bed => bed.Location)
+                .WithMany()
+                .HasForeignKey(bed => bed.LocationId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ClinicalOrder>(b =>
+        {
+            b.HasIndex(o => new { o.TenantId, o.Status, o.Priority });
+            b.HasIndex(o => new { o.PatientId, o.CreatedAt });
+            b.HasOne(o => o.Patient).WithMany().HasForeignKey(o => o.PatientId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne(o => o.Encounter).WithMany().HasForeignKey(o => o.EncounterId).OnDelete(DeleteBehavior.Restrict);
+            b.HasOne(o => o.PerformingDepartment).WithMany().HasForeignKey(o => o.PerformingDepartmentId).OnDelete(DeleteBehavior.Restrict);
+            b.HasOne(o => o.Tariff).WithMany().HasForeignKey(o => o.TariffId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<Tariff>(b =>
+        {
+            b.HasIndex(t => new { t.TenantId, t.Code }).IsUnique();
+            b.HasIndex(t => new { t.TenantId, t.IsActive, t.EffectiveFrom });
+            b.Property(t => t.OrderType).HasConversion<string>();
+        });
+
+        modelBuilder.Entity<ChargeItem>(b =>
+        {
+            b.HasIndex(c => new { c.TenantId, c.PatientId, c.Status });
+            b.HasIndex(c => c.ClinicalOrderId).IsUnique();
+            b.Property(c => c.Status).HasConversion<string>();
+            b.HasOne(c => c.Patient).WithMany().HasForeignKey(c => c.PatientId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne(c => c.ClinicalOrder).WithMany().HasForeignKey(c => c.ClinicalOrderId).OnDelete(DeleteBehavior.Restrict);
+            b.HasOne(c => c.Tariff).WithMany().HasForeignKey(c => c.TariffId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<Receipt>(b =>
+        {
+            b.HasIndex(r => new { r.TenantId, r.ReceiptNumber }).IsUnique();
+            b.HasOne(r => r.Patient).WithMany().HasForeignKey(r => r.PatientId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne(r => r.Payment).WithMany().HasForeignKey(r => r.PaymentId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<InventoryItem>(b =>
+        {
+            b.HasIndex(i => new { i.TenantId, i.Code }).IsUnique();
+        });
+        modelBuilder.Entity<InventoryStore>(b =>
+        {
+            b.HasIndex(s => new { s.TenantId, s.Code }).IsUnique();
+            b.Property(s => s.Type).HasConversion<string>();
+            b.HasOne(s => s.Department).WithMany().HasForeignKey(s => s.DepartmentId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<StockBatch>(b =>
+        {
+            b.HasIndex(x => new { x.TenantId, x.ItemId, x.LotNumber }).IsUnique();
+            b.HasOne(x => x.Item).WithMany().HasForeignKey(x => x.ItemId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<StockLedgerEntry>(b =>
+        {
+            b.HasIndex(x => new { x.TenantId, x.StoreId, x.ItemId, x.CreatedAt });
+            b.Property(x => x.Action).HasConversion<string>();
+            b.HasOne(x => x.Store).WithMany().HasForeignKey(x => x.StoreId).OnDelete(DeleteBehavior.Restrict);
+            b.HasOne(x => x.Item).WithMany().HasForeignKey(x => x.ItemId).OnDelete(DeleteBehavior.Restrict);
+            b.HasOne(x => x.Batch).WithMany().HasForeignKey(x => x.BatchId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<InventoryRequisition>(b =>
+        {
+            b.HasIndex(x => new { x.TenantId, x.Status, x.CreatedAt });
+            b.Property(x => x.Status).HasConversion<string>();
+            b.HasMany(x => x.Lines).WithOne(x => x.Requisition).HasForeignKey(x => x.RequisitionId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<InventoryRequisitionLine>(b =>
+        {
+            b.HasIndex(x => new { x.TenantId, x.RequisitionId, x.ItemId }).IsUnique();
+        });
+        modelBuilder.Entity<ControlledDrugEntry>(b =>
+        {
+            b.HasIndex(x => new { x.TenantId, x.StoreId, x.CreatedAt });
+        });
+        modelBuilder.Entity<InventoryCountSheet>(b =>
+        {
+            b.HasIndex(x => new { x.TenantId, x.StoreId, x.CreatedAt });
+            b.HasMany(x => x.Lines).WithOne(x => x.CountSheet).HasForeignKey(x => x.CountSheetId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<InventoryCountLine>(b =>
+        {
+            b.HasIndex(x => new { x.TenantId, x.CountSheetId, x.ItemId, x.BatchId }).IsUnique();
+        });
+        modelBuilder.Entity<AcuteCareEpisode>(b =>
+        {
+            b.HasIndex(x => new { x.TenantId, x.Unit, x.Status, x.ArrivedAt });
+            b.Property(x => x.Unit).HasConversion<string>();
+            b.Property(x => x.Status).HasConversion<string>();
+            b.Property(x => x.Acuity).HasConversion<string>();
+            b.Property(x => x.Disposition).HasConversion<string>();
+            b.HasOne(x => x.Patient).WithMany().HasForeignKey(x => x.PatientId).OnDelete(DeleteBehavior.Restrict);
+            b.HasOne(x => x.Encounter).WithMany().HasForeignKey(x => x.EncounterId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<AcuteCareTransferRequest>(b =>
+        {
+            b.HasIndex(x => new { x.TenantId, x.Status, x.CreatedAt });
+            b.Property(x => x.TargetUnit).HasConversion<string>();
+            b.Property(x => x.Status).HasConversion<string>();
+            b.HasOne(x => x.Episode).WithMany().HasForeignKey(x => x.EpisodeId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<AcuteCareBooking>(b =>
+        {
+            b.HasIndex(x => new { x.TenantId, x.Unit, x.Status, x.ScheduledAt });
+            b.Property(x => x.Unit).HasConversion<string>();
+            b.Property(x => x.Status).HasConversion<string>();
+            b.HasOne(x => x.Episode).WithMany().HasForeignKey(x => x.EpisodeId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<DiagnosticWorkItem>(b =>
+        {
+            b.HasIndex(x => new { x.TenantId, x.Service, x.Status, x.CreatedAt });
+            b.HasIndex(x => new { x.TenantId, x.AccessionNumber }).IsUnique();
+            b.HasIndex(x => new { x.TenantId, x.PacsStudyUid }).IsUnique();
+            b.Property(x => x.Service).HasConversion<string>();
+            b.Property(x => x.Status).HasConversion<string>();
+            b.HasOne(x => x.ClinicalOrder).WithMany().HasForeignKey(x => x.ClinicalOrderId).OnDelete(DeleteBehavior.Restrict);
+            b.HasOne(x => x.Patient).WithMany().HasForeignKey(x => x.PatientId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<MortuaryCase>(b =>
+        {
+            b.HasIndex(x => new { x.TenantId, x.Status, x.DeathDeclaredAt });
+            b.HasIndex(x => new { x.TenantId, x.TagNumber }).IsUnique();
+            b.Property(x => x.Status).HasConversion<string>();
+            b.HasOne(x => x.Patient).WithMany().HasForeignKey(x => x.PatientId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<MortuaryCustodyEvent>(b =>
+        {
+            b.HasIndex(x => new { x.TenantId, x.MortuaryCaseId, x.CreatedAt });
+            b.Property(x => x.Action).HasConversion<string>();
+            b.HasOne(x => x.MortuaryCase).WithMany().HasForeignKey(x => x.MortuaryCaseId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<SupportServiceTask>(b =>
+        {
+            b.HasIndex(x => new { x.TenantId, x.Status, x.Type, x.CreatedAt });
+            b.Property(x => x.Type).HasConversion<string>();
+            b.Property(x => x.Status).HasConversion<string>();
+        });
+        modelBuilder.Entity<DietOrder>(b =>
+        {
+            b.HasIndex(x => new { x.TenantId, x.EncounterId, x.Status });
+            b.Property(x => x.Status).HasConversion<string>();
+        });
+        modelBuilder.Entity<LinenLedgerEntry>(b =>
+        {
+            b.HasIndex(x => new { x.TenantId, x.DepartmentId, x.CreatedAt });
+            b.Property(x => x.Action).HasConversion<string>();
+        });
+        modelBuilder.Entity<KpiDefinition>(b =>
+        {
+            b.HasIndex(x => new { x.TenantId, x.Code }).IsUnique();
+        });
+        modelBuilder.Entity<KpiSnapshot>(b =>
+        {
+            b.HasIndex(x => new { x.TenantId, x.KpiDefinitionId, x.PeriodStart, x.PeriodEnd }).IsUnique();
+            b.HasOne(x => x.KpiDefinition).WithMany().HasForeignKey(x => x.KpiDefinitionId).OnDelete(DeleteBehavior.Cascade);
+        });
+
         // ProviderDepartment composite key & foreign keys
         modelBuilder.Entity<ProviderDepartment>(b =>
         {
@@ -755,6 +973,7 @@ public class MedicalPortalDbContext : DbContext
     {
         EnforceTenantIsolation();
         EnforceAuditLogAppendOnly();
+        NormalizeDateTimesForPostgres();
         var hasAddedAuditLogs = ChangeTracker.Entries<AuditLog>().Any(e => e.State == EntityState.Added);
         if (hasAddedAuditLogs)
         {
@@ -777,6 +996,7 @@ public class MedicalPortalDbContext : DbContext
     {
         EnforceTenantIsolation();
         EnforceAuditLogAppendOnly();
+        NormalizeDateTimesForPostgres();
         var hasAddedAuditLogs = ChangeTracker.Entries<AuditLog>().Any(e => e.State == EntityState.Added);
         if (hasAddedAuditLogs)
         {
@@ -793,6 +1013,26 @@ public class MedicalPortalDbContext : DbContext
         }
 
         return await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+    }
+
+    private void NormalizeDateTimesForPostgres()
+    {
+        if (!Database.IsNpgsql()) return;
+
+        foreach (var entry in ChangeTracker.Entries())
+        {
+            foreach (var property in entry.Properties)
+            {
+                if (property.CurrentValue is not DateTime value) continue;
+
+                property.CurrentValue = value.Kind switch
+                {
+                    DateTimeKind.Utc => value,
+                    DateTimeKind.Local => value.ToUniversalTime(),
+                    _ => DateTime.SpecifyKind(value, DateTimeKind.Utc)
+                };
+            }
+        }
     }
 
     private void EnforceTenantIsolation()

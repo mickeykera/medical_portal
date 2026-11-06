@@ -1,0 +1,33 @@
+#!/bin/sh
+set -eu
+
+psql -v ON_ERROR_STOP=1 \
+  --username "$POSTGRES_USER" \
+  --dbname "$POSTGRES_DB" \
+  --set=db_name="$POSTGRES_DB" \
+  --set=owner_password="$PORTAL_OWNER_PASSWORD" \
+  --set=app_password="$PORTAL_APP_PASSWORD" <<'SQL'
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'portal_owner') THEN
+        CREATE ROLE portal_owner LOGIN NOSUPERUSER BYPASSRLS NOCREATEDB NOCREATEROLE NOINHERIT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'portal_app') THEN
+        CREATE ROLE portal_app LOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOINHERIT;
+    END IF;
+END
+$$;
+
+ALTER ROLE portal_owner PASSWORD :'owner_password';
+ALTER ROLE portal_owner LOGIN NOSUPERUSER BYPASSRLS NOCREATEDB NOCREATEROLE NOINHERIT;
+ALTER ROLE portal_app PASSWORD :'app_password';
+ALTER ROLE portal_app LOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOINHERIT;
+ALTER DATABASE :"db_name" OWNER TO portal_owner;
+ALTER SCHEMA public OWNER TO portal_owner;
+GRANT CONNECT ON DATABASE :"db_name" TO portal_app;
+GRANT USAGE ON SCHEMA public TO portal_app;
+ALTER DEFAULT PRIVILEGES FOR ROLE portal_owner IN SCHEMA public
+    GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO portal_app;
+ALTER DEFAULT PRIVILEGES FOR ROLE portal_owner IN SCHEMA public
+    GRANT USAGE, SELECT ON SEQUENCES TO portal_app;
+SQL

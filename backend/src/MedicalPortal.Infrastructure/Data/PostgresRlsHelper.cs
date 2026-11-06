@@ -57,30 +57,40 @@ public static class PostgresRlsHelper
         "HmsProcessedWebhookEvents"
     };
 
-    public static string GenerateRlsSql()
+    public static string GenerateRlsSql(bool enable = true)
     {
         var sb = new StringBuilder();
-        sb.AppendLine("-- Enable and Force Row-Level Security across all tenant-scoped tables");
+        sb.AppendLine(enable
+            ? "-- Enable and Force Row-Level Security across all tenant-scoped tables"
+            : "-- Row-Level Security disabled (Single-tenant mode active)");
         foreach (var table in TenantScopedTables)
         {
             sb.AppendLine($"DO $$ BEGIN");
             sb.AppendLine($"  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = '{table}') THEN");
-            sb.AppendLine($"    ALTER TABLE \"{table}\" ENABLE ROW LEVEL SECURITY;");
-            sb.AppendLine($"    ALTER TABLE \"{table}\" FORCE ROW LEVEL SECURITY;");
-            sb.AppendLine($"    DROP POLICY IF EXISTS \"{table}_tenant_isolation\" ON \"{table}\";");
-            sb.AppendLine($"    CREATE POLICY \"{table}_tenant_isolation\" ON \"{table}\"");
-            sb.AppendLine($"      FOR ALL");
-            sb.AppendLine($"      USING (\"TenantId\" = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid);");
+            if (enable)
+            {
+                sb.AppendLine($"    ALTER TABLE \"{table}\" ENABLE ROW LEVEL SECURITY;");
+                sb.AppendLine($"    ALTER TABLE \"{table}\" FORCE ROW LEVEL SECURITY;");
+                sb.AppendLine($"    DROP POLICY IF EXISTS \"{table}_tenant_isolation\" ON \"{table}\";");
+                sb.AppendLine($"    CREATE POLICY \"{table}_tenant_isolation\" ON \"{table}\"");
+                sb.AppendLine($"      FOR ALL");
+                sb.AppendLine($"      USING (\"TenantId\" = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid);");
+            }
+            else
+            {
+                sb.AppendLine($"    ALTER TABLE \"{table}\" DISABLE ROW LEVEL SECURITY;");
+                sb.AppendLine($"    DROP POLICY IF EXISTS \"{table}_tenant_isolation\" ON \"{table}\";");
+            }
             sb.AppendLine($"  END IF;");
             sb.AppendLine($"END $$;");
         }
         return sb.ToString();
     }
 
-    public static async Task ApplyRlsAsync(DbContext db, CancellationToken ct = default)
+    public static async Task ApplyRlsAsync(DbContext db, CancellationToken ct = default, bool enable = true)
     {
         if (!db.Database.IsNpgsql()) return;
-        var sql = GenerateRlsSql();
+        var sql = GenerateRlsSql(enable);
         await db.Database.ExecuteSqlRawAsync(sql, ct);
     }
 }
