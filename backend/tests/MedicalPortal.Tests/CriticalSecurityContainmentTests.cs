@@ -336,6 +336,7 @@ public class CriticalSecurityContainmentTests : IClassFixture<WebApplicationFact
     [Fact]
     public void ProductionStartup_FailsFast_WhenFakePaymentGatewayEnabled()
     {
+        using var envIsolation = new ClearDevelopmentEnvironmentVariables();
         using var factory = new WebApplicationFactory<Program>()
             .WithWebHostBuilder(builder =>
             {
@@ -346,6 +347,7 @@ public class CriticalSecurityContainmentTests : IClassFixture<WebApplicationFact
                 builder.UseSetting("Hms:UseFake", "false");
                 builder.UseSetting("Hms:BaseUrl", "https://hms.internal");
                 builder.UseSetting("Hms:WebhookSecret", "prod-webhook-secret-value-12345");
+                builder.ConfigureServices(FakeDatabaseRoleInspectorRegistration.Register);
             });
 
         var ex = Assert.Throws<InvalidOperationException>(() =>
@@ -359,6 +361,7 @@ public class CriticalSecurityContainmentTests : IClassFixture<WebApplicationFact
     [Fact]
     public void ProductionStartup_FailsFast_WhenStripeSecretKeyIsMissing()
     {
+        using var envIsolation = new ClearDevelopmentEnvironmentVariables();
         using var factory = new WebApplicationFactory<Program>()
             .WithWebHostBuilder(builder =>
             {
@@ -370,6 +373,7 @@ public class CriticalSecurityContainmentTests : IClassFixture<WebApplicationFact
                 builder.UseSetting("Hms:UseFake", "false");
                 builder.UseSetting("Hms:BaseUrl", "https://hms.internal");
                 builder.UseSetting("Hms:WebhookSecret", "prod-webhook-secret-value-12345");
+                builder.ConfigureServices(FakeDatabaseRoleInspectorRegistration.Register);
             });
 
         var ex = Assert.Throws<InvalidOperationException>(() =>
@@ -383,6 +387,7 @@ public class CriticalSecurityContainmentTests : IClassFixture<WebApplicationFact
     [Fact]
     public void ProductionStartup_FailsFast_WhenFakeHmsClientEnabled()
     {
+        using var envIsolation = new ClearDevelopmentEnvironmentVariables();
         using var factory = new WebApplicationFactory<Program>()
             .WithWebHostBuilder(builder =>
             {
@@ -394,6 +399,7 @@ public class CriticalSecurityContainmentTests : IClassFixture<WebApplicationFact
                 builder.UseSetting("Hms:UseFake", "true"); // FORBIDDEN IN PROD
                 builder.UseSetting("Hms:BaseUrl", "https://hms.internal");
                 builder.UseSetting("Hms:WebhookSecret", "prod-webhook-secret-value-12345");
+                builder.ConfigureServices(FakeDatabaseRoleInspectorRegistration.Register);
             });
 
         var ex = Assert.Throws<InvalidOperationException>(() =>
@@ -407,6 +413,7 @@ public class CriticalSecurityContainmentTests : IClassFixture<WebApplicationFact
     [Fact]
     public void ProductionStartup_FailsFast_WhenHmsWebhookSecretIsPlaceholder()
     {
+        using var envIsolation = new ClearDevelopmentEnvironmentVariables();
         using var factory = new WebApplicationFactory<Program>()
             .WithWebHostBuilder(builder =>
             {
@@ -418,6 +425,7 @@ public class CriticalSecurityContainmentTests : IClassFixture<WebApplicationFact
                 builder.UseSetting("Hms:UseFake", "false");
                 builder.UseSetting("Hms:BaseUrl", "https://hms.internal");
                 builder.UseSetting("Hms:WebhookSecret", "demo-hms-webhook-secret"); // PLACEHOLDER IN PROD
+                builder.ConfigureServices(FakeDatabaseRoleInspectorRegistration.Register);
             });
 
         var ex = Assert.Throws<InvalidOperationException>(() =>
@@ -431,6 +439,7 @@ public class CriticalSecurityContainmentTests : IClassFixture<WebApplicationFact
     [Fact]
     public void ProductionStartup_FailsFast_WhenDemoClinicalKnowledgeBaseConfigured()
     {
+        using var envIsolation = new ClearDevelopmentEnvironmentVariables();
         using var factory = new WebApplicationFactory<Program>()
             .WithWebHostBuilder(builder =>
             {
@@ -443,6 +452,7 @@ public class CriticalSecurityContainmentTests : IClassFixture<WebApplicationFact
                 builder.UseSetting("Hms:BaseUrl", "https://hms.internal");
                 builder.UseSetting("Hms:WebhookSecret", "prod-webhook-secret-value-12345");
                 builder.UseSetting("Clinical:UseDemoKnowledgeBase", "true"); // FORBIDDEN IN PROD
+                builder.ConfigureServices(FakeDatabaseRoleInspectorRegistration.Register);
             });
 
         var ex = Assert.Throws<InvalidOperationException>(() =>
@@ -456,6 +466,7 @@ public class CriticalSecurityContainmentTests : IClassFixture<WebApplicationFact
     [Fact]
     public void ProductionStartup_FailsFast_WhenExternalEndpointIsPlainHttp()
     {
+        using var envIsolation = new ClearDevelopmentEnvironmentVariables();
         using var factory = new WebApplicationFactory<Program>()
             .WithWebHostBuilder(builder =>
             {
@@ -467,6 +478,7 @@ public class CriticalSecurityContainmentTests : IClassFixture<WebApplicationFact
                 builder.UseSetting("Hms:UseFake", "false");
                 builder.UseSetting("Hms:BaseUrl", "http://external-hospital-hms.com"); // PLAINTEXT HTTP
                 builder.UseSetting("Hms:WebhookSecret", "prod-webhook-secret-value-12345");
+                builder.ConfigureServices(FakeDatabaseRoleInspectorRegistration.Register);
             });
 
         var ex = Assert.Throws<InvalidOperationException>(() =>
@@ -480,6 +492,7 @@ public class CriticalSecurityContainmentTests : IClassFixture<WebApplicationFact
     [Fact]
     public void ProductionStartup_FailsFast_WhenJwtSecretIsClusterDefault()
     {
+        using var envIsolation = new ClearDevelopmentEnvironmentVariables();
         using var factory = new WebApplicationFactory<Program>()
             .WithWebHostBuilder(builder =>
             {
@@ -491,6 +504,7 @@ public class CriticalSecurityContainmentTests : IClassFixture<WebApplicationFact
                 builder.UseSetting("Hms:UseFake", "false");
                 builder.UseSetting("Hms:BaseUrl", "https://hms.internal");
                 builder.UseSetting("Hms:WebhookSecret", "prod-webhook-secret-value-12345");
+                builder.ConfigureServices(FakeDatabaseRoleInspectorRegistration.Register);
             });
 
         var ex = Assert.Throws<InvalidOperationException>(() =>
