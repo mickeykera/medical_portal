@@ -132,6 +132,7 @@ public class Location : ITenantScoped
     public Guid Id { get; set; } = Guid.NewGuid();
     public Guid TenantId { get; set; } = TenantConstants.DefaultTenantId;
     public Guid? DepartmentId { get; set; }
+    public Guid? ParentLocationId { get; set; }
     public string Name { get; set; } = string.Empty;
     public LocationType Type { get; set; } = LocationType.CLINIC;
     public string AddressLine1 { get; set; } = string.Empty;
@@ -148,6 +149,8 @@ public class Location : ITenantScoped
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public virtual Department? Department { get; set; }
+    public virtual Location? ParentLocation { get; set; }
+    public virtual ICollection<Location> ChildLocations { get; set; } = new List<Location>();
     public virtual ICollection<ProviderLocation> ProviderLocations { get; set; } = new List<ProviderLocation>();
     public virtual ICollection<RoomResource> RoomResources { get; set; } = new List<RoomResource>();
     public virtual ICollection<WeeklyScheduleTemplate> WeeklySchedules { get; set; } = new List<WeeklyScheduleTemplate>();

@@ -41,7 +41,7 @@ medical_portal/
 │   │       └── Services/                   # SignalRNotificationService implementation
 │   │
 │   └── tests/
-│       ├── MedicalPortal.Tests/            # 259 xUnit unit and integration tests
+│       ├── MedicalPortal.Tests/            # 424 xUnit unit and integration tests
 │       └── load/                           # k6 performance and load test scripts
 │
 ├── frontend/                           # Single Page Application assets served by Nginx at /
@@ -68,7 +68,7 @@ medical_portal/
 # Build the backend solution
 dotnet build backend/MedicalPortal.sln
 
-# Run all 259 unit & integration tests
+# Run all 424 unit & integration tests
 dotnet test backend/MedicalPortal.sln
 
 # Run the backend locally (starts on http://localhost:8080)
@@ -160,7 +160,7 @@ The application integrates with PostgreSQL (including the latest **PostgreSQL 17
 
 ## 🗄️ Database Migrations (EF Core)
 
-Database schema evolution is managed via **Entity Framework Core Migrations** targeting PostgreSQL 17/16, located in `src/MedicalPortal.Infrastructure/Migrations/`.
+Database schema evolution is managed via **Entity Framework Core Migrations** targeting PostgreSQL 17/16, located in `backend/src/MedicalPortal.Infrastructure/Migrations/`.
 
 ### Development vs Production Execution
 
@@ -179,26 +179,26 @@ You have four supported options for running production migrations:
 Run the application binary with the `--migrate` flag in a dedicated Kubernetes InitContainer, pre-deploy job, or container entrypoint:
 ```bash
 # Apply pending migrations and exit
-dotnet run --project src/MedicalPortal.Web -- --migrate
+dotnet run --project backend/src/MedicalPortal.Web -- --migrate
 
 # Apply pending migrations, seed initial data if empty, and exit
-dotnet run --project src/MedicalPortal.Web -- --migrate --seed
+dotnet run --project backend/src/MedicalPortal.Web -- --migrate --seed
 ```
 
 #### Option 2: Using the EF Core CLI Tool
 ```bash
-dotnet dotnet-ef database update \
-  --project src/MedicalPortal.Infrastructure \
-  --startup-project src/MedicalPortal.Web \
+dotnet ef database update \
+  --project backend/src/MedicalPortal.Infrastructure \
+  --startup-project backend/src/MedicalPortal.Web \
   --connection "$DATABASE_URL"
 ```
 
 #### Option 3: Idempotent SQL Script (Recommended for DBA Review)
 Generate an idempotent SQL script that can be audited and applied using `psql` or database migration pipelines:
 ```bash
-dotnet dotnet-ef migrations script --idempotent \
-  --project src/MedicalPortal.Infrastructure \
-  --startup-project src/MedicalPortal.Web \
+dotnet ef migrations script --idempotent \
+  --project backend/src/MedicalPortal.Infrastructure \
+  --startup-project backend/src/MedicalPortal.Web \
   -o migrations.sql
 
 # Execute script against PostgreSQL
@@ -208,9 +208,9 @@ psql "$DATABASE_URL" -f migrations.sql
 #### Option 4: Self-Contained Migration Bundle
 Build a self-contained executable bundle suitable for standalone container or runner execution without requiring the .NET SDK:
 ```bash
-dotnet dotnet-ef migrations bundle \
-  --project src/MedicalPortal.Infrastructure \
-  --startup-project src/MedicalPortal.Web \
+dotnet ef migrations bundle \
+  --project backend/src/MedicalPortal.Infrastructure \
+  --startup-project backend/src/MedicalPortal.Web \
   -o efbundle
 
 # Execute bundle against target database
@@ -222,20 +222,20 @@ dotnet dotnet-ef migrations bundle \
 When domain entities or EF Core configurations change, follow these steps:
 
 1. **Update Domain Entities or DbContext**:
-   - Add/modify entities in `src/MedicalPortal.Core/Entities/`.
-   - Update model mappings or constraints in `src/MedicalPortal.Infrastructure/Data/MedicalPortalDbContext.cs`.
+   - Add/modify entities in `backend/src/MedicalPortal.Core/Entities/`.
+   - Update model mappings or constraints in `backend/src/MedicalPortal.Infrastructure/Data/MedicalPortalDbContext.cs`.
 2. **Generate the Migration**:
    ```bash
-   dotnet dotnet-ef migrations add <DescriptiveMigrationName> \
-     --project src/MedicalPortal.Infrastructure \
-     --startup-project src/MedicalPortal.Web
+   dotnet ef migrations add <DescriptiveMigrationName> \
+     --project backend/src/MedicalPortal.Infrastructure \
+     --startup-project backend/src/MedicalPortal.Web
    ```
-   *Note: Design-time migrations automatically target PostgreSQL using `MedicalPortalDbContextFactory`.*
+   *Note: Design-time migrations automatically target PostgreSQL using `MedicalPortalDbContextFactory`. Set `DATABASE_URL` or `POSTGRES_CONNECTION_STRING` when applying migrations; without either variable, the factory uses a localhost-only placeholder connection string for model inspection and migration generation.*
 3. **Review the Migration Code**:
-   - Inspect the generated migration file in `src/MedicalPortal.Infrastructure/Migrations/` to verify operations, indexes, and constraints.
+   - Inspect the generated migration file in `backend/src/MedicalPortal.Infrastructure/Migrations/` to verify operations, indexes, and constraints.
 4. **Test the Migration**:
    - Run unit and integration tests: `dotnet test`.
-   - Start the local dev server: `dotnet run --project src/MedicalPortal.Web`.
+   - Start the local dev server: `dotnet run --project backend/src/MedicalPortal.Web`.
 5. **Deploy to Production**:
    - Commit the migration files to git.
    - Run the production migration step (Option 1, 2, 3, or 4 above) during CI/CD deployment.
@@ -595,8 +595,8 @@ Clinical safety decision support (drug-drug interaction and allergy cross-reacti
 The medical portal is designed to scale horizontally across multiple stateless application instances behind a reverse proxy or load balancer while maintaining strict concurrency safety, real-time synchronization, and zero-spoofing security.
 
 ### 1. Cluster-Wide Distributed Locking (PostgreSQL Advisory Locks)
-To prevent duplicate job execution across concurrent nodes, background services acquire cluster-wide distributed locks via [`IDistributedLockService`](file:///home/michael/projects/app/medical_portal/src/MedicalPortal.Infrastructure/DistributedLock/IDistributedLockService.cs):
-- **Advisory Lock Mechanism**: [`PostgreSqlAdvisoryLockService`](file:///home/michael/projects/app/medical_portal/src/MedicalPortal.Infrastructure/DistributedLock/PostgreSqlAdvisoryLockService.cs) uses PostgreSQL session-level advisory locks (`SELECT pg_try_advisory_lock(@key)` and `SELECT pg_advisory_unlock(@key)`).
+To prevent duplicate job execution across concurrent nodes, background services acquire cluster-wide distributed locks via [`IDistributedLockService`](backend/src/MedicalPortal.Infrastructure/DistributedLock/IDistributedLockService.cs):
+- **Advisory Lock Mechanism**: [`PostgreSqlAdvisoryLockService`](backend/src/MedicalPortal.Infrastructure/DistributedLock/PostgreSqlAdvisoryLockService.cs) uses PostgreSQL session-level advisory locks (`SELECT pg_try_advisory_lock(@key)` and `SELECT pg_advisory_unlock(@key)`).
 - **Deterministic 64-bit Lock Keys**: Resource lock names (e.g., `"AppointmentReminderWorker"`, `"BillingInstallmentWorker"`, `"HmsSyncWorker"`) are deterministically hashed via SHA-256 into 64-bit integers.
 - **Fail-Safe Connection Lifecycles**: Dedicated database connections maintain lock leases during execution. If a cluster node crashes or drops connectivity, PostgreSQL automatically releases all session advisory locks immediately.
 - **Mutual Exclusion & Zero Duplicates**:
@@ -759,7 +759,7 @@ The application integrates native OpenTelemetry instrumentation for enterprise o
 
 ## ⚡ Load Testing with k6
 
-A complete production k6 load test script is provided in [`tests/load/k6-portal-flow.js`](file:///home/michael/projects/app/medical_portal/tests/load/k6-portal-flow.js), modeling realistic user flows:
+A complete production k6 load test script is provided in [`tests/load/k6-portal-flow.js`](backend/tests/load/k6-portal-flow.js), modeling realistic user flows:
 1. **User Authentication**: Authenticates with demo patient and clinician accounts, validating JWT session generation.
 2. **Appointment Scheduling**: Queries available slots and submits booking requests under high concurrency.
 3. **Secure Clinical Messaging**: Retrieves conversation threads and dispatches secure clinical communications.
@@ -767,10 +767,10 @@ A complete production k6 load test script is provided in [`tests/load/k6-portal-
 ### Running the Load Test
 ```bash
 # Execute standard load test against local or clustered environment
-k6 run tests/load/k6-portal-flow.js
+k6 run backend/tests/load/k6-portal-flow.js
 
 # Custom target host or duration
-BASE_URL="http://localhost:5000" k6 run tests/load/k6-portal-flow.js
+BASE_URL="http://localhost:5000" k6 run backend/tests/load/k6-portal-flow.js
 ```
 
 ### Performance & Reliability SLA Thresholds
@@ -782,8 +782,8 @@ BASE_URL="http://localhost:5000" k6 run tests/load/k6-portal-flow.js
 
 ## 🚀 CI/CD Pipeline (GitHub Actions)
 
-A comprehensive automated quality and security pipeline is defined in [`.github/workflows/ci.yml`](file:///home/michael/projects/app/medical_portal/.github/workflows/ci.yml):
-1. **Build & Automated Tests**: Compiles on .NET 8, executes all 259 unit and integration tests with services (PostgreSQL 17, Redis 7), and collects XPlat code coverage.
+A comprehensive automated quality and security pipeline is defined in [`.github/workflows/ci.yml`](.github/workflows/ci.yml):
+1. **Build & Automated Tests**: Compiles on .NET 8, executes all 424 unit and integration tests with services (PostgreSQL 17, Redis 7), and collects XPlat code coverage.
 2. **Dependency Vulnerability Scanning**: Audits transitive NuGet dependencies using `dotnet list package --vulnerable` and Trivy filesystem vulnerability analysis.
 3. **Container Security Scanning**: Builds the production Docker container and scans the resulting image for CVEs with Trivy.
 4. **Secret Scanning**: Runs Gitleaks to enforce zero credential or private key leaks in git history.
@@ -792,7 +792,7 @@ A comprehensive automated quality and security pipeline is defined in [`.github/
 
 ## 📖 Operational Runbook (Backup, Restore & Rollback)
 
-For detailed operational procedures, disaster recovery, and emergency protocols, see the [Production Runbook](file:///home/michael/projects/app/medical_portal/docs/runbook.md):
+For detailed operational procedures, disaster recovery, and emergency protocols, see the [Production Runbook](docs/runbook.md):
 - **Backup Procedures**: PostgreSQL full dumps (`pg_dump -Fc`), AES-256 client-side encryption, and continuous WAL archiving for Point-In-Time Recovery (PITR).
 - **Restore Procedures**: Cold dump restore and second-by-second PITR target recovery.
 - **Rollback Procedures**: Zero-downtime rolling container updates, EF Core down-migration scripting, and emergency circuit-breaker toggles.

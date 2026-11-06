@@ -48,6 +48,7 @@ public class TenantService : ITenantService
         var normalized = slug.Trim().ToLowerInvariant();
 
         return await _db.Tenants
+            .IgnoreQueryFilters()
             .AsNoTracking()
             .FirstOrDefaultAsync(t => t.Slug.ToLower() == normalized, ct);
     }
@@ -55,6 +56,7 @@ public class TenantService : ITenantService
     public async Task<Tenant?> GetTenantByIdAsync(Guid id, CancellationToken ct = default)
     {
         return await _db.Tenants
+            .IgnoreQueryFilters()
             .AsNoTracking()
             .FirstOrDefaultAsync(t => t.Id == id, ct);
     }
@@ -68,6 +70,7 @@ public class TenantService : ITenantService
 
         // 1. Direct host domain match
         var tenant = await _db.Tenants
+            .IgnoreQueryFilters()
             .AsNoTracking()
             .FirstOrDefaultAsync(t => t.HostDomain != null && t.HostDomain.ToLower() == cleanHost, ct);
 
@@ -79,6 +82,7 @@ public class TenantService : ITenantService
         {
             var potentialSlug = parts[0].ToLowerInvariant();
             tenant = await _db.Tenants
+                .IgnoreQueryFilters()
                 .AsNoTracking()
                 .FirstOrDefaultAsync(t => t.Slug.ToLower() == potentialSlug, ct);
         }
@@ -89,6 +93,7 @@ public class TenantService : ITenantService
     public async Task<List<Tenant>> GetAllTenantsAsync(CancellationToken ct = default)
     {
         return await _db.Tenants
+            .IgnoreQueryFilters()
             .AsNoTracking()
             .OrderBy(t => t.Name)
             .ToListAsync(ct);
@@ -115,6 +120,7 @@ public class TenantService : ITenantService
         var normalizedSlug = request.Slug.Trim();
 
         var existing = await _db.Tenants
+            .IgnoreQueryFilters()
             .AnyAsync(t => t.Slug.ToLower() == normalizedSlug.ToLower(), ct);
 
         if (existing)
@@ -222,7 +228,9 @@ public class TenantService : ITenantService
 
     public async Task<Tenant?> UpdateTenantSettingsAsync(Guid id, TenantSettings settings, CancellationToken ct = default)
     {
-        var tenant = await _db.Tenants.FirstOrDefaultAsync(t => t.Id == id, ct);
+        var tenant = await _db.Tenants
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(t => t.Id == id, ct);
         if (tenant == null) return null;
 
         var languages = JsonSerializer.Deserialize<List<string>>(tenant.LanguagesJson) ?? new List<string> { "en" };
@@ -259,7 +267,9 @@ public class TenantService : ITenantService
         if (!TenantModules.All.Contains(normalized))
             throw new ArgumentException($"Unknown system module '{moduleName}'.", nameof(moduleName));
 
-        var tenant = await _db.Tenants.FirstOrDefaultAsync(t => t.Id == id, ct);
+        var tenant = await _db.Tenants
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(t => t.Id == id, ct);
         if (tenant == null) return null;
 
         var settings = tenant.GetParsedSettings();

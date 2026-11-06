@@ -91,6 +91,37 @@ public class AppointmentsController : ControllerBase
         });
     }
 
+    [HttpGet("operations")]
+    [RequirePermission(AppResource.Appointments, AppAction.Read)]
+    public async Task<IActionResult> GetOperations([FromQuery] DateTime? date = null)
+    {
+        var day = (date ?? DateTime.UtcNow).Date;
+        var appointments = await _db.Appointments
+            .AsNoTracking()
+            .Include(a => a.Patient).ThenInclude(p => p.Person)
+            .Include(a => a.Provider)
+            .Where(a => a.StartAt >= day && a.StartAt < day.AddDays(1))
+            .OrderBy(a => a.StartAt)
+            .Take(200)
+            .ToListAsync();
+
+        return Ok(new
+        {
+            date = day,
+            appointments = appointments.Select(a => new
+            {
+                id = a.Id,
+                patientName = $"{a.Patient.Person.FirstName} {a.Patient.Person.LastName}",
+                mrn = a.Patient.Mrn,
+                providerId = a.ProviderId,
+                startAt = a.StartAt,
+                endAt = a.EndAt,
+                status = a.Status.ToString(),
+                reason = a.ReasonForVisit
+            })
+        });
+    }
+
     [HttpGet("types")]
     public async Task<IActionResult> GetAppointmentTypes()
     {
@@ -132,6 +163,116 @@ public class AppointmentsController : ControllerBase
             .ToListAsync();
 
         return Ok(new { rooms });
+    }
+
+    [HttpGet("availability")]
+    public async Task<IActionResult> GetAvailability(
+        [FromQuery] Guid providerId,
+        [FromQuery] Guid? locationId = null,
+        [FromQuery] Guid? appointmentTypeId = null,
+        [FromQuery] Guid? roomResourceId = null,
+        [FromQuery] int days = 7,
+        [FromQuery] int durationMinutes = 30)
+    {
+        var provider = await _db.Providers.FindAsync(providerId);
+        if (provider == null)
+            return NotFound(new { error = "Provider not found." });
+
+        if (appointmentTypeId.HasValue)
+        {
+            var appointmentType = await _db.AppointmentTypes.FindAsync(appointmentTypeId.Value);
+            if (appointmentType?.IsActive == true)
+                durationMinutes = appointmentType.DurationMinutes;
+        }
+
+        days = Math.Clamp(days, 1, 14);
+        durationMinutes = Math.Clamp(durationMinutes, 10, 120);
+
+        Location? location;
+        if (locationId.HasValue)
+        {
+            location = await _db.Locations.FindAsync(locationId.Value);
+        }
+        else
+        {
+            location = await _db.ProviderLocations
+                .Include(pl => pl.Location)
+                .Where(pl => pl.ProviderId == providerId)
+                .Select(pl => pl.Location)
+                .FirstOrDefaultAsync();
+        }
+
+        var timeZone = SchedulingLogic.ResolveTimeZone(location?.TimeZoneId);
+        var now = DateTime.UtcNow;
+        var until = now.AddDays(days);
+        var cancelledStatuses = new[] { AppointmentStatus.CANCELLED_BY_PATIENT, AppointmentStatus.CANCELLED_BY_CLINIC };
+
+        var busyAppointments = await _db.Appointments
+            .AsNoTracking()
+            .Where(a => a.ProviderId == providerId && a.StartAt <= until && a.EndAt >= now &&
+                        !cancelledStatuses.Contains(a.Status))
+            .Select(a => new SchedulingLogic.TimeSlot(a.StartAt, a.EndAt))
+            .ToListAsync();
+
+        List<SchedulingLogic.TimeSlot>? roomBusyAppointments = null;
+        if (roomResourceId.HasValue)
+        {
+            roomBusyAppointments = await _db.Appointments
+                .AsNoTracking()
+                .Where(a => a.RoomResourceId == roomResourceId.Value && a.StartAt <= until && a.EndAt >= now &&
+                            !cancelledStatuses.Contains(a.Status))
+                .Select(a => new SchedulingLogic.TimeSlot(a.StartAt, a.EndAt))
+                .ToListAsync();
+        }
+
+        var templates = await _db.WeeklyScheduleTemplates
+            .AsNoTracking()
+            .Where(t => t.IsActive && (t.ProviderId == providerId || t.ProviderId == null) &&
+                        (location == null || t.LocationId == location.Id || t.LocationId == null))
+            .Select(t => new SchedulingLogic.ScheduleTemplateRule(
+                t.DayOfWeek, t.StartTime, t.EndTime, t.IsActive, t.ProviderId, t.LocationId))
+            .ToListAsync();
+
+        var blocks = await _db.ScheduleBlocks
+            .AsNoTracking()
+            .Where(b => (b.ProviderId == providerId || (location != null && b.LocationId == location.Id)) &&
+                        b.EndAt >= now && b.StartAt <= until)
+            .Select(b => new SchedulingLogic.BlockRule(
+                b.StartAt, b.EndAt, b.Reason, b.IsHoliday, b.ProviderId, b.LocationId))
+            .ToListAsync();
+
+        var daysOutput = new List<object>();
+        var localNow = SchedulingLogic.ConvertUtcToLocal(now, timeZone);
+        for (var offset = 0; offset < days; offset++)
+        {
+            var localDay = localNow.Date.AddDays(offset);
+            var slots = SchedulingLogic.FindSlotsInLocationTimeZone(
+                localDay, timeZone, templates, busyAppointments, blocks, roomBusyAppointments,
+                durationMinutes, providerId, location?.Id, now);
+            if (slots.Count > 0)
+            {
+                daysOutput.Add(new
+                {
+                    date = localDay.ToString("yyyy-MM-dd"),
+                    slots = slots.Select(s => new
+                    {
+                        startAt = s.StartAt.ToString("o"),
+                        endAt = s.EndAt.ToString("o"),
+                        localStart = s.LocalStart,
+                        localEnd = s.LocalEnd
+                    })
+                });
+            }
+        }
+
+        return Ok(new
+        {
+            providerId,
+            locationId = location?.Id,
+            timeZone = timeZone.Id,
+            durationMinutes,
+            days = daysOutput
+        });
     }
 
     public record RequestAppointmentBody(
@@ -218,7 +359,10 @@ public class AppointmentsController : ControllerBase
         }
 
         // Begin transaction with Serializable isolation to strictly prevent double bookings under concurrency
-        await using var tx = await _db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
+        var tx = _db.Database.CurrentTransaction;
+        var ownsTransaction = tx == null;
+        if (tx == null)
+            tx = await _db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
 
         // 1. Conflict check for provider
         var busyAppointments = await _db.Appointments
@@ -260,7 +404,8 @@ public class AppointmentsController : ControllerBase
 
         if (!check.Ok)
         {
-            await tx.RollbackAsync();
+            if (ownsTransaction)
+                await tx.RollbackAsync();
             return Conflict(new { error = SchedulingLogic.DescribeSlotProblem(check.Problem ?? "conflicts_with_existing") });
         }
 
@@ -282,7 +427,11 @@ public class AppointmentsController : ControllerBase
 
         _db.Appointments.Add(appointment);
         await _db.SaveChangesAsync();
-        await tx.CommitAsync();
+        if (ownsTransaction)
+        {
+            await tx.CommitAsync();
+            await tx.DisposeAsync();
+        }
 
         using (var activity = MedicalPortalDiagnostics.ActivitySource.StartActivity("portal.appointment.book"))
         {

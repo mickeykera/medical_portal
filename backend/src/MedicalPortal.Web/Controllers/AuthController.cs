@@ -7,6 +7,7 @@ using MedicalPortal.Infrastructure.Auth;
 using MedicalPortal.Infrastructure.Data;
 using MedicalPortal.Infrastructure.Observability;
 using MedicalPortal.Infrastructure.Services;
+using MedicalPortal.Infrastructure.Tenancy;
 using MedicalPortal.Web.Filters;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
@@ -27,6 +28,8 @@ public class AuthController : ControllerBase
     private readonly IAuditService _audit;
     private readonly IAccessControlService _accessControl;
     private readonly IWebHostEnvironment _env;
+    private readonly IConfiguration _config;
+    private readonly ITenantContext _tenantContext;
 
     public AuthController(
         MedicalPortalDbContext db,
@@ -36,7 +39,9 @@ public class AuthController : ControllerBase
         ISessionService sessions,
         IAuditService audit,
         IAccessControlService accessControl,
-        IWebHostEnvironment env)
+        IWebHostEnvironment env,
+        IConfiguration config,
+        ITenantContext tenantContext)
     {
         _db = db;
         _hasher = hasher;
@@ -46,6 +51,8 @@ public class AuthController : ControllerBase
         _audit = audit;
         _accessControl = accessControl;
         _env = env;
+        _config = config;
+        _tenantContext = tenantContext;
     }
 
     public record LoginRequest(string Email, string Password);
@@ -61,6 +68,7 @@ public class AuthController : ControllerBase
         var userAgent = Request.Headers.UserAgent.ToString();
 
         var account = await _db.UserAccounts
+            .IgnoreQueryFilters()
             .Include(u => u.Person)
             .FirstOrDefaultAsync(u => u.Email == normalizedEmail);
 
@@ -211,10 +219,19 @@ public class AuthController : ControllerBase
             return Unauthorized(new { error = "Authentication or valid MFA challenge token required for setup." });
         }
 
-        var account = await _db.UserAccounts.Include(u => u.Person).FirstOrDefaultAsync(u => u.Id == accountId.Value);
+        var account = await _db.UserAccounts.IgnoreQueryFilters().Include(u => u.Person).FirstOrDefaultAsync(u => u.Id == accountId.Value);
         if (account == null || !account.IsActive)
         {
             return Unauthorized(new { error = "Account not found or inactive." });
+        }
+
+        if (_tenantContext.TenantId != account.TenantId)
+        {
+            var accountTenant = await _db.Tenants.FirstOrDefaultAsync(t => t.Id == account.TenantId);
+            if (accountTenant != null)
+            {
+                _tenantContext.SetTenant(accountTenant);
+            }
         }
 
         var secret = _totp.GenerateSecret();
@@ -272,10 +289,19 @@ public class AuthController : ControllerBase
             return Unauthorized(new { error = "Authentication or valid MFA challenge token required." });
         }
 
-        var account = await _db.UserAccounts.Include(u => u.Person).FirstOrDefaultAsync(u => u.Id == accountId.Value);
+        var account = await _db.UserAccounts.IgnoreQueryFilters().Include(u => u.Person).FirstOrDefaultAsync(u => u.Id == accountId.Value);
         if (account == null || !account.IsActive)
         {
             return Unauthorized(new { error = "Account not found or inactive." });
+        }
+
+        if (_tenantContext.TenantId != account.TenantId)
+        {
+            var accountTenant = await _db.Tenants.FirstOrDefaultAsync(t => t.Id == account.TenantId);
+            if (accountTenant != null)
+            {
+                _tenantContext.SetTenant(accountTenant);
+            }
         }
 
         var isValid = _totp.VerifyTotpCode(request.Secret, request.Code);
@@ -354,10 +380,19 @@ public class AuthController : ControllerBase
             return Unauthorized(new { error = "MFA challenge expired or invalid. Please sign in again." });
         }
 
-        var account = await _db.UserAccounts.Include(u => u.Person).FirstOrDefaultAsync(u => u.Id == accountId.Value);
+        var account = await _db.UserAccounts.IgnoreQueryFilters().Include(u => u.Person).FirstOrDefaultAsync(u => u.Id == accountId.Value);
         if (account == null || !account.IsActive)
         {
             return Unauthorized(new { error = "Account not found or inactive." });
+        }
+
+        if (_tenantContext.TenantId != account.TenantId)
+        {
+            var accountTenant = await _db.Tenants.FirstOrDefaultAsync(t => t.Id == account.TenantId);
+            if (accountTenant != null)
+            {
+                _tenantContext.SetTenant(accountTenant);
+            }
         }
 
         var ip = HttpContext.Connection.RemoteIpAddress?.ToString();
@@ -677,7 +712,10 @@ public class AuthController : ControllerBase
                 lastName = p.Person.LastName,
                 dateOfBirth = ClinicalFormatting.ToIsoDate(p.Person.DateOfBirth),
                 age = ClinicalFormatting.AgeFrom(p.Person.DateOfBirth),
+                sex = p.Person.SexAtBirth,
                 mrn = p.Mrn,
+                classTag = "OPD",
+                location = (string?)null,
                 isSelf,
                 relationship = isSelf ? "self" : "dependent",
                 outstandingBalanceCents = canPayBills ? p.Snapshot?.OutstandingBalanceCents ?? 0 : (int?)null
@@ -696,6 +734,7 @@ public class AuthController : ControllerBase
                 lastName = account.Person.LastName,
                 mfaEnabled = account.MfaEnabled
             },
+            navigation = NavigationPolicy.ForRole(account.Role),
             managing
         });
     }

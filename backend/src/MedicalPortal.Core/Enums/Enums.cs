@@ -89,7 +89,80 @@ public enum LocationType
     URGENT_CARE,
     PHARMACY,
     LAB,
-    REHAB
+    REHAB,
+    UNIT,
+    ROOM
+}
+
+public enum PatientClass
+{
+    OUTPATIENT,
+    INPATIENT,
+    EMERGENCY,
+    DAY_CASE,
+    OBSERVATION
+}
+
+public enum EncounterStatus
+{
+    PLANNED,
+    ACTIVE,
+    COMPLETED,
+    CANCELLED
+}
+
+public enum BedState
+{
+    AVAILABLE,
+    OCCUPIED,
+    RESERVED,
+    CLEANING,
+    BLOCKED,
+    OUT_OF_SERVICE
+}
+
+public enum ClinicalOrderType
+{
+    LAB,
+    IMAGING,
+    PHYSIOLOGY,
+    PATHOLOGY,
+    MEDICATION,
+    PROCEDURE,
+    NURSING_TASK,
+    DIET,
+    CONSULT,
+    HOUSEKEEPING
+}
+
+public enum OrderPriority
+{
+    ROUTINE,
+    URGENT,
+    STAT
+}
+
+public enum ClinicalOrderStatus
+{
+    DRAFT,
+    PENDING_PAYMENT,
+    RELEASED,
+    IN_PROGRESS,
+    RESULTED,
+    VERIFIED,
+    DELIVERED,
+    CLOSED,
+    CANCELLED,
+    REJECTED
+}
+
+public enum PaymentGateState
+{
+    NOT_REQUIRED,
+    AWAITING_PAYMENT,
+    PAID,
+    WAIVED,
+    BILL_LATER
 }
 
 public enum Permission

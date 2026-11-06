@@ -10,7 +10,8 @@ public enum AppResource
     Medications,
     Billing,
     Messages,
-    AuditCompliance
+    AuditCompliance,
+    Orders
 }
 
 public enum AppAction
@@ -47,6 +48,9 @@ public static class PermissionMatrix
         (UserRole.SYSTEM_ADMIN, AppResource.Messages, AppAction.Admin),
         (UserRole.SYSTEM_ADMIN, AppResource.AuditCompliance, AppAction.Read),
         (UserRole.SYSTEM_ADMIN, AppResource.AuditCompliance, AppAction.Admin),
+        (UserRole.SYSTEM_ADMIN, AppResource.Orders, AppAction.Read),
+        (UserRole.SYSTEM_ADMIN, AppResource.Orders, AppAction.Write),
+        (UserRole.SYSTEM_ADMIN, AppResource.Orders, AppAction.Admin),
 
         (UserRole.ADMIN, AppResource.Appointments, AppAction.Read),
         (UserRole.ADMIN, AppResource.Appointments, AppAction.Write),
@@ -69,6 +73,9 @@ public static class PermissionMatrix
         (UserRole.ADMIN, AppResource.Messages, AppAction.Admin),
         (UserRole.ADMIN, AppResource.AuditCompliance, AppAction.Read),
         (UserRole.ADMIN, AppResource.AuditCompliance, AppAction.Admin),
+        (UserRole.ADMIN, AppResource.Orders, AppAction.Read),
+        (UserRole.ADMIN, AppResource.Orders, AppAction.Write),
+        (UserRole.ADMIN, AppResource.Orders, AppAction.Admin),
 
         // PHYSICIAN & CLINICIAN: Full clinical care rights
         (UserRole.PHYSICIAN, AppResource.Appointments, AppAction.Read),
@@ -82,6 +89,8 @@ public static class PermissionMatrix
         (UserRole.PHYSICIAN, AppResource.Billing, AppAction.Read), // viewing snapshot balance
         (UserRole.PHYSICIAN, AppResource.Messages, AppAction.Read),
         (UserRole.PHYSICIAN, AppResource.Messages, AppAction.Write),
+        (UserRole.PHYSICIAN, AppResource.Orders, AppAction.Read),
+        (UserRole.PHYSICIAN, AppResource.Orders, AppAction.Write),
 
         (UserRole.CLINICIAN, AppResource.Appointments, AppAction.Read),
         (UserRole.CLINICIAN, AppResource.Appointments, AppAction.Write),
@@ -94,6 +103,8 @@ public static class PermissionMatrix
         (UserRole.CLINICIAN, AppResource.Billing, AppAction.Read),
         (UserRole.CLINICIAN, AppResource.Messages, AppAction.Read),
         (UserRole.CLINICIAN, AppResource.Messages, AppAction.Write),
+        (UserRole.CLINICIAN, AppResource.Orders, AppAction.Read),
+        (UserRole.CLINICIAN, AppResource.Orders, AppAction.Write),
 
         // NURSE: Care delivery (cannot prescribe or manage billing)
         (UserRole.NURSE, AppResource.Appointments, AppAction.Read),
@@ -105,6 +116,8 @@ public static class PermissionMatrix
         (UserRole.NURSE, AppResource.Medications, AppAction.Read),
         (UserRole.NURSE, AppResource.Messages, AppAction.Read),
         (UserRole.NURSE, AppResource.Messages, AppAction.Write),
+        (UserRole.NURSE, AppResource.Orders, AppAction.Read),
+        (UserRole.NURSE, AppResource.Orders, AppAction.Write),
 
         // SCHEDULER: Appointments only. MUST NOT READ RESULTS.
         (UserRole.SCHEDULER, AppResource.Appointments, AppAction.Read),
@@ -115,10 +128,14 @@ public static class PermissionMatrix
         (UserRole.BILLING, AppResource.Billing, AppAction.Read),
         (UserRole.BILLING, AppResource.Billing, AppAction.Write),
         (UserRole.BILLING, AppResource.Appointments, AppAction.Read),
+        (UserRole.BILLING, AppResource.Orders, AppAction.Read),
+        (UserRole.BILLING, AppResource.Orders, AppAction.Admin),
 
         // LAB: Results diagnostic workflows only
         (UserRole.LAB, AppResource.ClinicalResults, AppAction.Read),
         (UserRole.LAB, AppResource.ClinicalResults, AppAction.Write),
+        (UserRole.LAB, AppResource.Orders, AppAction.Read),
+        (UserRole.LAB, AppResource.Orders, AppAction.Write),
 
         // PHARMACIST: Medication management and pertinent lab results
         (UserRole.PHARMACIST, AppResource.Medications, AppAction.Read),
@@ -126,6 +143,8 @@ public static class PermissionMatrix
         (UserRole.PHARMACIST, AppResource.ClinicalResults, AppAction.Read),
         (UserRole.PHARMACIST, AppResource.Messages, AppAction.Read),
         (UserRole.PHARMACIST, AppResource.Messages, AppAction.Write),
+        (UserRole.PHARMACIST, AppResource.Orders, AppAction.Read),
+        (UserRole.PHARMACIST, AppResource.Orders, AppAction.Write),
 
         // DEPT_ADMIN: Departmental administrative operations
         (UserRole.DEPT_ADMIN, AppResource.Appointments, AppAction.Read),

@@ -100,7 +100,7 @@ public class MultiTenancySecurityTests : IClassFixture<WebApplicationFactory<Pro
                 },
                 modules = new
                 {
-                    enabled = new List<string> { "appointments", "messaging", "billing", "refills", "proxy", "sharing", "fhir", "findcare", "forms" },
+                    enabled = new List<string> { "appointments", "messaging", "billing", "refills", "proxy", "sharing", "fhir", "forms" },
                     disabled = new List<string>()
                 },
                 hosting = new
@@ -132,7 +132,7 @@ public class MultiTenancySecurityTests : IClassFixture<WebApplicationFactory<Pro
         Assert.True(response.StatusCode == HttpStatusCode.Created || response.StatusCode == HttpStatusCode.Conflict, $"Status: {response.StatusCode}, Content: {content}");
 
         // Verify tenant exists in database
-        var tenant = await db.Tenants.FirstOrDefaultAsync(t => t.Slug == "Adot-Hospital");
+        var tenant = await db.Tenants.IgnoreQueryFilters().FirstOrDefaultAsync(t => t.Slug.ToLower() == "adot-hospital");
         Assert.NotNull(tenant);
         Assert.Equal("Adot Internal Medicine", tenant.Name);
         Assert.StartsWith("fp_", tenant.MasterKeyFingerprint);

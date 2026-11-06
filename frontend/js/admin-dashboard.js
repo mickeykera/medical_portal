@@ -260,7 +260,7 @@
           </div>
           <div style="display: flex; gap: 0.5rem; align-items: center;">
             <span class="pill info">${escapeHtml(userRole)}</span>
-            <span class="pill good">Tenant Scoped</span>
+            <span class="pill good">🏥 Hospital Wide</span>
             ${isDeptAdmin ? '<span class="pill warn">Dept Scoped</span>' : ''}
             ${isPlatformAdmin ? '<span class="pill info">Zero PHI</span>' : ''}
           </div>
@@ -277,7 +277,7 @@
             <button type="button" class="btn btn-sm ${currentSubTab === 'integrations' ? 'btn-primary' : 'btn-outline'}" data-admin-tab="integrations">🔌 Integrations</button>
             <button type="button" class="btn btn-sm ${currentSubTab === 'billing' ? 'btn-primary' : 'btn-outline'}" data-admin-tab="billing">💳 Billing Settings</button>
           ` : ''}
-          <button type="button" class="btn btn-sm ${currentSubTab === 'tenant' ? 'btn-primary' : 'btn-outline'}" data-admin-tab="tenant">⚙️ Tenant Settings</button>
+          <button type="button" class="btn btn-sm ${currentSubTab === 'tenant' ? 'btn-primary' : 'btn-outline'}" data-admin-tab="tenant">⚙️ Hospital Settings</button>
         </nav>
 
         <!-- Subtab Content Container -->
@@ -306,7 +306,19 @@
       else if (currentSubTab === 'billing') await renderBilling(viewContainer, el, currentSession);
       else if (currentSubTab === 'tenant') await renderTenant(viewContainer, el, currentSession);
     } catch (err) {
-      viewContainer.innerHTML = `<div class="notice notice-bad">${escapeHtml(err.message)}</div>`;
+      viewContainer.innerHTML = `
+        <div class="card" style="border-left: 4px solid var(--bad-text); padding: 1.5rem;">
+          <h3 style="color: var(--bad-text); margin-top: 0; font-size: 1.1rem; display: flex; align-items: center; gap: 0.5rem;">
+            <span>⚠️</span> Unable to load ${escapeHtml(currentSubTab)} section
+          </h3>
+          <p style="color: var(--text-muted); font-size: 0.875rem; margin-bottom: 1rem;">
+            ${escapeHtml(err.message || 'An error occurred while communicating with the hospital backend service.')}
+          </p>
+          <button type="button" class="btn btn-primary btn-sm" id="retry-subtab-btn">🔄 Retry</button>
+        </div>
+      `;
+      const retryBtn = document.getElementById('retry-subtab-btn');
+      if (retryBtn) retryBtn.onclick = () => render(el, currentSession);
     }
   }
 
@@ -315,6 +327,11 @@
   // =========================================================================
   async function renderOverview(container, rootEl, session) {
     const data = await window.api('/api/admin/overview');
+    let complianceSummary = null;
+    if (session?.user?.role === 'COMPLIANCE_AUDITOR') {
+      complianceSummary = await window.api('/api/compliance/summary');
+    }
+    const hospitalKpis = await window.api('/api/kpis');
 
     const roleBreakdown = Object.entries(data.activeUsersByRole || {})
       .map(([role, cnt]) => `<span><strong>${cnt}</strong> ${escapeHtml(role)}</span>`)
@@ -322,6 +339,28 @@
 
     container.innerHTML = `
       <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+        ${complianceSummary ? `
+        <div class="card">
+          <div class="card-header"><span class="card-title">Compliance audit summary</span><span class="pill good">Last 30 days</span></div>
+          <div class="grid grid-4">
+            <div class="stat-card"><span class="stat-label">Audit events</span><span class="stat-value">${complianceSummary.totalAuditEvents}</span></div>
+            <div class="stat-card"><span class="stat-label">Proxy access</span><span class="stat-value">${complianceSummary.proxyAccesses}</span></div>
+            <div class="stat-card"><span class="stat-label">Denied access</span><span class="stat-value">${complianceSummary.deniedAccesses}</span></div>
+            <div class="stat-card"><span class="stat-label">Exports / prints</span><span class="stat-value">${complianceSummary.exportsAndPrints}</span></div>
+          </div>
+          <div class="notice notice-info">Billing-integrity signals: ${complianceSummary.billingIntegritySignals}. Patient-level financial details are not shown.</div>
+        </div>` : ''}
+        <div class="card">
+          <div class="card-header"><span class="card-title">Hospital performance indicators</span><span class="pill info">De-identified · 30 days</span></div>
+          <div class="grid grid-4">
+            ${(hospitalKpis.indicators || []).slice(0, 8).map(indicator => `
+              <div class="stat-card"><span class="stat-label">${escapeHtml(indicator.name)}</span>
+                <span class="stat-value">${escapeHtml(String(indicator.value))}</span>
+                <span class="stat-sub">${escapeHtml(indicator.unit)} · ${escapeHtml(indicator.category)}</span>
+              </div>`).join('') || '<div class="notice notice-info">No KPI definitions configured.</div>'}
+          </div>
+        </div>
+
         <div class="grid grid-4">
           <!-- Active Users KPI -->
           <div class="card stat-card" style="cursor: pointer;" id="kpi-users">
@@ -349,15 +388,6 @@
             <div style="margin-top: 0.5rem;"><button type="button" class="btn btn-outline btn-sm">View Invites &rarr;</button></div>
           </div>
 
-          <!-- MFA Adoption KPI -->
-          <div class="card stat-card" style="cursor: pointer;" id="kpi-mfa">
-            <div class="stat-label">🛡️ MFA Adoption</div>
-            <div style="font-size: 1.75rem; font-weight: 700; color: #0284c7;">
-              ${data.mfaAdoption?.adoptionPercentage || 0}%
-            </div>
-            <div style="font-size: 0.75rem; color: var(--text-muted);">${data.mfaAdoption?.mfaEnabledUsers || 0} of ${data.mfaAdoption?.totalActiveUsers || 0} users enrolled</div>
-            <div style="margin-top: 0.5rem;"><button type="button" class="btn btn-outline btn-sm">Policy Settings &rarr;</button></div>
-          </div>
         </div>
 
         <div class="grid grid-3">
@@ -1244,7 +1274,7 @@
                 ${data.items.length === 0 ? `
                   <tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 2rem;">No audit logs matching query.</td></tr>
                 ` : data.items.map(l => `
-                  <tr style="${l.isBreakGlass ? 'background: #fff1f2;' : ''}">
+                  <tr style="${l.isBreakGlass ? 'background: var(--bad-bg);' : ''}">
                     <td style="font-family: var(--font-mono); font-size: 0.75rem;">#${l.sequenceNumber || l.id.slice(0, 8)}</td>
                     <td style="font-size: 0.8125rem;">${formatDualDate(l.createdAt)}</td>
                     <td>
@@ -1741,7 +1771,7 @@
                 ` : refunds.map(r => `
                   <tr>
                     <td><code>${escapeHtml(r.paymentId.slice(0, 8))}…</code></td>
-                    <td style="font-weight: 700; color: #0284c7;">${formatEtb(r.amountMinorUnits)}</td>
+                    <td style="font-weight: 700; color: var(--primary);">${formatEtb(r.amountMinorUnits)}</td>
                     <td>${escapeHtml(r.reason || 'Patient request')}</td>
                     <td style="font-size: 0.8125rem;">${formatDualDate(r.createdAt)}</td>
                     <td><span class="pill ${r.status === 'APPROVED' ? 'good' : r.status === 'REJECTED' ? 'bad' : 'warn'}">${escapeHtml(r.status)}</span></td>
@@ -1814,7 +1844,7 @@
   }
 
   // =========================================================================
-  // SECTION 8: Tenant Settings & Branding
+  // SECTION 8: Hospital Settings & Operations Profile
   // =========================================================================
   async function renderTenant(container, rootEl, session) {
     const data = await window.api('/api/admin/tenant-settings');
@@ -1825,8 +1855,8 @@
         <!-- Branding Card -->
         <div class="card">
           <div class="card-header">
-            <div class="card-title">🏢 Hospital Branding &amp; Localized Experience</div>
-            <span class="pill info">${escapeHtml(data.slug)}</span>
+            <div class="card-title">🏥 Hospital Configuration &amp; Operations Profile</div>
+            <span class="pill good">Addis Care Health Network</span>
           </div>
           <form id="tenant-settings-form" style="display: flex; flex-direction: column; gap: 1rem;">
             <div class="grid grid-2">
@@ -1886,7 +1916,7 @@
                 ${!isPlatformAdmin ? '<span class="pill warn">Read-Only (Platform Admin Managed)</span>' : '<span class="pill good">Platform Admin Mode</span>'}
               </div>
               <div class="grid grid-3" style="font-size: 0.8125rem;">
-                ${['appointments', 'messaging', 'billing', 'refills', 'proxy', 'sharing', 'fhir', 'findcare', 'forms', 'interop', 'dhis2', 'echis', 'mfr', 'mpi'].map(mod => `
+                ${['appointments', 'messaging', 'billing', 'refills', 'proxy', 'sharing', 'fhir', 'forms', 'interop', 'dhis2', 'echis', 'mfr', 'mpi'].map(mod => `
                   <label style="display: flex; align-items: center; gap: 0.35rem; cursor: ${isPlatformAdmin ? 'pointer' : 'default'};">
                     <input type="checkbox" class="ten-module-chk" value="${mod}" ${data.enabledModules.includes(mod) ? 'checked' : ''} ${!isPlatformAdmin ? 'disabled' : ''} />
                     <span>${mod.toUpperCase()}</span>

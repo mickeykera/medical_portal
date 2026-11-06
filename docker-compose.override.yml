@@ -1,0 +1,6 @@
+# Development/test-only override. Do not use this file for production deploys.
+# Apply explicitly with: docker compose -f docker-compose.yml -f docker-compose.override.yml up
+services:
+  postgres:
+    ports:
+      - "127.0.0.1:5432:5432"

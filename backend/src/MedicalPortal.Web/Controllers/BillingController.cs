@@ -50,6 +50,161 @@ public class BillingController : ControllerBase
     private Guid TargetPatientId => (Guid)HttpContext.Items["TargetPatientId"]!;
     private AccessTokenClaims Actor => (AccessTokenClaims)HttpContext.Items["Actor"]!;
 
+    [HttpGet("cashier-worklist")]
+    [RequirePermission(AppResource.Billing, AppAction.Read)]
+    public async Task<IActionResult> GetCashierWorklist()
+    {
+        var charges = await _db.ChargeItems
+            .AsNoTracking()
+            .Include(c => c.Patient).ThenInclude(p => p.Person)
+            .Include(c => c.ClinicalOrder)
+            .Where(c => c.Status == ChargeItemStatus.OPEN)
+            .OrderBy(c => c.CreatedAt)
+            .Take(200)
+            .ToListAsync();
+
+        return Ok(new
+        {
+            pendingCount = charges.Count,
+            totalPendingCents = charges.Sum(c => c.AmountCents),
+            charges = charges.Select(c => new
+            {
+                id = c.Id,
+                patientId = c.PatientId,
+                patientName = $"{c.Patient.Person.FirstName} {c.Patient.Person.LastName}",
+                mrn = c.Patient.Mrn,
+                description = c.Description,
+                amountCents = c.AmountCents,
+                currency = c.Currency,
+                orderId = c.ClinicalOrderId,
+                orderStatus = c.ClinicalOrder?.Status.ToString(),
+                paymentGate = c.ClinicalOrder?.PaymentGate.ToString(),
+                createdAt = c.CreatedAt
+            })
+        });
+    }
+
+    [HttpGet("order-release-feed")]
+    [RequirePermission(AppResource.Billing, AppAction.Read)]
+    public async Task<IActionResult> GetOrderReleaseFeed()
+    {
+        var orders = await _db.ClinicalOrders
+            .AsNoTracking()
+            .Include(o => o.Patient).ThenInclude(p => p.Person)
+            .Where(o => o.ChargeAmountCents > 0)
+            .OrderByDescending(o => o.CreatedAt)
+            .Take(200)
+            .ToListAsync();
+
+        return Ok(new
+        {
+            orders = orders.Select(o => new
+            {
+                id = o.Id,
+                patientName = $"{o.Patient.Person.FirstName} {o.Patient.Person.LastName}",
+                mrn = o.Patient.Mrn,
+                status = o.Status.ToString(),
+                paymentGate = o.PaymentGate.ToString(),
+                chargeAmountCents = o.ChargeAmountCents,
+                createdAt = o.CreatedAt,
+                releasedAt = o.ReleasedAt
+            })
+        });
+    }
+
+    [HttpGet("receivables")]
+    [RequirePermission(AppResource.Billing, AppAction.Read)]
+    public async Task<IActionResult> GetReceivables()
+    {
+        var charges = await _db.ChargeItems
+            .AsNoTracking()
+            .Include(c => c.Patient).ThenInclude(p => p.Person)
+            .Include(c => c.ClinicalOrder)
+            .Where(c => c.Status == ChargeItemStatus.OPEN &&
+                        c.ClinicalOrder != null &&
+                        c.ClinicalOrder.PaymentGate == PaymentGateState.BILL_LATER)
+            .OrderBy(c => c.CreatedAt)
+            .Take(200)
+            .ToListAsync();
+
+        return Ok(new
+        {
+            receivableCount = charges.Count,
+            totalReceivableCents = charges.Sum(c => c.AmountCents),
+            receivables = charges.Select(c => new
+            {
+                id = c.Id,
+                patientId = c.PatientId,
+                patientName = $"{c.Patient.Person.FirstName} {c.Patient.Person.LastName}",
+                mrn = c.Patient.Mrn,
+                description = c.Description,
+                amountCents = c.AmountCents,
+                currency = c.Currency,
+                createdAt = c.CreatedAt
+            })
+        });
+    }
+
+    [HttpGet("receipts")]
+    [RequirePermission(AppResource.Billing, AppAction.Read)]
+    public async Task<IActionResult> GetReceipts([FromQuery] Guid? patientId = null)
+    {
+        var query = _db.Receipts
+            .AsNoTracking()
+            .Include(r => r.Patient).ThenInclude(p => p.Person)
+            .OrderByDescending(r => r.IssuedAt)
+            .AsQueryable();
+        if (patientId.HasValue)
+            query = query.Where(r => r.PatientId == patientId.Value);
+
+        var receipts = await query.Take(200).ToListAsync();
+        return Ok(new
+        {
+            receipts = receipts.Select(r => new
+            {
+                id = r.Id,
+                receiptNumber = r.ReceiptNumber,
+                patientId = r.PatientId,
+                patientName = $"{r.Patient.Person.FirstName} {r.Patient.Person.LastName}",
+                mrn = r.Patient.Mrn,
+                amountCents = r.AmountCents,
+                currency = r.Currency,
+                issuedAt = r.IssuedAt
+            })
+        });
+    }
+
+    [HttpPost("receipts/{id:guid}/reprint")]
+    [RequirePermission(AppResource.Billing, AppAction.Admin)]
+    public async Task<IActionResult> ReprintReceipt(Guid id)
+    {
+        var receipt = await _db.Receipts
+            .Include(r => r.Patient).ThenInclude(p => p.Person)
+            .FirstOrDefaultAsync(r => r.Id == id);
+        if (receipt == null)
+            return NotFound(new { error = "Receipt not found." });
+
+        await _audit.LogAsync(
+            "RECEIPT_REPRINTED",
+            "Receipt",
+            receipt.Id.ToString(),
+            Actor.UserAccountId,
+            receipt.PatientId,
+            metadata: new { receiptNumber = receipt.ReceiptNumber });
+
+        return Ok(new
+        {
+            id = receipt.Id,
+            receiptNumber = receipt.ReceiptNumber,
+            patientName = $"{receipt.Patient.Person.FirstName} {receipt.Patient.Person.LastName}",
+            mrn = receipt.Patient.Mrn,
+            amountCents = receipt.AmountCents,
+            currency = receipt.Currency,
+            issuedAt = receipt.IssuedAt,
+            reprintedAt = DateTime.UtcNow
+        });
+    }
+
     [HttpGet("statements")]
     [RequirePatientAccess(Permission.payBills, AppResource.Billing, AppAction.Read)]
     public async Task<IActionResult> GetStatements()

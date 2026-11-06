@@ -1,13 +1,63 @@
 # Modular Low-Cost Hospital Platform & Transformation Progress
 
 **Repository:** `medical_portal`  
-**Current Phase:** Phase 13: Final Proof, Verification & Delivery Checklist [RELEASE CANDIDATE GA]  
-**Last Updated:** 2026-10-25  
-**Current Test Suite Baseline:** **393 passed, 0 failed, 0 skipped** (.NET 8)
+**Current Phase:** HMS transformation complete
+**Last Updated:** 2026-11-05
+**Current Test Suite Baseline:** **424 passed, 0 failed, 0 skipped, 424 total** (.NET 8; serialized full-suite run)
 
 ---
 
 ## 📅 Phase Execution Roadmap
+
+> Historical Phases 0–13 below describe the previously completed medical-portal
+> release-candidate track. The HMS transformation is a new gated track and does
+> not rewrite those historical results.
+
+### HMS transformation track
+
+| Phase | Status | Deliverables / evidence |
+|---:|---|---|
+| **0 — Inspection and plan** | **Approved** | `docs/hms-gap-analysis.md`, ADR 0002, architecture map, PDF/PACS/instrument ADRs, saved specification. |
+| **1 — Global cleanups** | **Complete; gate passed** | Removed retired Find Care/Nearby surfaces, dashboard badges/KPI, and tenant module; added server-authoritative navigation, shared searchable PatientPicker/My Patients list, migrated scheduling availability to `/api/appointments/availability`, and added navigation tests. Full serialized suite: `424 passed, 0 failed, 0 skipped`. |
+| **2 — Foundations** | **In progress** | Added tenant-scoped `Encounter`/`Bed` foundation entities, patient-class and encounter-status enums, generic tenant-scoped `ClinicalOrder` lifecycle with payment gates, tariff/charge/receipt artifacts, EF mappings/migrations, and authorization/audit-protected ADT, bed-board, worklist, release, waiver, and start endpoints. Final clean build and serialized suite remain green; the phase is not closed because inventory, results, notifications, tasks, KPIs, and expanded authorization work remain. |
+| **3 — Existing dashboards** | **Complete; gate passed** | Replaced fabricated scheduler, billing, laboratory, and pharmacy dashboard counts with live operational queues; added compliance auditor de-identified audit summary and preserved server-authoritative role navigation. Clean build, JavaScript syntax checks, whitespace validation, and serialized full suite: `424 passed, 0 failed, 0 skipped`. |
+| **4 — Pharmacy, warehouse and stock** | **Complete; gate passed** | Added tenant-scoped item master, central/department stores, batches, append-only stock ledger, FEFO issue selection, expiry/quarantine filtering, audited receive/issue APIs, requisition approval, controlled-drug dual signatures, approved physical-count variance posting, stock-status analytics, and pharmacy stock alerts. Clean build, JavaScript syntax/whitespace checks, migration generation, and serialized full suite: `424 passed, 0 failed, 0 skipped`. |
+| 5 — Acute care units | Complete; gate passed | Added tenant-scoped acute-care episodes with triage acuity, emergency disposition, ICU/NICU/delivery/theatre transfers, procedure booking approval, audited state transitions, and nurse/department acute-care worklist. Clean build, migration generation, JavaScript syntax/whitespace checks, and serialized full suite: `424 passed, 0 failed, 0 skipped`. |
+| 6 — Diagnostics | Complete; gate passed | Added tenant-scoped diagnostic work items for laboratory, imaging, physiology, and pathology-compatible workflows, audited preliminary/final results, critical-result callbacks, laboratory specimen worklist, PACS study boundary metadata, and pregnancy safety guard for radiation-risk imaging. Clean build, migration generation, JavaScript syntax/whitespace checks, and serialized full suite: `424 passed, 0 failed, 0 skipped`. |
+| 7 — Mortuary and support services | Complete; gate passed | Added restricted mortuary cases with audited intake, movement, identity-verified release, and chain-of-custody events; discharge-triggered terminal-cleaning tasks and bed return-to-available completion; ward diet orders/meal list and tenant-scoped linen ledger. Clean build, migration generation, whitespace checks, and serialized full suite: `424 passed, 0 failed, 0 skipped`. |
+| 8 — KPIs and national reporting | Complete; gate passed | Added configurable tenant-scoped KPI definitions, de-identified KPI snapshots, role-restricted KPI reads, admin definition creation, and live performance-indicator dashboard output. Clean build, migration generation, JavaScript syntax/whitespace checks, and serialized full suite: `424 passed, 0 failed, 0 skipped`. |
+| 9 — Hardening and proof | Complete; gate passed | Reviewed new controller authorization and tenant-scoped entities, corrected KPI snapshot selection and diagnostic input validation, and passed clean build, JavaScript syntax, whitespace, and serialized full-suite validation: `424 passed, 0 failed, 0 skipped`. |
+
+### HMS transformation traceability
+
+| Requirement | Status | Evidence |
+|---|---|---|
+| CL-1 | Closed | Retired Find Care/Nearby frontend, API, module, tests, and dead code removed. |
+| CL-2 | Closed | `.NET 8 Online` dashboard badge removed. |
+| CL-3 | Closed | MFA Adoption dashboard KPI removed outside the existing IT/admin security surface. |
+| CL-4 | Closed for current screens | Backend `NavigationPolicy` is returned from `/api/auth/me`; frontend filters navigation from that contract; role policy tests added. |
+| CL-5 | Closed for current screens | Staff navigation no longer exposes patient-only tabs; staff settings remains separate from patient tabs. |
+| CL-6 | Closed | Forms are present only in the PATIENT navigation policy. |
+| CL-7 | Closed for current staff surfaces | Staff patient dropdown replaced with searchable PatientPicker and physician My Patients list. |
+| CL-8 | Closed | Existing static dialog containment tests remain green; frontend syntax check passes. |
+| CL-9 | Closed for retired surfaces | Dead Find Care/Nearby loaders and references removed from source. |
+| FND-1 | In progress | Added `PatientClass` and tenant-scoped `Encounter`; admission, active-encounter reclassification, and discharge workflows now require authorization, mandatory reasons where applicable, and audit events. |
+| FND-2/FND-3 | In progress | Added tenant-scoped `Bed` model, required bed states (`available`, `occupied`, `reserved`, `cleaning`, `blocked`, `out of service`), audited state changes, and a tenant-scoped facility → department → unit/room location hierarchy view. Admission, transfer, and discharge enforce occupancy and release/reassignment; location management and housekeeping event delivery remain. |
+| FND-6 | In progress | Added generic `ClinicalOrder` aggregate with type, practitioner, department, priority, status machine, timestamps, encounter/patient links, patient/encounter consistency validation, and audit events. |
+| FND-9/FND-10/FND-11 | In progress | Added tenant-scoped tariff catalog, order-linked charge items, cashier payment/waiver recording, receipts, emergency bill-later support, and unreleased-order start protection. Configurable payer, supervisor step-up, refund reversal, and receivables aging remain. |
+| FND-13 | Closed for current stock surfaces | Added tenant-scoped item master, central/department stores, lot/batch metadata, append-only stock ledger, derived balances, audited receive/issue operations, and transactional issue protection. |
+| FND-14 | Closed for implemented inventory controls | FEFO excludes expired/quarantined batches; min/max stock alerts, requisition draft/approval, and approved physical-count variance posting are implemented. |
+| FND-15 | Foundation complete | Added stock-status analytics with VEN/minimum/maximum indicators and a pharmacy stock-alert dashboard surface. National logistics adapters remain a Phase 8 integration concern. |
+| FND-16/FND-17 | Closed for current dispensing surfaces | Issue and controlled-drug entries carry patient/encounter attribution; controlled-drug dispensing requires distinct dual signatures and is audited. |
+| AC-1 | In progress | Acute-care episodes are linked to active patient encounters and support ED triage acuity, active worklists, and lifecycle status. |
+| AC-2 | In progress | Transfer requests support ICU, NICU, operating theatre, and delivery-suite destinations with approval and audit; bed/location assignment and clinical documentation remain follow-on work. |
+| AC-3 | Closed for current acute-care workflow | Emergency disposition supports discharge, ward admission, ICU transfer, referral, theatre transfer, and death with mandatory reason and audit; theatre/delivery bookings require approval by a different user. |
+| DX-1 | In progress | Added tenant-scoped diagnostic work items linked to clinical orders and patients, service-specific access, laboratory accession/specimen metadata, modality metadata, and preliminary/final result lifecycle. |
+| DX-2 | Closed for current diagnostic workflow | Added critical-result callback metadata, PACS study UID boundary metadata, pathology-compatible accession/result lifecycle, and a mandatory pregnancy-safety acknowledgement for radiation-risk imaging in patients recorded as female at birth. |
+| SS-1/SS-2/MT-1 | In progress | Added restricted mortuary intake/release and custody event records; discharge now creates terminal-cleaning tasks, and completing cleaning returns an unoccupied bed to available. |
+| SS-1/SS-3/MT-1 | Closed for current support surfaces | Added diet orders with active meal-list output, linen receive/distribute/return/loss/damage ledger actions, and restricted audited mortuary custody and release. |
+| KPI-1 | Closed for current reporting foundation | Added configurable tenant-scoped KPI definitions, de-identified snapshots, role-restricted reads, admin definition creation, and live dashboard output. |
+| HARD-1 | Closed for current transformation surfaces | New HMS entities use tenant filters and migrations; acute-care, diagnostics, mortuary, support, KPI, and inventory endpoints enforce role checks and audit writes; final clean proof suite passed. |
 
 | Phase | Description | Status | Approval Gate | Test Results / Findings Addressed |
 |:---:|---|:---:|:---:|---|

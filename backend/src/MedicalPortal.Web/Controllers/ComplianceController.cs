@@ -22,6 +22,34 @@ public class ComplianceController : ControllerBase
         _db = db;
     }
 
+    [HttpGet("summary")]
+    public async Task<IActionResult> GetSummary()
+    {
+        var since = DateTime.UtcNow.AddDays(-30);
+        var recent = _db.AuditLogs.AsNoTracking().Where(a => a.CreatedAt >= since);
+
+        var total = await recent.CountAsync();
+        var proxyAccesses = await recent.CountAsync(a => a.IsProxy);
+        var denied = await recent.CountAsync(a =>
+            a.Action.Contains("DENIED") || a.Action.Contains("FORBIDDEN"));
+        var exports = await recent.CountAsync(a =>
+            a.Action.Contains("EXPORT") || a.Action.Contains("PRINT"));
+        var billingOverrides = await recent.CountAsync(a =>
+            a.Action.Contains("WAIVED") || a.Action.Contains("BILL_LATER") ||
+            a.Action.Contains("REFUND") || a.Action.Contains("OVERRIDE"));
+
+        return Ok(new
+        {
+            periodStart = since,
+            periodEnd = DateTime.UtcNow,
+            totalAuditEvents = total,
+            proxyAccesses,
+            deniedAccesses = denied,
+            exportsAndPrints = exports,
+            billingIntegritySignals = billingOverrides
+        });
+    }
+
     [HttpGet("audit-logs")]
     public async Task<IActionResult> GetAuditLogs(
         [FromQuery] int page = 1,

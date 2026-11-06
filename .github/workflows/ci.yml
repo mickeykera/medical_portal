@@ -50,12 +50,12 @@ jobs:
         image: postgres:17-alpine
         env:
           POSTGRES_DB: medical_portal_test
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: portal_bootstrap
+          POSTGRES_PASSWORD: ci-bootstrap-password-generated-for-test
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U postgres -d medical_portal_test"
+          --health-cmd "pg_isready -U portal_bootstrap -d medical_portal_test"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 5
@@ -84,9 +84,26 @@ jobs:
       - name: Restore NuGet Packages
         run: dotnet restore backend/MedicalPortal.sln
 
+      - name: Create PostgreSQL runtime roles
+        env:
+          PGPASSWORD: ci-bootstrap-password-generated-for-test
+        run: |
+          psql --host localhost --username portal_bootstrap --dbname medical_portal_test --command "CREATE ROLE portal_owner LOGIN NOSUPERUSER BYPASSRLS NOCREATEDB NOCREATEROLE NOINHERIT PASSWORD 'ci-owner-password-generated-for-test';"
+          psql --host localhost --username portal_bootstrap --dbname medical_portal_test --command "CREATE ROLE portal_app LOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOINHERIT PASSWORD 'ci-app-password-generated-for-test';"
+          psql --host localhost --username portal_bootstrap --dbname medical_portal_test --command "ALTER DATABASE medical_portal_test OWNER TO portal_owner;"
+
+      - name: Apply migrations as portal_owner
+        env:
+          POSTGRES_CONNECTION_STRING: Host=localhost;Port=5432;Database=medical_portal_test;Username=portal_owner;Password=ci-owner-password-generated-for-test
+          JWT_SECRET: ThisIsACISecretKeyWithAtLeast32BytesLength1234567!
+          ASPNETCORE_ENVIRONMENT: Development
+        run: dotnet run --project backend/src/MedicalPortal.Web/MedicalPortal.Web.csproj --configuration Release -- --migrate
+
       - name: Run Full Unit & Integration Test Suite with Coverage
         env:
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/medical_portal_test
+          POSTGRES_CONNECTION_STRING: Host=localhost;Port=5432;Database=medical_portal_test;Username=portal_app;Password=postgres
+          PORTAL_APP_PASSWORD: ci-app-password-generated-for-test
           REDIS_CONNECTION_STRING: localhost:6379
           JWT_SECRET: ThisIsACISecretKeyWithAtLeast32BytesLength1234567!
           ASPNETCORE_ENVIRONMENT: Development
@@ -96,6 +113,7 @@ jobs:
           --collect:"XPlat Code Coverage"
           --results-directory ./TestResults
           --logger "trx;LogFileName=test_results.trx"
+          -- -parallel none
 
       - name: Publish Test Results
         uses: actions/upload-artifact@5d5d22a31266ced268874388b861e4b58bb5c2f3 # v4.3.1

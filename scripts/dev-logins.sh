@@ -93,9 +93,9 @@ printf "%-26s | %-28s | %-32s | %-24s | %-16s\n" "Hospital Admin" "Hospital Admi
 printf "%-26s | %-28s | %-32s | %-24s | %-16s\n" "Compliance Auditor" "Compliance & Audit Console" "auditor.compliance@clinic.example" "$DEV_SEED_PASSWORD" "$MFA_DISPLAY"
 printf "%-26s | %-28s | %-32s | %-24s | %-16s\n" "Platform Admin" "Platform Admin (Zero PHI)" "platform.admin@clinic.example" "$DEV_SEED_PASSWORD" "$MFA_DISPLAY"
 printf "%-26s | %-28s | %-32s | %-24s | %-16s\n" "Integration Admin" "Integrations & System Admin" "system.admin@clinic.example" "$DEV_SEED_PASSWORD" "$MFA_DISPLAY"
-printf "%-26s | %-28s | %-32s | %-24s | %-16s\n" "Tenant 2 Admin (Adot)" "Hospital Admin (Adot)" "admin.adot@clinic.example" "$DEV_SEED_PASSWORD" "$MFA_DISPLAY"
-printf "%-26s | %-28s | %-32s | %-24s | %-16s\n" "Tenant 2 Patient (Adot)" "Patient Portal (Adot)" "patient.adot@clinic.example" "$DEV_SEED_PASSWORD" "None (Optional)"
+printf "%-26s | %-28s | %-32s | %-24s | %-16s\n" "Admin (Secondary)" "Hospital Admin Console" "admin.adot@clinic.example" "$DEV_SEED_PASSWORD" "$MFA_DISPLAY"
+printf "%-26s | %-28s | %-32s | %-24s | %-16s\n" "Patient (Secondary)" "Patient Portal" "patient.adot@clinic.example" "$DEV_SEED_PASSWORD" "None (Optional)"
 
 echo "====================================================================================================================================================="
 echo "Note: Patient accounts do not require MFA unless configured. Staff and Admin accounts require the 6-digit TOTP code."
-echo "Tenant 2 accounts are isolated to tenant 'adot-hospital' (header: X-Tenant-Slug: adot-hospital)."
+echo "All accounts belong to Addis Care Health Network (Single Hospital Architecture)."

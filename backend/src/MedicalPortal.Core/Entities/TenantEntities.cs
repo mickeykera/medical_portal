@@ -117,7 +117,6 @@ public static class TenantModules
     public const string Proxy = "proxy";
     public const string Sharing = "sharing";
     public const string Fhir = "fhir";
-    public const string FindCare = "findcare";
     public const string Forms = "forms";
     public const string Interop = "interop";
     public const string Dhis2 = "dhis2";
@@ -127,7 +126,7 @@ public static class TenantModules
 
     public static readonly IReadOnlySet<string> All = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
     {
-        Appointments, Messaging, Billing, Refills, Proxy, Sharing, Fhir, FindCare, Forms,
+        Appointments, Messaging, Billing, Refills, Proxy, Sharing, Fhir, Forms,
         Interop, Dhis2, Echis, Mfr, Mpi
     };
 }
@@ -136,7 +135,7 @@ public class TenantModuleSettings
 {
     public List<string> Enabled { get; set; } = new()
     {
-        "appointments", "messaging", "billing", "refills", "proxy", "sharing", "fhir", "findcare", "forms",
+        "appointments", "messaging", "billing", "refills", "proxy", "sharing", "fhir", "forms",
         "interop", "dhis2", "echis", "mfr", "mpi"
     };
 

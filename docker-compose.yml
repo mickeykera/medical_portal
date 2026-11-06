@@ -7,12 +7,15 @@ services:
     # Host port 5432 removed to prevent external database access; reachable only within portal-internal
     environment:
       POSTGRES_DB: medical_portal
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: portal_bootstrap
+      POSTGRES_PASSWORD: ${POSTGRES_BOOTSTRAP_PASSWORD:?POSTGRES_BOOTSTRAP_PASSWORD is required}
+      PORTAL_OWNER_PASSWORD: ${PORTAL_OWNER_PASSWORD:?PORTAL_OWNER_PASSWORD is required}
+      PORTAL_APP_PASSWORD: ${PORTAL_APP_PASSWORD:?PORTAL_APP_PASSWORD is required}
     volumes:
       - pg_data:/var/lib/postgresql/data
+      - ./scripts/postgres:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d medical_portal"]
+      test: ["CMD-SHELL", "pg_isready -U portal_bootstrap -d medical_portal"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -23,6 +26,23 @@ services:
   # Development Profile (docker compose up -d or docker compose --profile dev up -d)
   # Standalone single-instance deployment enabling fake external service providers explicitly.
   # ---------------------------------------------------------------------------
+  medical-portal-migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: medical-portal-migrate
+    profiles: ["dev", "cluster", "production"]
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=medical_portal;Username=portal_owner;Password=${PORTAL_OWNER_PASSWORD:?PORTAL_OWNER_PASSWORD is required}
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET is required}
+    command: ["dotnet", "MedicalPortal.Web.dll", "--migrate", "--seed"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - portal-internal
+
   medical-portal:
     build:
       context: .
@@ -38,7 +58,7 @@ services:
       - ASPNETCORE_FORWARDEDHEADERS_ENABLED=true
       - Kestrel__Endpoints__Http__Url=http://+:8080
       - FORWARDED_HEADERS_TRUSTED_NETWORKS=172.16.0.0/12,10.0.0.0/8,127.0.0.1/32
-      - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=medical_portal;Username=postgres;Password=postgres;
+      - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=medical_portal;Username=portal_app;Password=${PORTAL_APP_PASSWORD:?PORTAL_APP_PASSWORD is required}
       # Fake providers enabled explicitly for safe offline / local development
       - Stripe__UseFake=true
       - STRIPE_USE_FAKE=true
@@ -51,6 +71,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      medical-portal-migrate:
+        condition: service_completed_successfully
     volumes:
       - portal_data:/app/data
     networks:
@@ -91,7 +113,7 @@ services:
       - Kestrel__Endpoints__Http__Url=http://+:8080
       - FORWARDED_HEADERS_TRUSTED_NETWORKS=172.16.0.0/12,10.0.0.0/8,127.0.0.1/32
       - REDIS_CONNECTION_STRING=redis:6379
-      - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=medical_portal;Username=postgres;Password=postgres;
+      - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=medical_portal;Username=portal_app;Password=${PORTAL_APP_PASSWORD:?PORTAL_APP_PASSWORD is required}
       - JWT_SECRET=${JWT_SECRET:?JWT_SECRET is required in production profile}
       - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY:?STRIPE_SECRET_KEY is required in production profile}
       - HMS_WEBHOOK_SECRET=${HMS_WEBHOOK_SECRET:?HMS_WEBHOOK_SECRET is required in production profile}
@@ -101,6 +123,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      medical-portal-migrate:
+        condition: service_completed_successfully
     volumes:
       - portal_cluster_data_1:/app/data
     networks:
@@ -123,7 +147,7 @@ services:
       - Kestrel__Endpoints__Http__Url=http://+:8080
       - FORWARDED_HEADERS_TRUSTED_NETWORKS=172.16.0.0/12,10.0.0.0/8,127.0.0.1/32
       - REDIS_CONNECTION_STRING=redis:6379
-      - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=medical_portal;Username=postgres;Password=postgres;
+      - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=medical_portal;Username=portal_app;Password=${PORTAL_APP_PASSWORD:?PORTAL_APP_PASSWORD is required}
       - JWT_SECRET=${JWT_SECRET:?JWT_SECRET is required in production profile}
       - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY:?STRIPE_SECRET_KEY is required in production profile}
       - HMS_WEBHOOK_SECRET=${HMS_WEBHOOK_SECRET:?HMS_WEBHOOK_SECRET is required in production profile}
@@ -133,6 +157,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      medical-portal-migrate:
+        condition: service_completed_successfully
     volumes:
       - portal_cluster_data_2:/app/data
     networks:

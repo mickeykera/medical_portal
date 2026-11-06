@@ -302,7 +302,7 @@ public class SchedulingRebuildTests : IClassFixture<WebApplicationFactory<Progra
         var client = _factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-        var response = await client.GetAsync($"/api/care/availability?providerId={drPatel.Id}&days=3&durationMinutes=30");
+        var response = await client.GetAsync($"/api/appointments/availability?providerId={drPatel.Id}&days=3&durationMinutes=30");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
         var doc = await response.Content.ReadFromJsonAsync<JsonElement>();

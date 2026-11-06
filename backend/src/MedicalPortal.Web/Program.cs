@@ -30,6 +30,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.OpenApi.Models;
+using Npgsql;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
@@ -205,14 +206,24 @@ if (isPostgres)
     builder.Services.AddDbContext<MedicalPortalDbContext>(options =>
         options.UseNpgsql(npgsqlConnection, npgsqlOptions =>
         {
-            npgsqlOptions.EnableRetryOnFailure(
-                maxRetryCount: 5,
-                maxRetryDelay: TimeSpan.FromSeconds(10),
-                errorCodesToAdd: null);
+            if (builder.Environment.IsProduction())
+            {
+                npgsqlOptions.EnableRetryOnFailure(
+                    maxRetryCount: 5,
+                    maxRetryDelay: TimeSpan.FromSeconds(10),
+                    errorCodesToAdd: null);
+            }
         }));
 }
 else
 {
+    var allowSqliteFallback = builder.Environment.IsDevelopment() &&
+        builder.Configuration.GetValue<bool>("Database:AllowSqliteFallback");
+    if (!allowSqliteFallback)
+    {
+        throw new InvalidOperationException(
+            "PostgreSQL is required. SQLite fallback is allowed only when ASPNETCORE_ENVIRONMENT=Development and Database:AllowSqliteFallback=true.");
+    }
     var dbPath = builder.Configuration["DB_PATH"] ?? "medical_portal.db";
     var sqliteConnection = !string.IsNullOrWhiteSpace(rawConnectionString) && rawConnectionString.Contains("Data Source=")
         ? rawConnectionString
@@ -364,8 +375,6 @@ builder.Services.AddScoped<IAccessControlService, AccessControlService>();
 builder.Services.AddSingleton<IAuditBatchQueue, AuditBatchQueue>();
 builder.Services.AddScoped<IAuditService, AuditService>();
 builder.Services.AddScoped<ISnapshotService, SnapshotService>();
-builder.Services.AddScoped<IPlacesService, PlacesService>();
-builder.Services.AddSingleton<IGeocodingService, GeocodingService>();
 builder.Services.AddScoped<IFhirService, FhirService>();
 builder.Services.AddSingleton<ILocalizationService, LocalizationService>();
 
@@ -704,6 +713,16 @@ var app = builder.Build();
 // Initialize ambient FieldEncryptionAccessor for EF Core ValueConverters
 FieldEncryptionAccessor.Initialize(app.Services.GetRequiredService<IFieldEncryptionService>());
 
+if (app.Environment.IsProduction() &&
+    !args.Contains("--migrate") &&
+    app.Services.GetRequiredService<MedicalPortalDbContext>().Database.ProviderName ==
+        "Npgsql.EntityFrameworkCore.PostgreSQL")
+{
+    await Program.ValidateProductionDatabaseRoleAsync(
+        app.Services.GetRequiredService<MedicalPortalDbContext>(),
+        rawConnectionString!);
+}
+
 // Support dedicated migration command for Production/CI: dotnet run -- --migrate [--seed]
 if (args.Contains("--migrate"))
 {
@@ -758,8 +777,50 @@ if (app.Environment.IsDevelopment())
 
         if (db.Database.IsNpgsql())
         {
-            await db.Database.MigrateAsync();
-            await PostgresRlsHelper.ApplyRlsAsync(db);
+            if (builder.Configuration.GetValue<bool>("Database:AllowApplicationMigrations"))
+            {
+                await db.Database.MigrateAsync();
+                await PostgresRlsHelper.ApplyRlsAsync(db);
+            }
+
+            /*
+CREATE TABLE IF NOT EXISTS ""UserInvites"" (
+    ""Id"" uuid NOT NULL PRIMARY KEY,
+    ""TenantId"" uuid NOT NULL,
+    ""Email"" text NOT NULL,
+    ""Role"" integer NOT NULL,
+    ""FirstName"" text NOT NULL,
+    ""LastName"" text NOT NULL,
+    ""DateOfBirth"" timestamp without time zone NULL,
+    ""FacilityId"" uuid NULL,
+    ""DepartmentId"" uuid NULL,
+    ""TokenHash"" text NOT NULL,
+    ""ExpiresAtUtc"" timestamp without time zone NOT NULL,
+    ""AcceptedAtUtc"" timestamp without time zone NULL,
+    ""CreatedUserAccountId"" uuid NULL,
+    ""InvitedByUserAccountId"" uuid NOT NULL,
+    ""CreatedAtUtc"" timestamp without time zone NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ""IX_UserInvites_TokenHash"" ON ""UserInvites"" (""TokenHash"");
+CREATE INDEX IF NOT EXISTS ""IX_UserInvites_TenantId"" ON ""UserInvites"" (""TenantId"");
+
+CREATE TABLE IF NOT EXISTS ""RefundRequests"" (
+    ""Id"" uuid NOT NULL PRIMARY KEY,
+    ""TenantId"" uuid NOT NULL,
+    ""PaymentId"" uuid NOT NULL,
+    ""AmountCents"" integer NOT NULL,
+    ""Currency"" text NOT NULL,
+    ""Reason"" text NOT NULL,
+    ""Status"" text NOT NULL,
+    ""RequestedByUserAccountId"" uuid NOT NULL,
+    ""ReviewedByUserAccountId"" uuid NULL,
+    ""ReviewedAtUtc"" timestamp without time zone NULL,
+    ""ReviewNotes"" text NULL,
+    ""CreatedAtUtc"" timestamp without time zone NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ""IX_RefundRequests_PaymentId"" ON ""RefundRequests"" (""PaymentId"");
+CREATE INDEX IF NOT EXISTS ""IX_RefundRequests_TenantId"" ON ""RefundRequests"" (""TenantId"");
+*/
         }
         else
         {
@@ -812,9 +873,12 @@ CREATE TABLE IF NOT EXISTS ""RefundRequests"" (
             catch { }
         }
 
-        var devSecret = builder.Configuration["DEV_TOTP_SECRET"] ?? Environment.GetEnvironmentVariable("DEV_TOTP_SECRET");
-        var devPassword = builder.Configuration["DEV_SEED_PASSWORD"] ?? Environment.GetEnvironmentVariable("DEV_SEED_PASSWORD");
-        await DbSeeder.SeedAsync(db, hasher, isProduction: false, devTotpSecret: devSecret, devSeedPassword: devPassword);
+        if (!db.Database.IsNpgsql() || builder.Configuration.GetValue<bool>("Database:AllowApplicationSeeding"))
+        {
+            var devSecret = builder.Configuration["DEV_TOTP_SECRET"] ?? Environment.GetEnvironmentVariable("DEV_TOTP_SECRET");
+            var devPassword = builder.Configuration["DEV_SEED_PASSWORD"] ?? Environment.GetEnvironmentVariable("DEV_SEED_PASSWORD");
+            await DbSeeder.SeedAsync(db, hasher, isProduction: false, devTotpSecret: devSecret, devSeedPassword: devPassword);
+        }
     }
     finally
     {
@@ -1019,6 +1083,8 @@ if (app.Environment.IsDevelopment())
             return Results.NotFound();
         }
 
+        var devPassword = config["DEV_SEED_PASSWORD"] ?? DbSeeder.DemoPassword;
+
         var accounts = await db.UserAccounts
             .IgnoreQueryFilters()
             .Where(u => u.IsDevAccount)
@@ -1027,10 +1093,13 @@ if (app.Environment.IsDevelopment())
             .Select(u => new
             {
                 email = u.Email,
+                password = devPassword,
                 role = u.Role.ToString(),
                 name = u.Person != null ? $"{u.Person.FirstName} {u.Person.LastName}".Trim() : u.Email,
                 hasMfa = u.MfaEnabled,
-                tenantSlug = u.TenantId == TenantConstants.DefaultTenantId ? TenantConstants.DefaultTenantSlug : "adot-hospital"
+                tenantSlug = u.TenantId == TenantConstants.DefaultTenantId
+                    ? TenantConstants.DefaultTenantSlug
+                    : "adot-hospital"
             })
             .ToListAsync();
 
@@ -1046,6 +1115,56 @@ app.Run();
 public partial class Program
 {
     private static readonly SemaphoreSlim DbInitLock = new(1, 1);
+
+    internal static async Task ValidateProductionDatabaseRoleAsync(
+        MedicalPortalDbContext db,
+        string connectionString)
+    {
+        var parsed = new NpgsqlConnectionStringBuilder(
+            PostgresConnectionHelper.ToNpgsqlConnectionString(connectionString));
+        if (string.Equals(parsed.Password, "postgres", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(parsed.Password, "password", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(parsed.Password, "changeme", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                "Production startup failed: the database password is a known default and must be rotated.");
+        }
+
+        await db.Database.OpenConnectionAsync();
+        try
+        {
+            await using var command = db.Database.GetDbConnection().CreateCommand();
+            command.CommandText =
+                """
+                SELECT r.rolsuper,
+                       r.rolbypassrls,
+                       (
+                           SELECT COUNT(*)
+                           FROM pg_class c
+                           JOIN pg_namespace n ON n.oid = c.relnamespace
+                           WHERE n.nspname = 'public'
+                             AND c.relkind IN ('r', 'S')
+                             AND c.relowner = r.oid
+                       )
+                FROM pg_roles r
+                WHERE r.rolname = current_user
+                """;
+
+            await using var reader = await command.ExecuteReaderAsync();
+            if (!await reader.ReadAsync())
+                throw new InvalidOperationException("Production startup failed: the connected database role could not be resolved.");
+            if (reader.GetBoolean(0))
+                throw new InvalidOperationException("Production startup failed: the application database role must not be a superuser.");
+            if (reader.GetBoolean(1))
+                throw new InvalidOperationException("Production startup failed: the application database role must not have BYPASSRLS.");
+            if (reader.GetInt64(2) != 0)
+                throw new InvalidOperationException("Production startup failed: the application database role must not own application tables.");
+        }
+        finally
+        {
+            await db.Database.CloseConnectionAsync();
+        }
+    }
 
     private static void LoadDotEnvIntoConfiguration(ConfigurationManager config)
     {

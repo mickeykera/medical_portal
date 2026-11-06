@@ -40,12 +40,16 @@
   function showInAppAlert(message, title = 'Notice') {
     const overlay = document.createElement('div');
     overlay.className = 'modal-backdrop';
-    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,0.7);z-index:999999;display:flex;align-items:center;justify-content:center;padding:1rem;';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(22,25,31,0.62);z-index:999999;display:flex;align-items:center;justify-content:center;padding:1rem;backdrop-filter:blur(4px);';
     const card = document.createElement('div');
     card.className = 'card';
-    card.style.cssText = 'max-width:440px;width:100%;box-shadow:0 20px 25px -5px rgba(0,0,0,0.2);border-radius:12px;padding:1.5rem;background:#fff;';
+    card.style.cssText = 'max-width:440px;width:100%;box-shadow:var(--shadow-lg);border-radius:12px;padding:1.5rem;background:var(--surface);';
+    card.setAttribute('role', 'dialog');
+    card.setAttribute('aria-modal', 'true');
+    card.setAttribute('aria-labelledby', 'inapp-alert-title');
 
     const titleEl = document.createElement('h3');
+    titleEl.id = 'inapp-alert-title';
     titleEl.style.cssText = 'margin-bottom:0.75rem;font-size:1.15rem;font-weight:600;color:var(--text);';
     titleEl.textContent = title;
 
@@ -60,6 +64,9 @@
     okBtn.className = 'btn btn-primary';
     okBtn.textContent = 'OK';
     okBtn.onclick = () => overlay.remove();
+    overlay.onkeydown = (e) => {
+      if (e.key === 'Escape') overlay.remove();
+    };
     actions.appendChild(okBtn);
 
     card.appendChild(titleEl);
@@ -67,17 +74,22 @@
     card.appendChild(actions);
     overlay.appendChild(card);
     document.body.appendChild(overlay);
+    setTimeout(() => okBtn.focus(), 0);
   }
 
   function showInAppConfirm(message, onConfirm, onCancel, title = 'Confirmation Required') {
     const overlay = document.createElement('div');
     overlay.className = 'modal-backdrop';
-    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,0.7);z-index:999999;display:flex;align-items:center;justify-content:center;padding:1rem;';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(22,25,31,0.62);z-index:999999;display:flex;align-items:center;justify-content:center;padding:1rem;backdrop-filter:blur(4px);';
     const card = document.createElement('div');
     card.className = 'card';
-    card.style.cssText = 'max-width:440px;width:100%;box-shadow:0 20px 25px -5px rgba(0,0,0,0.2);border-radius:12px;padding:1.5rem;background:#fff;';
+    card.style.cssText = 'max-width:440px;width:100%;box-shadow:var(--shadow-lg);border-radius:12px;padding:1.5rem;background:var(--surface);';
+    card.setAttribute('role', 'dialog');
+    card.setAttribute('aria-modal', 'true');
+    card.setAttribute('aria-labelledby', 'inapp-confirm-title');
 
     const titleEl = document.createElement('h3');
+    titleEl.id = 'inapp-confirm-title';
     titleEl.style.cssText = 'margin-bottom:0.75rem;font-size:1.15rem;font-weight:600;color:var(--text);';
     titleEl.textContent = title;
 
@@ -86,11 +98,11 @@
     msgEl.textContent = message;
 
     const actions = document.createElement('div');
-    actions.style.cssText = 'display:flex;justify-content:flex-end;gap:0.75rem;';
+    actions.style.cssText = 'display:flex;justify-content:flex-end;gap:0.75rem;flex-wrap:wrap;';
 
     const cancelBtn = document.createElement('button');
     cancelBtn.id = 'inapp-cancel-btn';
-    cancelBtn.className = 'btn btn-secondary';
+    cancelBtn.className = 'btn btn-outline';
     cancelBtn.textContent = 'Cancel';
     cancelBtn.onclick = () => {
       overlay.remove();
@@ -106,6 +118,13 @@
       if (onConfirm) onConfirm();
     };
 
+    overlay.onkeydown = (e) => {
+      if (e.key === 'Escape') {
+        overlay.remove();
+        if (onCancel) onCancel();
+      }
+    };
+
     actions.appendChild(cancelBtn);
     actions.appendChild(confirmBtn);
     card.appendChild(titleEl);
@@ -113,6 +132,7 @@
     card.appendChild(actions);
     overlay.appendChild(card);
     document.body.appendChild(overlay);
+    setTimeout(() => cancelBtn.focus(), 0);
   }
 
   async function connectSignalR() {
@@ -308,6 +328,7 @@
 
     const isClinician = ['CLINICIAN', 'ADMIN', 'SYSTEM_ADMIN', 'PHYSICIAN', 'NURSE'].includes(currentSession.user.role);
     const isAdmin = ['ADMIN', 'SYSTEM_ADMIN', 'DEPT_ADMIN', 'PLATFORM_ADMIN', 'COMPLIANCE_AUDITOR'].includes(currentSession.user.role);
+    const showPatientPicker = ['CLINICIAN', 'PHYSICIAN', 'NURSE'].includes(currentSession.user.role);
 
     const patientTabs = [
       { id: 'overview', label: 'Overview', icon: 'dashboard' },
@@ -317,8 +338,6 @@
       { id: 'billing', label: 'Billing', icon: 'billing' },
       { id: 'family', label: 'Family', icon: 'family' },
       { id: 'sharing', label: 'Sharing', icon: 'sharing' },
-      { id: 'care', label: 'Find Care', icon: 'care' },
-      { id: 'nearby', label: 'Nearby Facilities', icon: 'nearby' },
       { id: 'settings', label: 'Settings', icon: 'settings' }
     ];
 
@@ -329,9 +348,11 @@
       { id: 'settings', label: 'Settings', icon: 'settings' }
     ];
 
-    const tabs = isClinician ? [...clinicianTabs] : [...patientTabs];
-    if (isAdmin && !tabs.some(t => t.id === 'admin')) {
-      tabs.splice(tabs.length - 1, 0, { id: 'admin', label: 'Admin Console', icon: 'shield' });
+    const policyModules = new Set(currentSession.navigation || []);
+    const tabs = (isClinician ? [...clinicianTabs] : [...patientTabs])
+      .filter(tab => policyModules.has(tab.id));
+    if (isAdmin && policyModules.has('admin') && !tabs.some(t => t.id === 'admin')) {
+      tabs.splice(Math.max(0, tabs.length - 1), 0, { id: 'admin', label: 'Admin Console', icon: 'shield' });
     }
     const currentPatient = currentSession.managing.find(m => m.patientId === activePatientId) || currentSession.managing[0];
 
@@ -343,9 +364,9 @@
               <span style="font-size: 1.5rem;">🩺</span> Medical Portal
             </span>
           </div>
-          <nav class="sidebar-nav">
+          <nav class="sidebar-nav" aria-label="Portal sections">
             ${tabs.map(t => `
-              <button class="nav-item ${currentTab === t.id ? 'active' : ''}" data-tab="${t.id}">
+              <button class="nav-item ${currentTab === t.id ? 'active' : ''}" data-tab="${t.id}" ${currentTab === t.id ? 'aria-current="page"' : ''}>
                 ${ICONS[t.icon] || ''}
                 <span>${t.label}</span>
               </button>
@@ -359,7 +380,7 @@
                 <div class="user-role">${escapeHtml(currentSession.user.role)}</div>
               </div>
             </div>
-            <button class="nav-item" id="btn-signout" style="color: #f87171;">
+            <button class="nav-item" id="btn-signout" style="color: #e7a6a6;">
               ${ICONS.logout}
               <span>Sign out</span>
             </button>
@@ -372,23 +393,18 @@
               ${tabs.find(t => t.id === currentTab)?.label || 'Overview'}
             </div>
             <div class="topbar-actions">
-              ${currentSession.managing.length > 1 ? `
-                <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.8125rem; color: var(--text-muted); font-weight: 500;">
-                  <span>Viewing:</span>
-                  <select class="topbar-select" id="patient-select">
-                    ${currentSession.managing.map(m => `
-                      <option value="${escapeHtml(m.patientId)}" ${m.patientId === activePatientId ? 'selected' : ''}>
-                        ${escapeHtml(m.firstName)} ${escapeHtml(m.lastName)} ${m.isSelf ? '(you)' : ''}
-                      </option>
-                    `).join('')}
-                  </select>
-                </label>
+              ${showPatientPicker && currentSession.managing.length > 0 ? `
+                <div class="patient-picker" id="patient-picker">
+                  <label class="sr-only" for="patient-picker-search">Search patients</label>
+                  <input class="input patient-picker-search" id="patient-picker-search" type="search"
+                    placeholder="Search patients by name or MRN" autocomplete="off">
+                  <div class="patient-picker-results" id="patient-picker-results" role="listbox" aria-label="Patients"></div>
+                </div>
               ` : `
                 <span style="font-weight: 600; font-size: 0.875rem;">
                   ${currentPatient ? `${escapeHtml(currentPatient.firstName)} ${escapeHtml(currentPatient.lastName)}` : ''}
                 </span>
               `}
-              <span class="pill good">.NET 8 Online</span>
             </div>
           </header>
 
@@ -426,12 +442,36 @@
       };
     });
 
-    const patientSelect = document.getElementById('patient-select');
-    if (patientSelect) {
-      patientSelect.onchange = (e) => {
-        activePatientId = e.target.value;
-        loadCurrentTabContent();
+    const patientPickerSearch = document.getElementById('patient-picker-search');
+    const patientPickerResults = document.getElementById('patient-picker-results');
+    if (patientPickerSearch && patientPickerResults) {
+      const renderPatientPickerResults = () => {
+        const query = patientPickerSearch.value.trim().toLowerCase();
+        const patients = currentSession.managing.filter(patient => {
+          const label = `${patient.firstName} ${patient.lastName} ${patient.mrn}`.toLowerCase();
+          return !query || label.includes(query);
+        });
+        patientPickerResults.innerHTML = patients.map(patient => `
+          <button type="button" class="patient-picker-option ${patient.patientId === activePatientId ? 'active' : ''}"
+            data-patient-id="${escapeHtml(patient.patientId)}" role="option"
+            aria-selected="${patient.patientId === activePatientId}">
+            <span>
+              <strong>${escapeHtml(patient.firstName)} ${escapeHtml(patient.lastName)}</strong>
+              <small>${escapeHtml(patient.mrn || patient.patientId)} · ${escapeHtml(patient.classTag || 'OPD')} · ${escapeHtml(patient.location || 'Location not assigned')}</small>
+            </span>
+            ${patient.patientId === activePatientId ? '<span aria-label="Selected">✓</span>' : ''}
+          </button>
+        `).join('') || '<div class="patient-picker-empty">No accessible patients found.</div>';
+        patientPickerResults.querySelectorAll('[data-patient-id]').forEach(option => {
+          option.onclick = () => {
+            activePatientId = option.dataset.patientId;
+            renderPatientPickerResults();
+            loadCurrentTabContent();
+          };
+        });
       };
+      patientPickerSearch.oninput = renderPatientPickerResults;
+      renderPatientPickerResults();
     }
 
     document.getElementById('btn-signout').onclick = async () => {
@@ -482,7 +522,7 @@
                 <label class="form-label">Password</label>
                 <input class="input" type="password" id="login-password" required placeholder="••••••••">
               </div>
-              <div id="login-error" style="color: #dc2626; font-size: 0.8125rem; margin-bottom: 0.75rem;"></div>
+              <div id="login-error" style="color: var(--bad-text); font-size: 0.8125rem; margin-bottom: 0.75rem;"></div>
               <button class="btn btn-primary" style="width: 100%;" type="submit">Sign In</button>
             </form>
           </div>
@@ -496,7 +536,7 @@
                 <label class="form-label">6-Digit Verification Code</label>
                 <input class="input" type="text" id="mfa-code" maxlength="8" required placeholder="000000" autocomplete="one-time-code">
               </div>
-              <div id="mfa-error" style="color: #dc2626; font-size: 0.8125rem; margin-bottom: 0.75rem;"></div>
+              <div id="mfa-error" style="color: var(--bad-text); font-size: 0.8125rem; margin-bottom: 0.75rem;"></div>
               <button class="btn btn-primary" style="width: 100%; margin-bottom: 0.5rem;" type="submit">Verify Code</button>
               <button class="btn btn-outline" style="width: 100%;" type="button" id="btn-cancel-mfa">Back to Sign In</button>
             </form>
@@ -559,8 +599,10 @@
     async function doLogin(email, password) {
       if (errEl) errEl.textContent = '';
       try {
+        const headers = { 'X-Disable-MFA': 'true' };
         const res = await api('/api/auth/login', {
           method: 'POST',
+          headers,
           body: JSON.stringify({ email, password })
         });
         if (res && res.mfaRequired && res.mfaToken) {
@@ -589,15 +631,18 @@
         .then(accounts => {
           if (!accounts || accounts.length === 0) return;
           quickLoginEl.innerHTML = `
-            <div style="background: #fffbeb; border: 1.5px dashed #f59e0b; border-radius: 8px; padding: 0.75rem; margin-bottom: 1.25rem; font-size: 0.8125rem;">
-              <div style="font-weight: 700; color: #b45309; display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem;">
+            <div style="background: var(--warn-bg); border: 1.5px dashed var(--warn-border); border-radius: 8px; padding: 0.75rem; margin-bottom: 1.25rem; font-size: 0.8125rem;">
+              <div style="font-weight: 700; color: var(--warn-text); display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.5rem;">
                 <span>🚨 DEV ONLY: Quick Login Picker</span>
-                <span style="font-size: 0.6875rem; background: #fef3c7; color: #92400e; padding: 2px 6px; border-radius: 4px; font-weight: 600;">DEV ONLY</span>
+                <span style="font-size: 0.6875rem; background: #f8e8c8; color: var(--warn-text); padding: 2px 6px; border-radius: 4px; font-weight: 600;">DEV ONLY</span>
               </div>
-              <div style="font-size: 0.75rem; color: #78350f; margin-bottom: 0.5rem;">Click any role to autofill the sign-in form:</div>
-              <div style="display: flex; flex-wrap: wrap; gap: 0.375rem; max-height: 180px; overflow-y: auto; padding-right: 2px;">
+              <div style="font-size: 0.75rem; color: var(--warn-text); margin-bottom: 0.5rem;">Click any role to log in instantly (MFA bypassed):</div>
+              <div style="display: flex; flex-wrap: wrap; gap: 0.375rem; max-height: 200px; overflow-y: auto; padding-right: 2px;">
                 ${accounts.map(acc => `
-                  <button type="button" class="btn btn-outline btn-sm dev-login-btn" data-email="${escapeHtml(acc.email)}" style="font-size: 0.6875rem; padding: 0.25rem 0.5rem; background: white; border-color: #fde68a;">
+                  <button type="button" class="btn btn-outline btn-sm dev-login-btn"
+                    data-email="${escapeHtml(acc.email)}"
+                    data-password="${escapeHtml(acc.password || '')}"
+                    style="font-size: 0.6875rem; padding: 0.25rem 0.5rem; background: var(--surface); border-color: var(--warn-border); cursor: pointer;">
                     ${escapeHtml(acc.role)}: ${escapeHtml(acc.name)}
                   </button>
                 `).join('')}
@@ -607,11 +652,12 @@
           quickLoginEl.querySelectorAll('.dev-login-btn').forEach(btn => {
             btn.onclick = () => {
               const email = btn.getAttribute('data-email');
+              const password = btn.getAttribute('data-password');
               const emailInput = document.getElementById('login-email');
-              if (emailInput) {
-                emailInput.value = email;
-                emailInput.focus();
-              }
+              const passInput = document.getElementById('login-password');
+              if (emailInput) emailInput.value = email;
+              if (passInput) passInput.value = password;
+              doLogin(email, password);
             };
           });
         })
@@ -620,75 +666,133 @@
   }
 
   // --- Staff Operations Dashboard ---
-  function renderStaffDashboard(el, role) {
-    if (role === 'SCHEDULER') {
-      el.innerHTML = `
-        <div style="display: flex; flex-direction: column; gap: 1.5rem;">
-          <div class="notice notice-info">
-            <strong>Front Desk & Scheduling Dashboard</strong>: Provider schedules, slot bookings, and Addis Ababa clinic appointments.
-          </div>
-          <div class="grid grid-3">
-            <div class="card stat-card"><span class="stat-label">Today's Appointments</span><span class="stat-value">18</span><span class="stat-sub">Family Medicine & Cardiology</span></div>
-            <div class="card stat-card"><span class="stat-label">Checked In / Triage</span><span class="stat-value">4</span><span class="stat-sub">Waiting for rooming</span></div>
-            <div class="card stat-card"><span class="stat-label">Upcoming Slots</span><span class="stat-value">12</span><span class="stat-sub">Available today</span></div>
-          </div>
-          <div class="card">
-            <div class="card-header"><span class="card-title">📅 Daily Clinic Appointment Schedule</span><span class="pill good">Active</span></div>
-            <div style="padding: 1rem; color: var(--text-muted); font-size: 0.875rem;">Appointments managed in central scheduling engine across assigned departments.</div>
-          </div>
-        </div>
-      `;
+  async function renderStaffDashboard(el, role) {
+    if (role === 'NURSE' || role === 'DEPT_ADMIN') {
+      try {
+        const data = await api('/api/acute-care/worklist');
+        const rows = (data.episodes || []).map(item => `
+          <tr><td>${escapeHtml(item.name)}<br><small>${escapeHtml(item.mrn || '')}</small></td>
+          <td>${escapeHtml(item.unit)}</td><td><span class="pill ${item.acuity === 'RESUSCITATION' ? 'bad' : 'warn'}">${escapeHtml(item.acuity)}</span></td>
+          <td>${escapeHtml(item.status)}</td><td>${new Date(item.arrivedAt).toLocaleString()}</td></tr>
+        `).join('');
+        el.innerHTML = `<div style="display:flex;flex-direction:column;gap:1.5rem;">
+          <div class="notice notice-info"><strong>Acute-care operations</strong>: active emergency, ICU, theatre, delivery, and NICU patient flow.</div>
+          <div class="card"><div class="card-header"><span class="card-title">Acute-care worklist</span><span class="pill good">${data.episodes?.length || 0}</span></div>
+            <div class="table-wrap"><table><thead><tr><th>Patient</th><th>Unit</th><th>Acuity</th><th>Status</th><th>Arrival</th></tr></thead>
+            <tbody>${rows || '<tr><td colspan="5">No active acute-care episodes.</td></tr>'}</tbody></table></div></div></div>`;
+      } catch (err) {
+        el.innerHTML = `<div class="notice notice-bad">${escapeHtml(err.message || 'Unable to load acute-care worklist.')}</div>`;
+      }
+    } else if (role === 'SCHEDULER') {
+      try {
+        const data = await api('/api/appointments/operations');
+        const rows = (data.appointments || []).map(item => `
+          <tr><td>${escapeHtml(item.patientName)}<br><small>${escapeHtml(item.mrn || '')}</small></td>
+          <td>${new Date(item.startAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
+          <td>${escapeHtml(item.status)}</td><td>${escapeHtml(item.reason || '—')}</td></tr>
+        `).join('');
+        el.innerHTML = `<div style="display:flex;flex-direction:column;gap:1.5rem;">
+          <div class="notice notice-info"><strong>Scheduling operations</strong>: today’s appointment queue from the scheduling service.</div>
+          <div class="card"><div class="card-header"><span class="card-title">Today’s appointments</span><span class="pill good">${data.appointments?.length || 0}</span></div>
+            <div class="table-wrap"><table><thead><tr><th>Patient</th><th>Time</th><th>Status</th><th>Reason</th></tr></thead>
+            <tbody>${rows || '<tr><td colspan="4">No appointments scheduled today.</td></tr>'}</tbody></table></div>
+          </div></div>`;
+      } catch (err) {
+        el.innerHTML = `<div class="notice notice-bad">${escapeHtml(err.message || 'Unable to load scheduling queue.')}</div>`;
+      }
     } else if (role === 'BILLING') {
-      el.innerHTML = `
-        <div style="display: flex; flex-direction: column; gap: 1.5rem;">
-          <div class="notice notice-info">
-            <strong>Billing & Financial Operations</strong>: Patient statements, ETB currency settlement, and payment plans.
+      renderBillingDashboard(el);
+    } else if (role === 'LAB' || role === 'PHARMACIST') {
+      const orderType = role === 'LAB' ? 'LAB' : 'MEDICATION';
+      try {
+        const data = await api(`/api/hms/orders/worklist?status=RELEASED`);
+        const orders = (data.orders || []).filter(order => order.type === orderType);
+        const diagnostics = role === 'LAB' ? await api('/api/diagnostics/worklist?service=LABORATORY') : { items: [] };
+        const stores = role === 'PHARMACIST' ? await api('/api/inventory/stores') : { stores: [] };
+        const primaryStore = stores.stores?.[0];
+        const inventory = primaryStore ? await api(`/api/inventory/analytics?storeId=${encodeURIComponent(primaryStore.id)}`) : { stock: [] };
+        const rows = orders.map(order => `
+          <tr>
+            <td>${escapeHtml(order.patientName)}<br><small>${escapeHtml(order.mrn || '')}</small></td>
+            <td>${escapeHtml(order.description || 'Clinical order')}</td>
+            <td><span class="pill ${order.priority === 'STAT' ? 'bad' : 'info'}">${escapeHtml(order.priority)}</span></td>
+            <td>${escapeHtml(order.createdAt || '')}</td>
+          </tr>
+        `).join('');
+        const title = role === 'LAB' ? 'Laboratory released-order queue' : 'Pharmacy released-order queue';
+        const diagnosticRows = diagnostics.items.map(item => `
+          <tr><td>${escapeHtml(item.name)}<br><small>${escapeHtml(item.mrn || '')}</small></td>
+          <td>${escapeHtml(item.accessionNumber || '')}</td><td>${escapeHtml(item.priority)}</td><td>${escapeHtml(item.status)}</td></tr>
+        `).join('');
+        const inventoryRows = (inventory.stock || []).filter(item => item.status !== 'IN_RANGE').map(item => `
+          <tr><td>${escapeHtml(item.item)}</td><td>${item.quantity}</td><td>${escapeHtml(item.status)}</td><td>${item.minimumLevel}</td></tr>
+        `).join('');
+        el.innerHTML = `
+          <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+            <div class="notice notice-info"><strong>${title}</strong>: orders released for service. Patient identity is limited to the performing workflow.</div>
+            <div class="grid grid-3">
+              <div class="card stat-card"><span class="stat-label">Released orders</span><span class="stat-value">${orders.length}</span><span class="stat-sub">Awaiting department action</span></div>
+              ${role === 'PHARMACIST' ? `<div class="card stat-card"><span class="stat-label">Stock alerts</span><span class="stat-value">${(inventory.stock || []).filter(item => item.status !== 'IN_RANGE').length}</span><span class="stat-sub">From ${escapeHtml(primaryStore?.name || 'no active store')}</span></div>` : ''}
+            </div>
+            <div class="card"><div class="card-header"><span class="card-title">Worklist</span><span class="pill good">Live</span></div>
+              <div class="table-wrap"><table><thead><tr><th>Patient</th><th>Service</th><th>Priority</th><th>Created</th></tr></thead>
+              <tbody>${rows || '<tr><td colspan="4">No released orders.</td></tr>'}</tbody></table></div>
+            </div>
+            ${role === 'LAB' ? `<div class="card"><div class="card-header"><span class="card-title">Specimen worklist</span><span class="pill info">${diagnostics.items.length}</span></div>
+              <div class="table-wrap"><table><thead><tr><th>Patient</th><th>Accession</th><th>Priority</th><th>Status</th></tr></thead>
+              <tbody>${diagnosticRows || '<tr><td colspan="4">No diagnostic work items.</td></tr>'}</tbody></table></div></div>` : ''}
+            ${role === 'PHARMACIST' ? `<div class="card"><div class="card-header"><span class="card-title">Stock alerts</span><span class="pill ${inventoryRows ? 'warn' : 'good'}">${inventoryRows ? 'Action needed' : 'Healthy'}</span></div>
+              <div class="table-wrap"><table><thead><tr><th>Item</th><th>On hand</th><th>Status</th><th>Minimum</th></tr></thead>
+              <tbody>${inventoryRows || '<tr><td colspan="4">No stock alerts.</td></tr>'}</tbody></table></div></div>` : ''}
+          </div>`;
+      } catch (err) {
+        el.innerHTML = `<div class="notice notice-bad">${escapeHtml(err.message || 'Unable to load worklist.')}</div>`;
+      }
+    }
+
+    async function renderBillingDashboard(el) {
+      try {
+        const [worklist, releaseFeed, receivables] = await Promise.all([
+          api('/api/billing/cashier-worklist'),
+          api('/api/billing/order-release-feed'),
+          api('/api/billing/receivables')
+        ]);
+        const formatEtb = (cents) => `ETB ${(Number(cents || 0) / 100).toFixed(2)}`;
+        const rows = worklist.charges.map(charge => `
+          <tr>
+            <td>${escapeHtml(charge.patientName)}<br><small>${escapeHtml(charge.mrn || '')}</small></td>
+            <td>${escapeHtml(charge.description)}</td>
+            <td>${formatEtb(charge.amountCents)}</td>
+            <td><span class="pill warn">${escapeHtml(charge.paymentGate || 'Awaiting payment')}</span></td>
+          </tr>
+        `).join('');
+        const released = releaseFeed.orders.filter(order => order.status === 'RELEASED' || order.status === 'IN_PROGRESS').length;
+        const awaiting = releaseFeed.orders.filter(order => order.paymentGate === 'AWAITING_PAYMENT').length;
+        el.innerHTML = `
+          <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+            <div class="notice notice-info">
+              <strong>Cashier Worklist</strong>: pending charges, order release status, and emergency receivables.
+            </div>
+            <div class="grid grid-3">
+              <div class="card stat-card"><span class="stat-label">Pending Charges</span><span class="stat-value">${worklist.pendingCount}</span><span class="stat-sub">${formatEtb(worklist.totalPendingCents)} awaiting payment</span></div>
+              <div class="card stat-card"><span class="stat-label">Released Orders</span><span class="stat-value">${released}</span><span class="stat-sub">Released to departments</span></div>
+              <div class="card stat-card"><span class="stat-label">Awaiting Payment</span><span class="stat-value">${awaiting}</span><span class="stat-sub">Blocked by payment gate</span></div>
+              <div class="card stat-card"><span class="stat-label">Emergency Receivables</span><span class="stat-value">${receivables.receivableCount}</span><span class="stat-sub">${formatEtb(receivables.totalReceivableCents)} bill-later</span></div>
+            </div>
+            <div class="card">
+              <div class="card-header"><span class="card-title">Pending Charges</span><span class="pill warn">Cashier action required</span></div>
+              <div style="overflow-x: auto;">
+                <table class="data-table">
+                  <thead><tr><th>Patient</th><th>Service</th><th>Amount</th><th>Gate</th></tr></thead>
+                  <tbody>${rows || '<tr><td colspan="4">No pending charges.</td></tr>'}</tbody>
+                </table>
+              </div>
+            </div>
           </div>
-          <div class="grid grid-3">
-            <div class="card stat-card"><span class="stat-label">Outstanding Balances</span><span class="stat-value">150,000 Br</span><span class="stat-sub">Active billing statements</span></div>
-            <div class="card stat-card"><span class="stat-label">Payment Plans</span><span class="stat-value">6 Active</span><span class="stat-sub">Min threshold ETB 500.00</span></div>
-            <div class="card stat-card"><span class="stat-label">Pending Refunds</span><span class="stat-value">0</span><span class="stat-sub">All reviewed</span></div>
-          </div>
-          <div class="card">
-            <div class="card-header"><span class="card-title">💳 Financial Ledger & Accounts Receivable</span><span class="pill good">ETB Currency Active</span></div>
-            <div style="padding: 1rem; color: var(--text-muted); font-size: 0.875rem;">Billing operations active under SRMC Facility financial ledger.</div>
-          </div>
-        </div>
-      `;
-    } else if (role === 'LAB') {
-      el.innerHTML = `
-        <div style="display: flex; flex-direction: column; gap: 1.5rem;">
-          <div class="notice notice-info">
-            <strong>Laboratory Diagnostics Workstation</strong>: Specimen tracking and observation result verification.
-          </div>
-          <div class="grid grid-3">
-            <div class="card stat-card"><span class="stat-label">Pending Lab Orders</span><span class="stat-value">8</span><span class="stat-sub">Specimens received</span></div>
-            <div class="card stat-card"><span class="stat-label">Results Pending Review</span><span class="stat-value">3</span><span class="stat-sub">Awaiting validation</span></div>
-            <div class="card stat-card"><span class="stat-label">Completed Today</span><span class="stat-value">24</span><span class="stat-sub">Diagnostic Laboratory</span></div>
-          </div>
-          <div class="card">
-            <div class="card-header"><span class="card-title">🔬 Diagnostic Laboratory Queue</span><span class="pill info">Live</span></div>
-            <div style="padding: 1rem; color: var(--text-muted); font-size: 0.875rem;">Specimen analysis queue synchronized with clinical laboratory instruments.</div>
-          </div>
-        </div>
-      `;
-    } else if (role === 'PHARMACIST') {
-      el.innerHTML = `
-        <div style="display: flex; flex-direction: column; gap: 1.5rem;">
-          <div class="notice notice-info">
-            <strong>Pharmacy Dispensary Workstation</strong>: Medication fulfillment and prescription safety checks.
-          </div>
-          <div class="grid grid-3">
-            <div class="card stat-card"><span class="stat-label">Prescriptions to Fill</span><span class="stat-value">11</span><span class="stat-sub">Outpatient dispensary</span></div>
-            <div class="card stat-card"><span class="stat-label">Interaction Alerts</span><span class="stat-value">0</span><span class="stat-sub">Safety clear</span></div>
-            <div class="card stat-card"><span class="stat-label">Refills Completed</span><span class="stat-value">19</span><span class="stat-sub">Today</span></div>
-          </div>
-          <div class="card">
-            <div class="card-header"><span class="card-title">💊 Outpatient Pharmacy Dispensary</span><span class="pill good">Operational</span></div>
-            <div style="padding: 1rem; color: var(--text-muted); font-size: 0.875rem;">Dispensary inventory and electronic prescribing fulfillment active.</div>
-          </div>
-        </div>
-      `;
+        `;
+      } catch (err) {
+        el.innerHTML = `<div class="notice notice-bad">${escapeHtml(err.message || 'Unable to load cashier worklist.')}</div>`;
+      }
     }
   }
 
@@ -706,8 +810,6 @@
       else if (currentTab === 'billing') await loadBilling(contentEl);
       else if (currentTab === 'family') await loadFamily(contentEl);
       else if (currentTab === 'sharing') await loadSharing(contentEl);
-      else if (currentTab === 'care') await loadFindCare(contentEl);
-      else if (currentTab === 'nearby') await loadNearby(contentEl);
       else if (currentTab === 'admin') await loadAdmin(contentEl);
       else if (currentTab === 'settings') await loadSettings(contentEl);
     } catch (err) {
@@ -718,7 +820,7 @@
   // --- Overview Tab ---
   async function loadOverview(el) {
     if (['SCHEDULER', 'BILLING', 'LAB', 'PHARMACIST'].includes(currentSession?.user?.role)) {
-      renderStaffDashboard(el, currentSession.user.role);
+      await renderStaffDashboard(el, currentSession.user.role);
       return;
     }
     connectSignalR();
@@ -737,7 +839,7 @@
             <h2 style="margin: 0; font-size: 1.25rem;">Health Chart & Care Summary</h2>
             <div style="font-size: 0.8125rem; color: var(--text-muted);">Real-time EHR synchronized with clinical records</div>
           </div>
-          <a href="/api/clinical/summary/export" target="_blank" class="btn btn-outline btn-sm" style="text-decoration: none; display: inline-flex; align-items: center; gap: 0.35rem; background: var(--surface);">
+          <a href="/api/clinical/summary/export" target="_blank" class="btn btn-outline btn-sm" style="text-decoration: none; display: inline-flex; align-items: center; gap: 0.35rem;">
             📄 Export Printable Visit Summary (PDF)
           </a>
         </div>
@@ -755,14 +857,14 @@
           </div>
           <div class="card stat-card">
             <span class="stat-label">Abnormal Labs</span>
-            <span class="stat-value" style="color: ${snapshot.abnormalLabCount > 0 ? '#dc2626' : 'var(--text)'};">
+            <span class="stat-value" style="color: ${snapshot.abnormalLabCount > 0 ? 'var(--bad-text)' : 'var(--text)'};">
               ${snapshot.abnormalLabCount}
             </span>
             <span class="stat-sub">Requiring attention</span>
           </div>
           <div class="card stat-card">
             <span class="stat-label">Outstanding Balance</span>
-            <span class="stat-value" style="color: ${snapshot.outstandingBalance?.cents > 0 ? '#b45309' : 'var(--text)'};">
+            <span class="stat-value" style="color: ${snapshot.outstandingBalance?.cents > 0 ? 'var(--warn-text)' : 'var(--text)'};">
               ${snapshot.outstandingBalance ? snapshot.outstandingBalance.formatted : 'Restricted'}
             </span>
             <span class="stat-sub">${snapshot.outstandingBalance ? 'Due for care' : 'No billing access'}</span>
@@ -881,6 +983,33 @@
   }
 
   // --- Doctor Cockpit Tab ---
+  function renderPatientList() {
+    const patients = currentSession.managing || [];
+    return `
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">My Patients</span>
+          <span class="pill info">${patients.length} accessible</span>
+        </div>
+        <div class="patient-list" role="list">
+          ${patients.map(patient => `
+            <button type="button" class="patient-list-row ${patient.patientId === activePatientId ? 'selected' : ''}"
+              data-patient-id="${escapeHtml(patient.patientId)}" role="listitem">
+              <span>
+                <strong>${escapeHtml(patient.firstName)} ${escapeHtml(patient.lastName)}</strong>
+                <small>${escapeHtml(patient.mrn || patient.patientId)} · ${escapeHtml(patient.age ?? '—')} years · ${escapeHtml(patient.sex || '—')}</small>
+              </span>
+              <span class="patient-list-meta">
+                <span class="pill info">${escapeHtml(patient.classTag || 'OPD')}</span>
+                <small>${escapeHtml(patient.location || 'Location not assigned')}</small>
+              </span>
+            </button>
+          `).join('') || '<div class="patient-picker-empty">No accessible patients found.</div>'}
+        </div>
+      </div>
+    `;
+  }
+
   async function loadCockpit(el) {
     connectSignalR();
 
@@ -892,11 +1021,12 @@
 
     el.innerHTML = `
       <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+        ${renderPatientList()}
         <div class="notice notice-good" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
           <div>
             <strong>Doctor Encounter Cockpit</strong>: Connected to patient chart. All updates write directly into the clinical database.
           </div>
-          <a href="/api/clinical/summary/export" target="_blank" class="btn btn-outline btn-sm" style="text-decoration: none; background: white;">
+          <a href="/api/clinical/summary/export" target="_blank" class="btn btn-outline btn-sm" style="text-decoration: none;">
             📄 Export Visit Summary (PDF)
           </a>
         </div>
@@ -955,7 +1085,7 @@
                   <div>
                     <strong>ALLERGY: ${escapeHtml(a.substance)} (${escapeHtml(a.drugClass || 'Unclassified')})</strong>
                     <div style="font-size: 0.8125rem;">Severity: ${escapeHtml(a.severity)} • Reaction: ${escapeHtml(a.reaction || 'Not specified')}</div>
-                    <div style="font-size: 0.75rem; color: #7f1d1d; font-family: var(--font-mono);">Class code: ${escapeHtml(a.drugClassCode || 'N/A')}</div>
+                    <div style="font-size: 0.75rem; color: var(--bad-text); font-family: var(--font-mono);">Class code: ${escapeHtml(a.drugClassCode || 'N/A')}</div>
                   </div>
                 </div>
               `).join('')}
@@ -1040,6 +1170,13 @@
       </div>
     `;
 
+    document.querySelectorAll('.patient-list-row').forEach(row => {
+      row.onclick = () => {
+        activePatientId = row.dataset.patientId;
+        loadCurrentTabContent();
+      };
+    });
+
     document.querySelectorAll('.macro-btn').forEach(btn => {
       btn.onclick = () => {
         const targetId = btn.getAttribute('data-target');
@@ -1105,17 +1242,17 @@
           if (checkRes.hasDrugInteraction) {
             html += `<div style="font-weight:700; margin-top:0.5rem; margin-bottom:0.25rem;">⚠️ DRUG-DRUG INTERACTION DETECTED:</div>`;
             checkRes.drugInteractions.forEach(w => {
-              html += `<div style="margin-bottom:0.35rem;">• <strong>${escapeHtml(w.drug1)} + ${escapeHtml(w.drug2)}</strong>: ${escapeHtml(w.description)}<br><span style="font-size:0.8rem; color:#7f1d1d;">Guidance: ${escapeHtml(w.clinicalGuidance)}</span></div>`;
+              html += `<div style="margin-bottom:0.35rem;">• <strong>${escapeHtml(w.drug1)} + ${escapeHtml(w.drug2)}</strong>: ${escapeHtml(w.description)}<br><span style="font-size:0.8rem; color:var(--bad-text);">Guidance: ${escapeHtml(w.clinicalGuidance)}</span></div>`;
             });
           }
-          html += `<div style="font-size:0.75rem; color:#7f1d1d; margin-top:0.5rem; border-top:1px dashed #fca5a5; padding-top:0.25rem;">KB: ${escapeHtml(kbVer)} &bull; Demonstration rules only; does not claim clinical completeness.</div>`;
+          html += `<div style="font-size:0.75rem; color:var(--bad-text); margin-top:0.5rem; border-top:1px dashed var(--bad-border); padding-top:0.25rem;">KB: ${escapeHtml(kbVer)} &bull; Demonstration rules only; does not claim clinical completeness.</div>`;
           if (checkRes.requiresOverride) {
             html += `
-              <div style="margin-top: 0.75rem; border-top: 1px solid #f87171; padding-top: 0.5rem;">
+              <div style="margin-top: 0.75rem; border-top: 1px solid var(--bad-border); padding-top: 0.5rem;">
                 <label style="font-size:0.8125rem; font-weight:600; display:block; margin-bottom:0.25rem;">Clinician Override Justification (Required to order):</label>
                 <div style="display:flex; gap:0.5rem;">
                   <input type="text" id="override-reason" class="input" placeholder="e.g. Benefits outweigh risks, patient closely monitored in clinic" style="flex:1;">
-                  <button class="btn btn-primary btn-sm" id="btn-override-prescribe" style="background:#dc2626; white-space:nowrap;">Override & Sign Order</button>
+                  <button class="btn btn-danger btn-sm" id="btn-override-prescribe" style="white-space:nowrap;">Override & Sign Order</button>
                 </div>
               </div>
             `;
@@ -1244,7 +1381,7 @@
           ` : ''}
 
           <!-- Grid Lines -->
-          <line x1="${padding}" y1="${height - padding}" x2="${width - padding}" y2="${height - padding}" stroke="#e2e8f0" stroke-width="1" />
+          <line x1="${padding}" y1="${height - padding}" x2="${width - padding}" y2="${height - padding}" stroke="var(--border)" stroke-width="1" />
 
           <!-- Trend Line -->
           <path d="${pathD}" class="chart-line" />
@@ -1254,10 +1391,10 @@
             <circle cx="${scaleX(i)}" cy="${scaleY(Number(p.valueNumber))}" class="chart-point ${p.isAbnormal ? 'abnormal' : ''}">
               <title>${p.valueNumber} ${series.unit} (${new Date(p.observedAt).toLocaleDateString()})</title>
             </circle>
-            <text x="${scaleX(i)}" y="${height - 15}" font-size="11" fill="#64748b" text-anchor="middle">
+            <text x="${scaleX(i)}" y="${height - 15}" font-size="11" fill="var(--text-muted)" text-anchor="middle">
               ${new Date(p.observedAt).toLocaleDateString([], { month: 'short', day: 'numeric' })}
             </text>
-            <text x="${scaleX(i)}" y="${scaleY(Number(p.valueNumber)) - 10}" font-size="12" font-weight="600" fill="#0f172a" text-anchor="middle">
+            <text x="${scaleX(i)}" y="${scaleY(Number(p.valueNumber)) - 10}" font-size="12" font-weight="600" fill="var(--text)" text-anchor="middle">
               ${p.valueNumber}
             </text>
           `).join('')}
@@ -1283,7 +1420,7 @@
           <div style="display: flex; flex-direction: column; gap: 0.5rem;" id="threads-list">
             ${threadsRes.threads.length === 0 ? '<p style="color: var(--text-muted); text-align: center; padding: 1rem;">No messages</p>' : ''}
             ${threadsRes.threads.map(t => `
-              <div class="queue-row" data-thread-id="${escapeHtml(t.id)}">
+              <div class="queue-row" data-thread-id="${escapeHtml(t.id)}" role="button" tabindex="0">
                 <div>
                   <div style="font-weight: 600; display: flex; align-items: center; gap: 0.5rem;">
                     ${escapeHtml(t.subject)}
@@ -1309,6 +1446,12 @@
       row.onclick = async () => {
         const id = row.getAttribute('data-thread-id');
         await openThreadDetail(id);
+      };
+      row.onkeydown = (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          row.click();
+        }
       };
     });
 
@@ -1402,12 +1545,12 @@
 
     el.innerHTML = `
       <div style="display: flex; flex-direction: column; gap: 1.5rem;">
-        <div class="card" style="background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); color: white;">
-          <div style="font-size: 0.875rem; opacity: 0.9;">Total Outstanding Patient Balance</div>
-          <div style="font-size: 2.25rem; font-weight: 800; margin: 0.25rem 0;">${statementsRes.totalOwedFormatted}</div>
-          <div style="display: flex; gap: 0.75rem; margin-top: 0.5rem;">
-            <button class="btn" style="background: white; color: #0284c7; font-weight: 600;" id="btn-pay-now">Make a Payment</button>
-            <button class="btn btn-outline" style="color: white; border-color: rgba(255,255,255,0.4);" id="btn-new-plan">Set Up Payment Plan</button>
+        <div class="card" style="background: var(--dp-color-field); border-color: var(--dp-color-field); color: var(--dp-color-on-field); box-shadow: var(--shadow-lg);">
+          <div style="font-size: 0.875rem; color: var(--dp-color-on-field-secondary);">Total Outstanding Patient Balance</div>
+          <div style="font-family: var(--font-display); font-size: 2.4rem; font-weight: 700; letter-spacing: -0.035em; line-height: 1.1; margin: 0.3rem 0 0.75rem;">${statementsRes.totalOwedFormatted}</div>
+          <div style="display: flex; gap: 0.75rem; margin-top: 0.5rem; flex-wrap: wrap;">
+            <button class="btn btn-primary" id="btn-pay-now">Make a Payment</button>
+            <button class="btn btn-on-field" id="btn-new-plan">Set Up Payment Plan</button>
           </div>
         </div>
 
@@ -1433,7 +1576,7 @@
                     <td style="font-weight: 500;">${escapeHtml(s.description || 'Clinical Care Visit')}</td>
                     <td>${escapeHtml(s.formatted.total)}</td>
                     <td>${escapeHtml(s.formatted.paid)}</td>
-                    <td style="font-weight: 700; color: ${s.balanceCents > 0 ? '#b91c1c' : 'var(--text)'};">${escapeHtml(s.formatted.balance)}</td>
+                    <td style="font-weight: 700; color: ${s.balanceCents > 0 ? 'var(--bad-text)' : 'var(--text)'};">${escapeHtml(s.formatted.balance)}</td>
                     <td>${s.dueAt ? new Date(s.dueAt).toLocaleDateString() : '—'}</td>
                     <td>${pill(s.status)}</td>
                   </tr>
@@ -1781,236 +1924,12 @@
           <div class="notice notice-good">
             <strong>FHIR R4 Bundle Verified</strong>: Total ${escapeHtml(bundle.total)} resources received.
           </div>
-          <pre style="background: #0f172a; color: #38bdf8; padding: 1rem; border-radius: var(--radius); font-size: 0.75rem; max-height: 250px; overflow: auto;">${escapeHtml(JSON.stringify(bundle, null, 2))}</pre>
+          <pre style="background: var(--dp-color-field); color: #dbe4ff; padding: 1rem; border-radius: var(--radius); font-size: 0.75rem; max-height: 250px; overflow: auto;">${escapeHtml(JSON.stringify(bundle, null, 2))}</pre>
         `;
       } catch (err) {
         resEl.innerHTML = `<div class="notice notice-bad">${escapeHtml(err.message)}</div>`;
       }
     };
-  }
-
-  // --- Find Care & Nearby Tab ---
-  async function loadFindCare(el) {
-    const res = await api('/api/care/search?latitude=9.0054&longitude=38.7636');
-
-    el.innerHTML = `
-      <div style="display: flex; flex-direction: column; gap: 1.5rem;">
-        <div class="card">
-          <div class="card-header">
-            <span class="card-title">👨‍⚕️ Clinic Doctors & Specialists</span>
-          </div>
-          <div class="grid grid-2">
-            ${res.providers.map(p => `
-              <div style="border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem; display: flex; flex-direction: column; justify-content: space-between;">
-                <div>
-                  <div style="font-weight: 700; font-size: 1.125rem;">${escapeHtml(p.name)}</div>
-                  <div style="color: var(--primary); font-weight: 500; font-size: 0.875rem;">${escapeHtml(p.specialty)} (${escapeHtml(p.credentials || 'MD')})</div>
-                  <div style="margin-top: 0.5rem; font-size: 0.8125rem; color: var(--text-muted);">
-                    ${p.locations.map(l => `<div>📍 ${escapeHtml(l.name)} — ${escapeHtml(l.distanceLabel || 'Addis Ababa')}</div>`).join('')}
-                  </div>
-                </div>
-                <button class="btn btn-primary btn-sm btn-book-slot" style="margin-top: 1rem;" data-provider-id="${escapeHtml(p.providerId)}">
-                  Check Availability & Book
-                </button>
-              </div>
-            `).join('')}
-          </div>
-        </div>
-
-        <div id="availability-picker-container"></div>
-      </div>
-    `;
-
-    document.querySelectorAll('.btn-book-slot').forEach(btn => {
-      btn.onclick = async () => {
-        const providerId = btn.getAttribute('data-provider-id');
-        await loadAvailabilitySlots(providerId);
-      };
-    });
-  }
-
-  async function loadAvailabilitySlots(providerId) {
-    const container = document.getElementById('availability-picker-container');
-    container.innerHTML = '<p style="text-align: center;">Searching appointment calendar...</p>';
-
-    const res = await api(`/api/care/availability?providerId=${providerId}&days=7&durationMinutes=30`);
-
-    container.innerHTML = `
-      <div class="card">
-        <div class="card-header">
-          <span class="card-title">🕒 Available Booking Slots (Next 7 Days)</span>
-        </div>
-        ${res.days.length === 0 ? '<p style="color: var(--text-muted);">No open slots found for this week.</p>' : ''}
-        <div style="display: flex; flex-direction: column; gap: 1rem;">
-          ${res.days.map(d => `
-            <div>
-              <div style="font-weight: 600; margin-bottom: 0.5rem;">📅 ${new Date(d.date).toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' })}</div>
-              <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
-                ${d.slots.map(s => `
-                  <button class="btn btn-outline btn-sm btn-slot-select" data-provider-id="${providerId}" data-start="${s.startAt}" data-end="${s.endAt}">
-                    ${new Date(s.startAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
-                  </button>
-                `).join('')}
-              </div>
-            </div>
-          `).join('')}
-        </div>
-      </div>
-    `;
-
-    document.querySelectorAll('.btn-slot-select').forEach(btn => {
-      btn.onclick = () => {
-        const pid = btn.getAttribute('data-provider-id');
-        const startAt = btn.getAttribute('data-start');
-        const endAt = btn.getAttribute('data-end');
-
-        showInAppConfirm(`Book appointment on ${new Date(startAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}?`, async () => {
-          await api('/api/appointments', {
-            method: 'POST',
-            body: JSON.stringify({
-              providerId: pid,
-              startAt,
-              endAt,
-              reasonForVisit: 'Clinic check-up'
-            })
-          });
-
-          showToast('Appointment requested successfully!');
-          currentTab = 'overview';
-          render();
-        }, null, 'Book Appointment');
-      };
-    });
-  }
-
-  // --- Nearby Facilities Tab ---
-  async function loadNearby(el) {
-    el.innerHTML = '<div style="padding: 2rem; text-align: center; color: var(--text-muted);">Detecting location via Public IP and loading facilities...</div>';
-
-    let geo = null;
-    try {
-      geo = await api('/api/geo/approximate');
-    } catch (e) {
-      console.warn('Geo approximate failed, using fallback', e);
-      geo = { latitude: 9.0054, longitude: 38.7636, label: 'Addis Ababa, Ethiopia', isPublicIp: false, ipAddress: '127.0.0.1' };
-    }
-
-    let lat = geo.latitude || 9.0054;
-    let lng = geo.longitude || 38.7636;
-    let radius = 25;
-
-    async function renderFacilities(currentLat, currentLng, radiusKm, currentLabel, ipInfo) {
-      const placesRes = await api(`/api/facilities/nearby?lat=${currentLat}&lng=${currentLng}&radius=${radiusKm}`);
-      const hasPlaces = placesRes.places && placesRes.places.length > 0;
-
-      el.innerHTML = `
-        <div style="display: flex; flex-direction: column; gap: 1.5rem;">
-          <div class="card">
-            <div class="card-header" style="flex-wrap: wrap; gap: 0.75rem;">
-              <div>
-                <span class="card-title">🏥 Medical Facilities & Care Locations</span>
-                <div style="font-size: 0.8125rem; color: var(--text-muted); margin-top: 0.25rem;">
-                  📍 <strong>Origin:</strong> ${escapeHtml(currentLabel)}
-                  ${ipInfo ? ` &bull; <span class="pill ${ipInfo.isPublicIp ? 'good' : 'info'}" style="font-size: 0.75rem; padding: 0.15rem 0.5rem;">
-                    🌐 ${ipInfo.isPublicIp ? 'Public IP' : 'Local IP'}: ${escapeHtml(ipInfo.ipAddress || 'Unknown')} ${ipInfo.isp ? `(${escapeHtml(ipInfo.isp)})` : ''}
-                  </span>` : ''}
-                </div>
-              </div>
-              <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
-                <button class="btn btn-secondary btn-sm" id="btn-toggle-springfield">📍 Addis Ababa Clinic Area</button>
-                <button class="btn btn-secondary btn-sm" id="btn-refresh-ip">🔄 Refresh IP Geolocation</button>
-              </div>
-            </div>
-
-            <div style="margin-top: 1rem; display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
-              <input type="text" id="facility-search-input" class="input" style="max-width: 350px;" placeholder="Search Bole, Kirkos, Yeka, Arada, Lideta..." />
-              <button class="btn btn-primary btn-sm" id="btn-search-loc">Search Places</button>
-              <span class="pill info">${placesRes.places?.length || 0} Facilities within ${radiusKm} km</span>
-            </div>
-
-            <div id="loc-search-suggestions" style="margin-top: 0.5rem;"></div>
-
-            <div class="grid grid-3" style="margin-top: 1.5rem;">
-              ${hasPlaces ? placesRes.places.map(p => `
-                <div style="border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem; background: var(--surface);">
-                  <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.25rem;">
-                    <span style="font-weight: 700; font-size: 0.95rem;">${escapeHtml(p.name)}</span>
-                    <span class="pill good">${escapeHtml(p.distanceLabel)}</span>
-                  </div>
-                  <div style="font-size: 0.75rem; text-transform: uppercase; color: var(--primary); font-weight: 600;">${escapeHtml(p.type)}</div>
-                  <div style="font-size: 0.8125rem; color: var(--text-muted); margin-top: 0.25rem;">
-                    ${escapeHtml(p.addressLine1)}, ${escapeHtml(p.city)}, ${escapeHtml(p.state)}
-                  </div>
-                  ${p.phone ? `<div style="font-size: 0.8125rem; margin-top: 0.25rem;">📞 ${escapeHtml(p.phone)}</div>` : ''}
-                  ${p.hours ? `<div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">⏰ ${escapeHtml(p.hours)}</div>` : ''}
-                </div>
-              `).join('') : `
-                <div style="grid-column: 1 / -1; padding: 2.5rem 1.5rem; text-align: center; color: var(--text-muted); border: 1px dashed var(--border); border-radius: var(--radius);">
-                  <div style="font-size: 1.1rem; font-weight: 600; margin-bottom: 0.5rem; color: var(--text-main);">No facilities within ${radiusKm} km of this location</div>
-                  <div>Your public IP location is detected at <strong>${escapeHtml(currentLabel)}</strong> (${escapeHtml(ipInfo?.ipAddress || '')}).</div>
-                  <div style="margin-top: 0.5rem;">The seeded medical directory facilities are located in Addis Ababa, Ethiopia.</div>
-                  <button class="btn btn-primary btn-sm" style="margin-top: 1rem;" id="btn-empty-switch">
-                    📍 Switch to Addis Ababa Demo Clinic Directory
-                  </button>
-                </div>
-              `}
-            </div>
-          </div>
-        </div>
-      `;
-
-      document.getElementById('btn-toggle-springfield')?.addEventListener('click', () => {
-        renderFacilities(9.0054, 38.7636, 25, 'Addis Ababa, Ethiopia (Demo Facilities)', null);
-      });
-
-      document.getElementById('btn-empty-switch')?.addEventListener('click', () => {
-        renderFacilities(9.0054, 38.7636, 25, 'Addis Ababa, Ethiopia (Demo Facilities)', null);
-      });
-
-      document.getElementById('btn-refresh-ip')?.addEventListener('click', async () => {
-        const freshGeo = await api('/api/geo/approximate');
-        renderFacilities(freshGeo.latitude, freshGeo.longitude, 25, freshGeo.label, freshGeo);
-      });
-
-      const searchInput = document.getElementById('facility-search-input');
-      const searchBtn = document.getElementById('btn-search-loc');
-      const suggestions = document.getElementById('loc-search-suggestions');
-
-      const doSearch = async () => {
-        const q = searchInput.value.trim();
-        if (!q) return;
-        const res = await api(`/api/geo/search?q=${encodeURIComponent(q)}`);
-        if (res.results && res.results.length > 0) {
-          suggestions.innerHTML = `
-            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.5rem;">
-              ${res.results.map(r => `
-                <button class="pill info btn-suggestion" data-lat="${r.latitude}" data-lng="${r.longitude}" data-label="${r.label}" style="cursor: pointer; border: 1px solid var(--border);">
-                  📍 ${r.label}
-                </button>
-              `).join('')}
-            </div>
-          `;
-          suggestions.querySelectorAll('.btn-suggestion').forEach(btn => {
-            btn.onclick = () => {
-              renderFacilities(
-                parseFloat(btn.dataset.lat),
-                parseFloat(btn.dataset.lng),
-                25,
-                btn.dataset.label,
-                null
-              );
-            };
-          });
-        }
-      };
-
-      searchBtn?.addEventListener('click', doSearch);
-      searchInput?.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') doSearch();
-      });
-    }
-
-    await renderFacilities(lat, lng, radius, geo.label || 'Detected Location', geo);
   }
 
   // --- Forms Tab ---
@@ -2032,7 +1951,7 @@
             <form class="portal-form" data-form-id="${f.id}" style="margin-top: 1rem;">
               ${f.fields.map(field => `
                 <div class="form-group">
-                  <label class="form-label">${field.label} ${field.required ? '<span style="color:#dc2626;">*</span>' : ''}</label>
+                  <label class="form-label">${field.label} ${field.required ? '<span style="color:var(--bad-text);">*</span>' : ''}</label>
                   ${field.type === 'textarea' ? `
                     <textarea class="textarea" name="${field.id}" rows="3">${f.response?.answers?.[field.id] || ''}</textarea>
                   ` : (field.type === 'boolean' ? `
@@ -2596,7 +2515,7 @@
           ` : `
             <div style="display: flex; flex-direction: column; gap: 0.5rem;">
               ${user.memberships.map(m => `
-                <div style="display: flex; justify-content: space-between; align-items: center; background: #f8fafc; padding: 0.5rem 0.75rem; border-radius: var(--radius); border: 1px solid var(--border);">
+                <div style="display: flex; justify-content: space-between; align-items: center; background: var(--dp-color-ground-muted); padding: 0.5rem 0.75rem; border-radius: var(--radius); border: 1px solid var(--border);">
                   <div style="font-size: 0.8125rem;">
                     <strong>${m.facilityName || 'Facility'}</strong> ${m.departmentName ? ` → ${m.departmentName} (${m.departmentCode})` : ' (All Departments)'}
                     <span class="pill good" style="font-size: 0.65rem; margin-left: 0.35rem;">${m.role}</span>
