@@ -708,6 +708,7 @@ builder.Services.AddCors(options =>
     });
 });
 
+builder.Services.AddSingleton<MedicalPortal.Web.IDatabaseRoleInspector, MedicalPortal.Web.DatabaseRoleInspector>();
 var app = builder.Build();
 
 // Initialize ambient FieldEncryptionAccessor for EF Core ValueConverters
@@ -718,7 +719,8 @@ if (app.Environment.IsProduction() &&
     app.Services.GetRequiredService<MedicalPortalDbContext>().Database.ProviderName ==
         "Npgsql.EntityFrameworkCore.PostgreSQL")
 {
-    await Program.ValidateProductionDatabaseRoleAsync(
+    var inspector = app.Services.GetRequiredService<MedicalPortal.Web.IDatabaseRoleInspector>();
+    await inspector.InspectAsync(
         app.Services.GetRequiredService<MedicalPortalDbContext>(),
         rawConnectionString!);
 }
