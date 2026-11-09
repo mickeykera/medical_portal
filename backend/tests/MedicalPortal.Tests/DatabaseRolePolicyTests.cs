@@ -96,7 +96,12 @@ public class DatabaseRolePolicyTests
     public async Task PortalAppPassesRolePolicy()
     {
         var password = Environment.GetEnvironmentVariable("PORTAL_APP_PASSWORD");
-        Skip.If(string.IsNullOrWhiteSpace(password), "PORTAL_APP_PASSWORD is not set");
+        if (string.IsNullOrWhiteSpace(password))
+        {
+            if (Environment.GetEnvironmentVariable("CI") == "true")
+                Assert.Fail("PORTAL_APP_PASSWORD is not set");
+            return;
+        }
 
         var connectionString =
             $"Host=localhost;Port=5432;Database=medical_portal;Username=portal_app;Password={password}";
@@ -110,10 +115,39 @@ public class DatabaseRolePolicyTests
     }
 
     [SkippableFact]
+    public async Task PortalAppConnectionUsesPortalAppRole()
+    {
+        var password = Environment.GetEnvironmentVariable("PORTAL_APP_PASSWORD");
+        if (string.IsNullOrWhiteSpace(password))
+        {
+            if (Environment.GetEnvironmentVariable("CI") == "true")
+                Assert.Fail("PORTAL_APP_PASSWORD is not set");
+            return;
+        }
+
+        var connectionString =
+            $"Host=localhost;Port=5432;Database=medical_portal;Username=portal_app;Password={password}";
+
+        await using var connection = new NpgsqlConnection(connectionString);
+        await connection.OpenAsync();
+
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandText = "SELECT current_user";
+        var currentUser = (string)await cmd.ExecuteScalarAsync()!;
+
+        Assert.Equal("portal_app", currentUser);
+    }
+
+    [SkippableFact]
     public async Task SuperuserFailsRolePolicy()
     {
         var connectionString = Environment.GetEnvironmentVariable("POSTGRES_SUPERUSER_CONNECTION_STRING");
-        Skip.If(string.IsNullOrWhiteSpace(connectionString), "POSTGRES_SUPERUSER_CONNECTION_STRING is not set");
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            if (Environment.GetEnvironmentVariable("CI") == "true")
+                Assert.Fail("POSTGRES_SUPERUSER_CONNECTION_STRING is not set");
+            return;
+        }
 
         await using var connection = new NpgsqlConnection(connectionString);
         await connection.OpenAsync();

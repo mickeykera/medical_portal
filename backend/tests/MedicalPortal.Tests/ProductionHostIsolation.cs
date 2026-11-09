@@ -18,6 +18,7 @@ public sealed class ClearDevelopmentEnvironmentVariables : IDisposable
         ("DEV_QUICK_LOGIN", Environment.GetEnvironmentVariable("DEV_QUICK_LOGIN")),
         ("STRIPE_USE_FAKE", Environment.GetEnvironmentVariable("STRIPE_USE_FAKE")),
         ("HMS_USE_FAKE", Environment.GetEnvironmentVariable("HMS_USE_FAKE")),
+        ("JWT_SECRET", Environment.GetEnvironmentVariable("JWT_SECRET")),
     };
 
     public ClearDevelopmentEnvironmentVariables()
