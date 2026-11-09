@@ -645,6 +645,7 @@ public class MfaAndSessionTests : IClassFixture<WebApplicationFactory<Program>>
     [Fact]
     public void Production_StartupGuard_RejectsDevTotpShortcutOrDevSecret()
     {
+        using var envIsolation = new ClearDevelopmentEnvironmentVariables();
         using var customFactory = new WebApplicationFactory<Program>()
             .WithWebHostBuilder(builder =>
             {
@@ -657,6 +658,7 @@ public class MfaAndSessionTests : IClassFixture<WebApplicationFactory<Program>>
                 builder.UseSetting("Hms:BaseUrl", "https://hms.internal");
                 builder.UseSetting("Hms:WebhookSecret", "prod-webhook-secret-value-12345");
                 builder.UseSetting("Auth:AllowDevTotpShortcut", "true");
+                builder.ConfigureServices(FakeDatabaseRoleInspectorRegistration.Register);
             });
 
         var ex = Assert.Throws<InvalidOperationException>(() =>
