@@ -358,11 +358,7 @@ in that run were caused by the test process not exporting
 password exported passed 6/6. A second full run still has 22 non-RLS failures,
 so Item 1 is not complete and no later item is started.
 
-The test count changed from the original 424 baseline to 426 after the
-PostgreSQL infrastructure tests, and to 432 after the six RLS tests and
-related coverage. No tests were added in Phases 5-9; the prior unchanged
-424 count was therefore evidence that those phase gates had not added
-requirement-specific tests.
+The test count changed from the original 424 baseline to 426 after the PostgreSQL infrastructure tests, and to 432 after the six RLS tests and related coverage, and to 453 after the final cleanup. No tests were added in Phases 5-9; the prior unchanged 424 count was therefore evidence that those phase gates had not added requirement-specific tests.
 
 `DISABLE_MFA` and `MULTI_TENANCY_ENABLED` were legacy environment variables
 present in the development compose configuration and in a manual test
