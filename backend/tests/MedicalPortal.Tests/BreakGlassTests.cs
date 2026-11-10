@@ -28,10 +28,12 @@ public class BreakGlassTests : IClassFixture<WebApplicationFactory<Program>>
         var client = _factory.CreateClient();
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<MedicalPortalDbContext>();
+        using var tx = db.BeginDefaultTestTransaction();
 
         var clinician = db.UserAccounts.Include(u => u.Person).First(u => u.Email == "apatel@clinic.example");
         var patient = db.UserAccounts.Include(u => u.Person).First(u => u.Email == "dana@example.com");
 
+        tx.Commit();
         return (client, clinician, patient);
     }
 
@@ -39,6 +41,7 @@ public class BreakGlassTests : IClassFixture<WebApplicationFactory<Program>>
     {
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<MedicalPortalDbContext>();
+        await using var tx = await db.BeginDefaultTestTransactionAsync();
 
         var person = new Person
         {
@@ -69,6 +72,7 @@ public class BreakGlassTests : IClassFixture<WebApplicationFactory<Program>>
         });
 
         await db.SaveChangesAsync();
+        await tx.CommitAsync();
         return patient;
     }
 
@@ -77,7 +81,10 @@ public class BreakGlassTests : IClassFixture<WebApplicationFactory<Program>>
         using var scope = _factory.Services.CreateScope();
         var tokenService = scope.ServiceProvider.GetRequiredService<ITokenService>();
         var db = scope.ServiceProvider.GetRequiredService<MedicalPortalDbContext>();
-        return db.CreateAuthenticatedSession(tokenService, account, account.PersonId);
+        using var tx = db.BeginDefaultTestTransaction();
+        var token = db.CreateAuthenticatedSession(tokenService, account, account.PersonId);
+        tx.Commit();
+        return token;
     }
 
     [Fact]
@@ -172,11 +179,14 @@ public class BreakGlassTests : IClassFixture<WebApplicationFactory<Program>>
         // Verify high-priority AuditLog was recorded
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<MedicalPortalDbContext>();
+        await using var tx = await db.BeginDefaultTestTransactionAsync();
 
         var audit = await db.AuditLogs
             .Where(a => a.Action == "BREAK_GLASS_EMERGENCY_OVERRIDE" && a.PatientId == strangerPatient.Id)
             .OrderByDescending(a => a.CreatedAt)
             .FirstOrDefaultAsync();
+
+        await tx.CommitAsync();
 
         Assert.NotNull(audit);
         Assert.Equal(clinician.Id, audit.ActorUserAccountId);
@@ -238,6 +248,7 @@ public class BreakGlassTests : IClassFixture<WebApplicationFactory<Program>>
         using (var scope = _factory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<MedicalPortalDbContext>();
+            await using var tx = await db.BeginDefaultTestTransactionAsync();
             var expiredOverride = new BreakGlassOverride
             {
                 ClinicianUserAccountId = clinician.Id,
@@ -248,6 +259,7 @@ public class BreakGlassTests : IClassFixture<WebApplicationFactory<Program>>
             };
             db.BreakGlassOverrides.Add(expiredOverride);
             await db.SaveChangesAsync();
+            await tx.CommitAsync();
         }
 
         client.DefaultRequestHeaders.Remove("x-patient-id");
