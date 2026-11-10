@@ -22,12 +22,12 @@ jobs:
 
     steps:
       - name: Checkout Source Code
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        uses: actions/checkout@v4.2.2
         with:
           fetch-depth: 0
 
       - name: Setup .NET 8 SDK
-        uses: actions/setup-dotnet@3951f33f4647c50a233b857401174bcd54d45fa0 # v4.1.0
+        uses: actions/setup-dotnet@v4.3.0
         with:
           dotnet-version: '8.0.x'
 
@@ -72,12 +72,12 @@ jobs:
 
     steps:
       - name: Checkout Source Code (Complete Checkout)
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        uses: actions/checkout@v4.2.2
         with:
           fetch-depth: 0
 
       - name: Setup .NET 8 SDK
-        uses: actions/setup-dotnet@3951f33f4647c50a233b857401174bcd54d45fa0 # v4.1.0
+        uses: actions/setup-dotnet@v4.3.0
         with:
           dotnet-version: '8.0.x'
 
@@ -102,7 +102,7 @@ jobs:
       - name: Run Full Unit & Integration Test Suite with Coverage
         env:
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/medical_portal_test
-          POSTGRES_CONNECTION_STRING: Host=localhost;Port=5432;Database=medical_portal_test;Username=portal_app;Password=postgres
+          POSTGRES_CONNECTION_STRING: Host=localhost;Port=5432;Database=medical_portal_test;Username=portal_app;Password=ci-app-password-generated-for-test
           PORTAL_APP_PASSWORD: ci-app-password-generated-for-test
           REDIS_CONNECTION_STRING: localhost:6379
           JWT_SECRET: ThisIsACISecretKeyWithAtLeast32BytesLength1234567!
@@ -116,7 +116,7 @@ jobs:
           -- -parallel none
 
       - name: Publish Test Results
-        uses: actions/upload-artifact@5d5d22a31266ced268874388b861e4b58bb5c2f3 # v4.3.1
+        uses: actions/upload-artifact@v4.3.1
         if: always()
         with:
           name: test-results-and-coverage
@@ -132,10 +132,10 @@ jobs:
 
     steps:
       - name: Checkout Source Code
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        uses: actions/checkout@v4.2.2
 
       - name: Setup .NET 8 SDK
-        uses: actions/setup-dotnet@3951f33f4647c50a233b857401174bcd54d45fa0 # v4.1.0
+        uses: actions/setup-dotnet@v4.3.0
         with:
           dotnet-version: '8.0.x'
 
@@ -149,7 +149,7 @@ jobs:
           fi
 
       - name: Run Trivy Filesystem Dependency Scan
-        uses: aquasecurity/trivy-action@18f2510ee396bbf400402947b394f2dd8c87dbb0 # v0.28.0
+        uses: aquasecurity/trivy-action@v0.28.0
         with:
           scan-type: 'fs'
           scan-ref: '.'
@@ -167,13 +167,13 @@ jobs:
 
     steps:
       - name: Checkout Source Code
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        uses: actions/checkout@v4.2.2
 
       - name: Build Production Docker Image
         run: docker build -t medical-portal:${{ github.sha }} .
 
       - name: Run Trivy Container Vulnerability Scan
-        uses: aquasecurity/trivy-action@18f2510ee396bbf400402947b394f2dd8c87dbb0 # v0.28.0
+        uses: aquasecurity/trivy-action@v0.28.0
         with:
           image-ref: 'medical-portal:${{ github.sha }}'
           format: 'table'
@@ -190,11 +190,11 @@ jobs:
 
     steps:
       - name: Checkout Source Code
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        uses: actions/checkout@v4.2.2
         with:
           fetch-depth: 0
 
       - name: Run Gitleaks Secret Detector
-        uses: gitleaks/gitleaks-action@70a5681cb60f02998a4d46ad50f8369315bc99fc # v2.3.4
+        uses: gitleaks/gitleaks-action@v2.3.4
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

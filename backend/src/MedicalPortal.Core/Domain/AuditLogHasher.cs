@@ -38,45 +38,51 @@ public static class AuditLogHasher
 
     public static bool VerifyIntegrity(IReadOnlyList<AuditLog> orderedLogs, out Guid? corruptedLogId, out string? failureReason)
     {
-        string? expectedPrev = null;
-        long? expectedSeq = null;
+        var logsByTenant = orderedLogs.GroupBy(l => l.TenantId).OrderBy(g => g.Key);
 
-        for (int i = 0; i < orderedLogs.Count; i++)
+        foreach (var tenantGroup in logsByTenant)
         {
-            var log = orderedLogs[i];
+            var tenantLogs = tenantGroup.OrderBy(l => l.SequenceNumber).ToList();
+            string? expectedPrev = null;
+            long? expectedSeq = null;
 
-            if (i == 0)
+            for (int i = 0; i < tenantLogs.Count; i++)
             {
-                expectedPrev = log.PreviousHash;
+                var log = tenantLogs[i];
+
+                if (i == 0)
+                {
+                    expectedPrev = log.PreviousHash;
+                    expectedSeq = log.SequenceNumber;
+                }
+                else
+                {
+                    if (expectedSeq.HasValue && log.SequenceNumber != expectedSeq.Value + 1)
+                    {
+                        corruptedLogId = log.Id;
+                        failureReason = $"Sequence gap or tampering detected on record {log.Id} (tenant {log.TenantId}). Expected SequenceNumber: {expectedSeq.Value + 1}, Got: {log.SequenceNumber}";
+                        return false;
+                    }
+
+                    if (log.PreviousHash != expectedPrev)
+                    {
+                        corruptedLogId = log.Id;
+                        failureReason = $"PreviousHash mismatch on record {log.Id} (tenant {log.TenantId}). Expected: '{expectedPrev}', Got: '{log.PreviousHash}'";
+                        return false;
+                    }
+                }
+
+                var computed = ComputeHash(log, log.PreviousHash);
+                if (!string.Equals(computed, log.Hash, StringComparison.OrdinalIgnoreCase))
+                {
+                    corruptedLogId = log.Id;
+                    failureReason = $"Hash mismatch on record {log.Id} (tenant {log.TenantId}). Computed: '{computed}', Stored: '{log.Hash}'";
+                    return false;
+                }
+
+                expectedPrev = log.Hash;
                 expectedSeq = log.SequenceNumber;
             }
-            else
-            {
-                if (expectedSeq.HasValue && log.SequenceNumber != expectedSeq.Value + 1)
-                {
-                    corruptedLogId = log.Id;
-                    failureReason = $"Sequence gap or tampering detected on record {log.Id}. Expected SequenceNumber: {expectedSeq.Value + 1}, Got: {log.SequenceNumber}";
-                    return false;
-                }
-
-                if (log.PreviousHash != expectedPrev)
-                {
-                    corruptedLogId = log.Id;
-                    failureReason = $"PreviousHash mismatch on record {log.Id}. Expected: '{expectedPrev}', Got: '{log.PreviousHash}'";
-                    return false;
-                }
-            }
-
-            var computed = ComputeHash(log, log.PreviousHash);
-            if (!string.Equals(computed, log.Hash, StringComparison.OrdinalIgnoreCase))
-            {
-                corruptedLogId = log.Id;
-                failureReason = $"Hash mismatch on record {log.Id}. Computed: '{computed}', Stored: '{log.Hash}'";
-                return false;
-            }
-
-            expectedPrev = log.Hash;
-            expectedSeq = log.SequenceNumber;
         }
 
         corruptedLogId = null;

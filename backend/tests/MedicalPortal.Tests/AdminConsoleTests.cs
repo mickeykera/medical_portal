@@ -21,8 +21,9 @@ public class AdminConsoleTests : IClassFixture<WebApplicationFactory<Program>>
         _factory = factory;
     }
 
-    private (UserAccount account, string token) CreateTestUser(MedicalPortalDbContext db, ITokenService tokens, IPasswordHasher hasher, UserRole role)
+private (UserAccount account, string token) CreateTestUser(MedicalPortalDbContext db, ITokenService tokens, IPasswordHasher hasher, UserRole role)
     {
+        using var tx = db.BeginDefaultTestTransaction();
         var email = $"test.{role.ToString().ToLowerInvariant()}.{Guid.NewGuid():N}@clinic.example";
         var person = new Person
         {
@@ -45,6 +46,7 @@ public class AdminConsoleTests : IClassFixture<WebApplicationFactory<Program>>
         db.SaveChanges();
 
         var token = db.CreateAuthenticatedSession(tokens, account, person.Id);
+        tx.Commit();
         return (account, token);
     }
 

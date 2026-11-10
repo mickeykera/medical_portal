@@ -13,6 +13,7 @@ public static class TestAuthHelper
         UserAccount account,
         Guid? personId = null)
     {
+        var now = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Unspecified);
         var sid = Convert.ToHexString(RandomNumberGenerator.GetBytes(16)).ToLowerInvariant();
         var session = new UserSession
         {
@@ -20,9 +21,9 @@ public static class TestAuthHelper
             UserAccountId = account.Id,
             Sid = sid,
             RefreshTokenHash = Convert.ToHexString(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(sid))),
-            CreatedAt = DateTime.UtcNow,
-            LastActiveAt = DateTime.UtcNow,
-            ExpiresAt = DateTime.UtcNow.AddDays(7)
+            CreatedAt = now,
+            LastActiveAt = now,
+            ExpiresAt = DateTime.SpecifyKind(DateTime.UtcNow.AddDays(7), DateTimeKind.Unspecified)
         };
         db.UserSessions.Add(session);
         db.SaveChanges();

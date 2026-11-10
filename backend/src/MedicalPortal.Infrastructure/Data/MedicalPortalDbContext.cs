@@ -561,7 +561,7 @@ public class MedicalPortalDbContext : DbContext
         // AuditLog mapping & indices
         modelBuilder.Entity<AuditLog>(b =>
         {
-            b.HasIndex(a => a.SequenceNumber);
+            b.HasIndex(a => new { a.TenantId, a.SequenceNumber }).IsUnique();
             b.HasIndex(a => a.PatientId);
             b.HasIndex(a => a.ActorUserAccountId);
             b.HasIndex(a => a.CreatedAt);
@@ -1100,26 +1100,40 @@ public class MedicalPortalDbContext : DbContext
 
         if (addedLogs.Count == 0) return;
 
-        var lastRecord = AuditLogs.AsNoTracking()
-            .Where(a => !string.IsNullOrEmpty(a.Hash))
-            .OrderByDescending(a => a.SequenceNumber)
-            .Select(a => new { a.Hash, a.SequenceNumber })
-            .FirstOrDefault();
+        var logsByTenant = addedLogs.GroupBy(l => l.TenantId);
 
-        long currentSeq = lastRecord?.SequenceNumber ?? 0;
-        string? lastHash = lastRecord?.Hash;
-
-        foreach (var log in addedLogs)
+        foreach (var tenantGroup in logsByTenant)
         {
-            if (string.IsNullOrEmpty(log.Hash))
+            var tenantId = tenantGroup.Key;
+            var tenantLogs = tenantGroup.ToList();
+
+            if (Database.IsNpgsql())
             {
-                currentSeq++;
-                log.SequenceNumber = currentSeq;
-                var prev = string.IsNullOrEmpty(lastHash) ? AuditLogHasher.GenesisHash : lastHash;
-                log.PreviousHash = prev;
-                log.Hash = AuditLogHasher.ComputeHash(log, prev);
+                var lockKey = GetAdvisoryLockKey(tenantId);
+                Database.ExecuteSqlRaw($"SELECT pg_advisory_xact_lock({lockKey})");
             }
-            lastHash = log.Hash;
+
+            var lastRecord = AuditLogs.AsNoTracking()
+                .Where(a => a.TenantId == tenantId && !string.IsNullOrEmpty(a.Hash))
+                .OrderByDescending(a => a.SequenceNumber)
+                .Select(a => new { a.Hash, a.SequenceNumber })
+                .FirstOrDefault();
+
+            long currentSeq = lastRecord?.SequenceNumber ?? 0;
+            string? lastHash = lastRecord?.Hash;
+
+            foreach (var log in tenantLogs)
+            {
+                if (string.IsNullOrEmpty(log.Hash))
+                {
+                    currentSeq++;
+                    log.SequenceNumber = currentSeq;
+                    var prev = string.IsNullOrEmpty(lastHash) ? AuditLogHasher.GenesisHash : lastHash;
+                    log.PreviousHash = prev;
+                    log.Hash = AuditLogHasher.ComputeHash(log, prev);
+                }
+                lastHash = log.Hash;
+            }
         }
     }
 
@@ -1134,26 +1148,58 @@ public class MedicalPortalDbContext : DbContext
 
         if (addedLogs.Count == 0) return;
 
-        var lastRecord = await AuditLogs.AsNoTracking()
-            .Where(a => !string.IsNullOrEmpty(a.Hash))
-            .OrderByDescending(a => a.SequenceNumber)
-            .Select(a => new { a.Hash, a.SequenceNumber })
-            .FirstOrDefaultAsync(cancellationToken);
+        var logsByTenant = addedLogs.GroupBy(l => l.TenantId);
 
-        long currentSeq = lastRecord?.SequenceNumber ?? 0;
-        string? lastHash = lastRecord?.Hash;
-
-        foreach (var log in addedLogs)
+        foreach (var tenantGroup in logsByTenant)
         {
-            if (string.IsNullOrEmpty(log.Hash))
+            var tenantId = tenantGroup.Key;
+            var tenantLogs = tenantGroup.ToList();
+
+            if (Database.IsNpgsql())
             {
-                currentSeq++;
-                log.SequenceNumber = currentSeq;
-                var prev = string.IsNullOrEmpty(lastHash) ? AuditLogHasher.GenesisHash : lastHash;
-                log.PreviousHash = prev;
-                log.Hash = AuditLogHasher.ComputeHash(log, prev);
+                var lockKey = GetAdvisoryLockKey(tenantId);
+                await Database.ExecuteSqlRawAsync($"SELECT pg_advisory_xact_lock({lockKey})", cancellationToken);
             }
-            lastHash = log.Hash;
+
+            var lastRecord = await AuditLogs.AsNoTracking()
+                .Where(a => a.TenantId == tenantId && !string.IsNullOrEmpty(a.Hash))
+                .OrderByDescending(a => a.SequenceNumber)
+                .Select(a => new { a.Hash, a.SequenceNumber })
+                .FirstOrDefaultAsync(cancellationToken);
+
+            long currentSeq = lastRecord?.SequenceNumber ?? 0;
+            string? lastHash = lastRecord?.Hash;
+
+            foreach (var log in tenantLogs)
+            {
+                if (string.IsNullOrEmpty(log.Hash))
+                {
+                    currentSeq++;
+                    log.SequenceNumber = currentSeq;
+                    var prev = string.IsNullOrEmpty(lastHash) ? AuditLogHasher.GenesisHash : lastHash;
+                    log.PreviousHash = prev;
+                    log.Hash = AuditLogHasher.ComputeHash(log, prev);
+                }
+                lastHash = log.Hash;
+            }
         }
+    }
+
+    /// <summary>
+    /// Derives a stable 64-bit advisory lock key from a tenant GUID.
+    /// Uses the first 8 bytes of the GUID (big-endian) as a signed 64-bit integer.
+    /// This is deterministic across processes, AppDomain restarts, and machine boundaries.
+    /// The default tenant (00000000-0000-0000-0000-000000000001) maps to key 1.
+    /// Platform events (login before tenant resolution, system events) use the default tenant ID
+    /// and thus share the same lock/chain as the default tenant. This is by design: there is
+    /// exactly one platform chain per deployment, identified by TenantId == DefaultTenantId.
+    /// </summary>
+    private static long GetAdvisoryLockKey(Guid tenantId)
+    {
+        var bytes = tenantId.ToByteArray();
+        // GUID byte order is little-endian for the first 8 bytes; we want a stable big-endian interpretation.
+        // Take bytes 0-7 (the first 8 bytes of the 16-byte GUID) and interpret as unsigned long.
+        // This gives a deterministic 64-bit value regardless of endianness.
+        return BitConverter.ToInt64(bytes, 0);
     }
 }
