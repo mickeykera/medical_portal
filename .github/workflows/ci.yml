@@ -101,7 +101,7 @@ jobs:
 
       - name: Run Full Unit & Integration Test Suite with Coverage
         env:
-          DATABASE_URL: postgres://postgres:postgres@localhost:5432/medical_portal_test
+          DATABASE_URL: postgres://portal_bootstrap:ci-bootstrap-password-generated-for-test@localhost:5432/medical_portal_test
           POSTGRES_CONNECTION_STRING: Host=localhost;Port=5432;Database=medical_portal_test;Username=portal_app;Password=ci-app-password-generated-for-test
           PORTAL_APP_PASSWORD: ci-app-password-generated-for-test
           REDIS_CONNECTION_STRING: localhost:6379
