@@ -97,7 +97,7 @@ jobs:
           POSTGRES_CONNECTION_STRING: Host=localhost;Port=5432;Database=medical_portal_test;Username=portal_owner;Password=ci-owner-password-generated-for-test
           JWT_SECRET: ThisIsACISecretKeyWithAtLeast32BytesLength1234567!
           ASPNETCORE_ENVIRONMENT: Development
-        run: dotnet run --project backend/src/MedicalPortal.Web/MedicalPortal.Web.csproj --configuration Release -- --migrate
+        run: dotnet run --project backend/src/MedicalPortal.Web/MedicalPortal.Web.csproj --configuration Release -- --migrate --seed
 
       - name: Run Full Unit & Integration Test Suite with Coverage
         env:
