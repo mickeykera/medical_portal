@@ -202,37 +202,37 @@ if (builder.Environment.IsProduction() && !isPostgres)
 }
 
 if (isPostgres)
-{
-    var npgsqlConnection = PostgresConnectionHelper.ToNpgsqlConnectionString(rawConnectionString!);
-    builder.Services.AddDbContext<MedicalPortalDbContext>(options =>
-        options.UseNpgsql(npgsqlConnection, npgsqlOptions =>
-        {
-            if (builder.Environment.IsProduction())
-            {
-                npgsqlOptions.EnableRetryOnFailure(
-                    maxRetryCount: 5,
-                    maxRetryDelay: TimeSpan.FromSeconds(10),
-                    errorCodesToAdd: null);
-            }
-        }));
-}
-else
-{
-    var allowSqliteFallback = builder.Environment.IsDevelopment() &&
-        builder.Configuration.GetValue<bool>("Database:AllowSqliteFallback");
-    if (!allowSqliteFallback)
     {
-        throw new InvalidOperationException(
-            "PostgreSQL is required. SQLite fallback is allowed only when ASPNETCORE_ENVIRONMENT=Development and Database:AllowSqliteFallback=true.");
+        var npgsqlConnection = PostgresConnectionHelper.ToNpgsqlConnectionString(rawConnectionString!);
+        builder.Services.AddDbContext<MedicalPortalDbContext>(options =>
+            options.UseNpgsql(npgsqlConnection, npgsqlOptions =>
+            {
+                if (builder.Environment.IsProduction())
+                {
+                    npgsqlOptions.EnableRetryOnFailure(
+                        maxRetryCount: 5,
+                        maxRetryDelay: TimeSpan.FromSeconds(10),
+                        errorCodesToAdd: null);
+                }
+            }));
     }
-    var dbPath = builder.Configuration["DB_PATH"] ?? "medical_portal.db";
-    var sqliteConnection = !string.IsNullOrWhiteSpace(rawConnectionString) && rawConnectionString.Contains("Data Source=")
-        ? rawConnectionString
-        : $"Data Source={dbPath}";
+    else
+    {
+        var allowSqliteFallback = builder.Environment.IsDevelopment() &&
+            builder.Configuration.GetValue<bool>("Database:AllowSqliteFallback");
+        if (!allowSqliteFallback)
+        {
+            throw new InvalidOperationException(
+                "PostgreSQL is required. SQLite fallback is allowed only when ASPNETCORE_ENVIRONMENT=Development and Database:AllowSqliteFallback=true.");
+        }
+        var dbPath = builder.Configuration["DB_PATH"] ?? "medical_portal.db";
+        var sqliteConnection = !string.IsNullOrWhiteSpace(rawConnectionString) && rawConnectionString.Contains("Data Source=")
+            ? rawConnectionString
+            : $"Data Source={dbPath}";
 
-    builder.Services.AddDbContext<MedicalPortalDbContext>(options =>
-        options.UseSqlite(sqliteConnection));
-}
+        builder.Services.AddDbContext<MedicalPortalDbContext>(options =>
+            options.UseSqlite(sqliteConnection));
+    }
 
 // Enterprise Dependency Health Checks
 builder.Services.AddHealthChecks()

@@ -15,11 +15,11 @@ using Xunit;
 
 namespace MedicalPortal.Tests;
 
-public class PhiAuditAndComplianceTests : IClassFixture<WebApplicationFactory<Program>>
+public class PhiAuditAndComplianceTests : IClassFixture<PhiAuditWebApplicationFactory>
 {
-    private readonly WebApplicationFactory<Program> _factory;
+    private readonly PhiAuditWebApplicationFactory _factory;
 
-    public PhiAuditAndComplianceTests(WebApplicationFactory<Program> factory)
+    public PhiAuditAndComplianceTests(PhiAuditWebApplicationFactory factory)
     {
         _factory = factory;
     }
@@ -195,6 +195,7 @@ public class PhiAuditAndComplianceTests : IClassFixture<WebApplicationFactory<Pr
         await audit.FlushAsync();
 
         var db = scope.ServiceProvider.GetRequiredService<MedicalPortalDbContext>();
+        await using var verifyTx = await db.BeginDefaultTestTransactionAsync();
         var entry = await db.AuditLogs
             .Where(a => a.Action == "PHI_READ" && a.ResourceType == "Labs" && a.PatientId == targetPatient.Id)
             .OrderByDescending(a => a.CreatedAt)
@@ -249,6 +250,7 @@ public class PhiAuditAndComplianceTests : IClassFixture<WebApplicationFactory<Pr
         await audit.FlushAsync();
 
         var db = scope.ServiceProvider.GetRequiredService<MedicalPortalDbContext>();
+        await using var verifyTx = await db.BeginDefaultTestTransactionAsync();
         var patientLogs = await db.AuditLogs
             .Where(a => a.Action == "PHI_READ" && a.PatientId == targetPatient.Id)
             .ToListAsync();
@@ -280,6 +282,7 @@ public class PhiAuditAndComplianceTests : IClassFixture<WebApplicationFactory<Pr
         await audit.FlushAsync();
 
         var db = scope.ServiceProvider.GetRequiredService<MedicalPortalDbContext>();
+        await using var verifyTx = await db.BeginDefaultTestTransactionAsync();
         var entry = await db.AuditLogs
             .Where(a => a.Action == "PHI_READ" && a.PatientId == mateoPatient.Id && a.ActorUserAccountId == patient.Id)
             .OrderByDescending(a => a.CreatedAt)
