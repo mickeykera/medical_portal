@@ -417,9 +417,10 @@ namespace MedicalPortal.Infrastructure.Migrations
 
                     b.HasIndex("ResourceType");
 
-                    b.HasIndex("SequenceNumber");
-
                     b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "SequenceNumber")
+                        .IsUnique();
 
                     b.ToTable("AuditLogs");
                 });

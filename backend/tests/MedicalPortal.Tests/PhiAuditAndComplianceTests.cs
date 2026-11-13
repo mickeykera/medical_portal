@@ -15,11 +15,11 @@ using Xunit;
 
 namespace MedicalPortal.Tests;
 
-public class PhiAuditAndComplianceTests : IClassFixture<WebApplicationFactory<Program>>
+public class PhiAuditAndComplianceTests : IClassFixture<PhiAuditWebApplicationFactory>
 {
-    private readonly WebApplicationFactory<Program> _factory;
+    private readonly PhiAuditWebApplicationFactory _factory;
 
-    public PhiAuditAndComplianceTests(WebApplicationFactory<Program> factory)
+    public PhiAuditAndComplianceTests(PhiAuditWebApplicationFactory factory)
     {
         _factory = factory;
     }
@@ -29,6 +29,7 @@ public class PhiAuditAndComplianceTests : IClassFixture<WebApplicationFactory<Pr
         var client = _factory.CreateClient();
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<MedicalPortalDbContext>();
+        using var tx = db.BeginDefaultTestTransaction();
 
         var clinician = db.UserAccounts.Include(u => u.Person).First(u => u.Email == "apatel@clinic.example");
         var patient = db.UserAccounts.Include(u => u.Person).First(u => u.Email == "dana@example.com");
@@ -61,6 +62,7 @@ public class PhiAuditAndComplianceTests : IClassFixture<WebApplicationFactory<Pr
             db.SaveChanges();
         }
 
+        tx.Commit();
         return (client, admin, clinician, patient, targetPatient, mateoPatient);
     }
 
@@ -69,7 +71,10 @@ public class PhiAuditAndComplianceTests : IClassFixture<WebApplicationFactory<Pr
         using var scope = _factory.Services.CreateScope();
         var tokenService = scope.ServiceProvider.GetRequiredService<ITokenService>();
         var db = scope.ServiceProvider.GetRequiredService<MedicalPortalDbContext>();
-        return db.CreateAuthenticatedSession(tokenService, account, account.PersonId);
+        using var tx = db.BeginDefaultTestTransaction();
+        var token = db.CreateAuthenticatedSession(tokenService, account, account.PersonId);
+        tx.Commit();
+        return token;
     }
 
     [Fact]
@@ -77,6 +82,7 @@ public class PhiAuditAndComplianceTests : IClassFixture<WebApplicationFactory<Pr
     {
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<MedicalPortalDbContext>();
+        await using var tx = await db.BeginDefaultTestTransactionAsync();
 
         var log = new AuditLog
         {
@@ -92,6 +98,7 @@ public class PhiAuditAndComplianceTests : IClassFixture<WebApplicationFactory<Pr
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => db.SaveChangesAsync());
         Assert.Contains("append-only", ex.Message, StringComparison.OrdinalIgnoreCase);
+        await tx.CommitAsync();
     }
 
     [Fact]
@@ -99,6 +106,7 @@ public class PhiAuditAndComplianceTests : IClassFixture<WebApplicationFactory<Pr
     {
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<MedicalPortalDbContext>();
+        await using var tx = await db.BeginDefaultTestTransactionAsync();
 
         var log = new AuditLog
         {
@@ -114,6 +122,7 @@ public class PhiAuditAndComplianceTests : IClassFixture<WebApplicationFactory<Pr
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => db.SaveChangesAsync());
         Assert.Contains("append-only", ex.Message, StringComparison.OrdinalIgnoreCase);
+        await tx.CommitAsync();
     }
 
     [Fact]
@@ -186,6 +195,7 @@ public class PhiAuditAndComplianceTests : IClassFixture<WebApplicationFactory<Pr
         await audit.FlushAsync();
 
         var db = scope.ServiceProvider.GetRequiredService<MedicalPortalDbContext>();
+        await using var verifyTx = await db.BeginDefaultTestTransactionAsync();
         var entry = await db.AuditLogs
             .Where(a => a.Action == "PHI_READ" && a.ResourceType == "Labs" && a.PatientId == targetPatient.Id)
             .OrderByDescending(a => a.CreatedAt)
@@ -240,6 +250,7 @@ public class PhiAuditAndComplianceTests : IClassFixture<WebApplicationFactory<Pr
         await audit.FlushAsync();
 
         var db = scope.ServiceProvider.GetRequiredService<MedicalPortalDbContext>();
+        await using var verifyTx = await db.BeginDefaultTestTransactionAsync();
         var patientLogs = await db.AuditLogs
             .Where(a => a.Action == "PHI_READ" && a.PatientId == targetPatient.Id)
             .ToListAsync();
@@ -271,6 +282,7 @@ public class PhiAuditAndComplianceTests : IClassFixture<WebApplicationFactory<Pr
         await audit.FlushAsync();
 
         var db = scope.ServiceProvider.GetRequiredService<MedicalPortalDbContext>();
+        await using var verifyTx = await db.BeginDefaultTestTransactionAsync();
         var entry = await db.AuditLogs
             .Where(a => a.Action == "PHI_READ" && a.PatientId == mateoPatient.Id && a.ActorUserAccountId == patient.Id)
             .OrderByDescending(a => a.CreatedAt)
