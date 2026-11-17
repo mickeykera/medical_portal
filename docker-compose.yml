@@ -23,20 +23,46 @@ services:
       - portal-internal
 
   # ---------------------------------------------------------------------------
-  # Development Profile (docker compose up -d or docker compose --profile dev up -d)
-  # Standalone single-instance deployment enabling fake external service providers explicitly.
+  # Development Profile: docker compose --profile dev up -d --build
+  # Safe local-only stack: migrations+seed as portal_owner, app as portal_app (Development),
+  # fake providers allowed ONLY here, exposed only via nginx on 127.0.0.1:5000.
   # ---------------------------------------------------------------------------
   medical-portal-migrate:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: medical-portal-migrate
-    profiles: ["dev", "cluster", "production"]
+    profiles: ["dev"]
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=medical_portal;Username=portal_owner;Password=${PORTAL_OWNER_PASSWORD:?PORTAL_OWNER_PASSWORD is required}
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET is required}
+      # DEV ONLY: fake providers allowed for local development seeding/startup
+      - Stripe__UseFake=true
+      - STRIPE_USE_FAKE=true
+      - Hms__UseFake=true
+      - HMS_USE_FAKE=true
+      - DEV_SEED_PASSWORD=${DEV_SEED_PASSWORD:-}
+      - DEV_TOTP_SECRET=${DEV_TOTP_SECRET:-}
+      - DEV_QUICK_LOGIN=${DEV_QUICK_LOGIN:-true}
+    command: ["dotnet", "MedicalPortal.Web.dll", "--migrate", "--seed"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - portal-internal
+
+  medical-portal-migrate-prod:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: medical-portal-migrate-prod
+    profiles: ["cluster", "production"]
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
       - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=medical_portal;Username=portal_owner;Password=${PORTAL_OWNER_PASSWORD:?PORTAL_OWNER_PASSWORD is required}
       - JWT_SECRET=${JWT_SECRET:?JWT_SECRET is required}
-    command: ["dotnet", "MedicalPortal.Web.dll", "--migrate", "--seed"]
+    command: ["dotnet", "MedicalPortal.Web.dll", "--migrate"]
     depends_on:
       postgres:
         condition: service_healthy
@@ -52,21 +78,25 @@ services:
     security_opt:
       - "no-new-privileges:true"
     profiles: ["dev"]
-    # Host port 5000 removed; traffic enters via the same-origin Nginx proxy
+    # Not published to host; traffic enters via same-origin Nginx proxy (127.0.0.1:5000)
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_FORWARDEDHEADERS_ENABLED=true
       - Kestrel__Endpoints__Http__Url=http://+:8080
       - FORWARDED_HEADERS_TRUSTED_NETWORKS=172.16.0.0/12,10.0.0.0/8,127.0.0.1/32
       - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=medical_portal;Username=portal_app;Password=${PORTAL_APP_PASSWORD:?PORTAL_APP_PASSWORD is required}
-      # Fake providers enabled explicitly for safe offline / local development
+      # DEV ONLY: fake providers explicitly enabled for safe offline/local development
       - Stripe__UseFake=true
       - STRIPE_USE_FAKE=true
+      - Stripe__SecretKey=${STRIPE_SECRET_KEY:-sk_test_dev_placeholder}
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY:-sk_test_dev_placeholder}
       - Hms__UseFake=true
       - HMS_USE_FAKE=true
-      - JWT_SECRET=${JWT_SECRET:-}
-      - DEV_SEED_PASSWORD=${DEV_SEED_PASSWORD:-}
-      - DEV_TOTP_SECRET=${DEV_TOTP_SECRET:-}
+      - HMS_BASE_URL=${HMS_BASE_URL:-http://localhost:5000/api/fake-hms}
+      - HMS_WEBHOOK_SECRET=${HMS_WEBHOOK_SECRET:-dev_hms_webhook_secret}
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET is required}
+      - DEV_SEED_PASSWORD=${DEV_SEED_PASSWORD:?DEV_SEED_PASSWORD is required}
+      - DEV_TOTP_SECRET=${DEV_TOTP_SECRET:?DEV_TOTP_SECRET is required}
       - DEV_QUICK_LOGIN=${DEV_QUICK_LOGIN:-true}
     depends_on:
       postgres:
@@ -75,10 +105,17 @@ services:
         condition: service_completed_successfully
     volumes:
       - portal_data:/app/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health/ready || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
     networks:
       portal-internal:
         aliases:
           - backend
+          - medical-portal
 
   # ---------------------------------------------------------------------------
   # Multi-Instance Clustered Production Profile (docker compose --profile cluster up -d)
@@ -123,7 +160,7 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      medical-portal-migrate:
+      medical-portal-migrate-prod:
         condition: service_completed_successfully
     volumes:
       - portal_cluster_data_1:/app/data
@@ -131,6 +168,7 @@ services:
       portal-internal:
         aliases:
           - backend
+          - medical-portal
 
   medical-portal-2:
     build:
@@ -157,7 +195,7 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      medical-portal-migrate:
+      medical-portal-migrate-prod:
         condition: service_completed_successfully
     volumes:
       - portal_cluster_data_2:/app/data
@@ -165,16 +203,36 @@ services:
       portal-internal:
         aliases:
           - backend
+          - medical-portal
 
-  # Same-Origin Reverse Proxy and Frontend Static File Host
+  # Same-Origin Reverse Proxy and Frontend Static File Host (dev: 127.0.0.1:5000 only)
   proxy:
     image: nginx:alpine
     container_name: medical-portal-proxy
     restart: unless-stopped
     security_opt:
       - "no-new-privileges:true"
+    profiles: ["dev"]
     ports:
-      - "5000:80"
+      - "127.0.0.1:5000:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./frontend:/usr/share/nginx/html:ro
+    depends_on:
+      medical-portal:
+        condition: service_healthy
+    networks:
+      - portal-internal
+
+  proxy-prod:
+    image: nginx:alpine
+    container_name: medical-portal-proxy-prod
+    restart: unless-stopped
+    security_opt:
+      - "no-new-privileges:true"
+    profiles: ["cluster", "production"]
+    ports:
+      - "127.0.0.1:5000:80"
     volumes:
       - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
       - ./frontend:/usr/share/nginx/html:ro
