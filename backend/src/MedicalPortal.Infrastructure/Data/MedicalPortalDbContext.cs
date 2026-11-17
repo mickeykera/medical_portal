@@ -28,6 +28,18 @@ public class MedicalPortalDbContext : DbContext
     public Guid? CurrentTenantId => _tenantContext?.TenantId;
     public bool IsTenantResolved => _tenantContext?.IsResolved == true;
 
+    /// <summary>
+    /// Sets the tenant context for testing purposes.
+    /// This allows tests to establish a resolved tenant context without HTTP middleware.
+    /// </summary>
+    public void SetTestTenantContext(Guid tenantId)
+    {
+        if (_tenantContext is TenantContext tc)
+        {
+            tc.SetTenant(new Tenant { Id = tenantId });
+        }
+    }
+
     public DbSet<Tenant> Tenants => Set<Tenant>();
     public DbSet<Person> Persons => Set<Person>();
     public DbSet<UserAccount> UserAccounts => Set<UserAccount>();
@@ -561,7 +573,7 @@ public class MedicalPortalDbContext : DbContext
         // AuditLog mapping & indices
         modelBuilder.Entity<AuditLog>(b =>
         {
-            b.HasIndex(a => a.SequenceNumber);
+            b.HasIndex(a => new { a.TenantId, a.SequenceNumber }).IsUnique();
             b.HasIndex(a => a.PatientId);
             b.HasIndex(a => a.ActorUserAccountId);
             b.HasIndex(a => a.CreatedAt);
@@ -981,6 +993,31 @@ public class MedicalPortalDbContext : DbContext
             try
             {
                 ProcessAuditLogHashChaining();
+                
+                // Retry loop for unique constraint violations on (TenantId, SequenceNumber)
+                const int maxSaveRetries = 3;
+                for (int saveAttempt = 0; saveAttempt < maxSaveRetries; saveAttempt++)
+                {
+                    try
+                    {
+                        return base.SaveChanges(acceptAllChangesOnSuccess);
+                    }
+                    catch (DbUpdateException ex) when (ex.InnerException is Npgsql.PostgresException pgEx && pgEx.SqlState == "23505")
+                    {
+                        if (saveAttempt == maxSaveRetries - 1) throw;
+                        // Unique constraint violation on (TenantId, SequenceNumber) - another transaction
+                        // committed a log with the same sequence. Reset hash/sequence on added logs and re-process.
+                        foreach (var entry in ChangeTracker.Entries<AuditLog>().Where(e => e.State == EntityState.Added))
+                        {
+                            entry.Entity.Hash = string.Empty;
+                            entry.Entity.PreviousHash = null;
+                            entry.Entity.SequenceNumber = 0;
+                        }
+                        ProcessAuditLogHashChaining();
+                        continue;
+                    }
+                }
+                // Should not reach here
                 return base.SaveChanges(acceptAllChangesOnSuccess);
             }
             finally
@@ -1004,6 +1041,31 @@ public class MedicalPortalDbContext : DbContext
             try
             {
                 await ProcessAuditLogHashChainingAsync(cancellationToken);
+                
+                // Retry loop for unique constraint violations on (TenantId, SequenceNumber)
+                const int maxSaveRetries = 3;
+                for (int saveAttempt = 0; saveAttempt < maxSaveRetries; saveAttempt++)
+                {
+                    try
+                    {
+                        return await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+                    }
+                    catch (DbUpdateException ex) when (ex.InnerException is Npgsql.PostgresException pgEx && pgEx.SqlState == "23505")
+                    {
+                        if (saveAttempt == maxSaveRetries - 1) throw;
+                        // Unique constraint violation on (TenantId, SequenceNumber) - another transaction
+                        // committed a log with the same sequence. Reset hash/sequence on added logs and re-process.
+                        foreach (var entry in ChangeTracker.Entries<AuditLog>().Where(e => e.State == EntityState.Added))
+                        {
+                            entry.Entity.Hash = string.Empty;
+                            entry.Entity.PreviousHash = null;
+                            entry.Entity.SequenceNumber = 0;
+                        }
+                        await ProcessAuditLogHashChainingAsync(cancellationToken);
+                        continue;
+                    }
+                }
+                // Should not reach here
                 return await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
             }
             finally
@@ -1025,11 +1087,13 @@ public class MedicalPortalDbContext : DbContext
             {
                 if (property.CurrentValue is not DateTime value) continue;
 
+                // PostgreSQL 'timestamp without time zone' requires DateTimeKind.Unspecified
+                // Convert UTC to Unspecified to avoid Npgsql ArgumentException
                 property.CurrentValue = value.Kind switch
                 {
-                    DateTimeKind.Utc => value,
-                    DateTimeKind.Local => value.ToUniversalTime(),
-                    _ => DateTime.SpecifyKind(value, DateTimeKind.Utc)
+                    DateTimeKind.Utc => DateTime.SpecifyKind(value, DateTimeKind.Unspecified),
+                    DateTimeKind.Local => DateTime.SpecifyKind(value.ToUniversalTime(), DateTimeKind.Unspecified),
+                    _ => value
                 };
             }
         }
@@ -1100,26 +1164,52 @@ public class MedicalPortalDbContext : DbContext
 
         if (addedLogs.Count == 0) return;
 
-        var lastRecord = AuditLogs.AsNoTracking()
-            .Where(a => !string.IsNullOrEmpty(a.Hash))
-            .OrderByDescending(a => a.SequenceNumber)
-            .Select(a => new { a.Hash, a.SequenceNumber })
-            .FirstOrDefault();
+        var logsByTenant = addedLogs.GroupBy(l => l.TenantId);
 
-        long currentSeq = lastRecord?.SequenceNumber ?? 0;
-        string? lastHash = lastRecord?.Hash;
-
-        foreach (var log in addedLogs)
+        foreach (var tenantGroup in logsByTenant)
         {
-            if (string.IsNullOrEmpty(log.Hash))
+            var tenantId = tenantGroup.Key;
+            var tenantLogs = tenantGroup.ToList();
+
+            // Platform events (tenant not resolved) go to Platform chain, not DefaultTenant chain
+            var effectiveTenantId = tenantId;
+            if (tenantId == TenantConstants.DefaultTenantId && !IsTenantResolved)
             {
-                currentSeq++;
-                log.SequenceNumber = currentSeq;
-                var prev = string.IsNullOrEmpty(lastHash) ? AuditLogHasher.GenesisHash : lastHash;
-                log.PreviousHash = prev;
-                log.Hash = AuditLogHasher.ComputeHash(log, prev);
+                effectiveTenantId = TenantConstants.PlatformTenantId;
             }
-            lastHash = log.Hash;
+
+            if (Database.IsNpgsql())
+            {
+                var lockKey = GetAdvisoryLockKey(effectiveTenantId);
+                AcquireAdvisoryLock(lockKey);
+            }
+
+            var lastRecord = AuditLogs.AsNoTracking()
+                .Where(a => a.TenantId == effectiveTenantId && !string.IsNullOrEmpty(a.Hash))
+                .OrderByDescending(a => a.SequenceNumber)
+                .Select(a => new { a.Hash, a.SequenceNumber })
+                .FirstOrDefault();
+
+            long currentSeq = lastRecord?.SequenceNumber ?? 0;
+            string? lastHash = lastRecord?.Hash;
+
+            foreach (var log in tenantLogs)
+            {
+                if (string.IsNullOrEmpty(log.Hash))
+                {
+                    currentSeq++;
+                    log.SequenceNumber = currentSeq;
+                    // Assign the effective tenant ID for platform events
+                    if (log.TenantId == TenantConstants.DefaultTenantId && !IsTenantResolved)
+                    {
+                        log.TenantId = TenantConstants.PlatformTenantId;
+                    }
+                    var prev = string.IsNullOrEmpty(lastHash) ? AuditLogHasher.GenesisHash : lastHash;
+                    log.PreviousHash = prev;
+                    log.Hash = AuditLogHasher.ComputeHash(log, prev);
+                }
+                lastHash = log.Hash;
+            }
         }
     }
 
@@ -1134,26 +1224,98 @@ public class MedicalPortalDbContext : DbContext
 
         if (addedLogs.Count == 0) return;
 
-        var lastRecord = await AuditLogs.AsNoTracking()
-            .Where(a => !string.IsNullOrEmpty(a.Hash))
-            .OrderByDescending(a => a.SequenceNumber)
-            .Select(a => new { a.Hash, a.SequenceNumber })
-            .FirstOrDefaultAsync(cancellationToken);
+        var logsByTenant = addedLogs.GroupBy(l => l.TenantId);
 
-        long currentSeq = lastRecord?.SequenceNumber ?? 0;
-        string? lastHash = lastRecord?.Hash;
-
-        foreach (var log in addedLogs)
+        foreach (var tenantGroup in logsByTenant)
         {
-            if (string.IsNullOrEmpty(log.Hash))
+            var tenantId = tenantGroup.Key;
+            var tenantLogs = tenantGroup.ToList();
+
+            // Platform events (tenant not resolved) go to Platform chain, not DefaultTenant chain
+            var effectiveTenantId = tenantId;
+            if (tenantId == TenantConstants.DefaultTenantId && !IsTenantResolved)
             {
-                currentSeq++;
-                log.SequenceNumber = currentSeq;
-                var prev = string.IsNullOrEmpty(lastHash) ? AuditLogHasher.GenesisHash : lastHash;
-                log.PreviousHash = prev;
-                log.Hash = AuditLogHasher.ComputeHash(log, prev);
+                effectiveTenantId = TenantConstants.PlatformTenantId;
             }
-            lastHash = log.Hash;
+
+            if (Database.IsNpgsql())
+            {
+                var lockKey = GetAdvisoryLockKey(effectiveTenantId);
+                await AcquireAdvisoryLockAsync(lockKey, cancellationToken);
+            }
+
+            var lastRecord = await AuditLogs.AsNoTracking()
+                .Where(a => a.TenantId == effectiveTenantId && !string.IsNullOrEmpty(a.Hash))
+                .OrderByDescending(a => a.SequenceNumber)
+                .Select(a => new { a.Hash, a.SequenceNumber })
+                .FirstOrDefaultAsync(cancellationToken);
+
+            long currentSeq = lastRecord?.SequenceNumber ?? 0;
+            string? lastHash = lastRecord?.Hash;
+
+            foreach (var log in tenantLogs)
+            {
+                if (string.IsNullOrEmpty(log.Hash))
+                {
+                    currentSeq++;
+                    log.SequenceNumber = currentSeq;
+                    // Assign the effective tenant ID for platform events
+                    if (log.TenantId == TenantConstants.DefaultTenantId && !IsTenantResolved)
+                    {
+                        log.TenantId = TenantConstants.PlatformTenantId;
+                    }
+                    var prev = string.IsNullOrEmpty(lastHash) ? AuditLogHasher.GenesisHash : lastHash;
+                    log.PreviousHash = prev;
+                    log.Hash = AuditLogHasher.ComputeHash(log, prev);
+                }
+                lastHash = log.Hash;
+            }
         }
+    }
+
+    private void AcquireAdvisoryLock(long lockKey)
+    {
+        // Use pg_try_advisory_xact_lock with retry to avoid deadlocks.
+        // pg_advisory_xact_lock blocks indefinitely; pg_try_advisory_xact_lock returns false immediately if lock is held.
+        const int maxRetries = 50;
+        const int retryDelayMs = 20;
+        for (int attempt = 0; attempt < maxRetries; attempt++)
+        {
+            var acquired = Database.SqlQueryRaw<bool>($"SELECT pg_try_advisory_xact_lock({lockKey}) AS \"Value\"").FirstOrDefault();
+            if (acquired) return;
+            Thread.Sleep(retryDelayMs);
+        }
+        throw new InvalidOperationException($"Failed to acquire advisory lock {lockKey} after {maxRetries} attempts");
+    }
+
+    private async Task AcquireAdvisoryLockAsync(long lockKey, CancellationToken cancellationToken)
+    {
+        const int maxRetries = 50;
+        const int retryDelayMs = 20;
+        for (int attempt = 0; attempt < maxRetries; attempt++)
+        {
+            var acquired = await Database.SqlQueryRaw<bool>($"SELECT pg_try_advisory_xact_lock({lockKey}) AS \"Value\"").FirstOrDefaultAsync(cancellationToken);
+            if (acquired) return;
+            await Task.Delay(retryDelayMs, cancellationToken);
+        }
+        throw new InvalidOperationException($"Failed to acquire advisory lock {lockKey} after {maxRetries} attempts");
+    }
+
+    /// <summary>
+    /// Derives a stable 64-bit advisory lock key from a tenant GUID.
+    /// Uses the first 8 bytes of the GUID (big-endian) as a signed 64-bit integer.
+    /// This is deterministic across processes, AppDomain restarts, and machine boundaries.
+    /// The default tenant (00000000-0000-0000-0000-000000000001) maps to key 1.
+    /// Platform events (login before tenant resolution, system events) use PlatformTenantId
+    /// (00000000-0000-0000-0000-000000000000) which maps to key 0.
+    /// There is exactly one platform chain per deployment, identified by TenantId == PlatformTenantId.
+    /// </summary>
+    private static long GetAdvisoryLockKey(Guid tenantId)
+    {
+        var bytes = tenantId.ToByteArray();
+        // GUID byte order is little-endian for the first 8 bytes; we want a stable big-endian interpretation.
+        // Take bytes 0-7 (the first 8 bytes of the 16-byte GUID) and interpret as unsigned long.
+        // This gives a deterministic 64-bit value regardless of endianness.
+        return BitConverter.ToInt64(bytes, 0);
     }
 }

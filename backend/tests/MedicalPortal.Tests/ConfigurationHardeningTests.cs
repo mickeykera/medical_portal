@@ -126,6 +126,7 @@ public class ConfigurationHardeningTests
     [Fact]
     public void WebHost_InProduction_FailsStartup_WhenPostgreSqlIsNotConfigured()
     {
+        using var envIsolation = new ClearDevelopmentEnvironmentVariables();
         using var factory = new WebApplicationFactory<Program>()
             .WithWebHostBuilder(builder =>
             {
@@ -134,6 +135,7 @@ public class ConfigurationHardeningTests
                 builder.UseSetting("POSTGRES_CONNECTION_STRING", "");
                 builder.UseSetting("ConnectionStrings:DefaultConnection", "Data Source=medical_portal.db");
                 builder.UseSetting("Jwt:Secret", "a-sufficiently-long-production-ready-jwt-key-32-bytes!");
+                builder.ConfigureServices(FakeDatabaseRoleInspectorRegistration.Register);
             });
 
         var ex = Assert.Throws<InvalidOperationException>(() =>
@@ -148,6 +150,7 @@ public class ConfigurationHardeningTests
     [Fact]
     public void WebHost_InProduction_FailsStartup_WhenNoConnectionStringExistsAtAll()
     {
+        using var envIsolation = new ClearDevelopmentEnvironmentVariables();
         using var factory = new WebApplicationFactory<Program>()
             .WithWebHostBuilder(builder =>
             {
@@ -156,6 +159,7 @@ public class ConfigurationHardeningTests
                 builder.UseSetting("POSTGRES_CONNECTION_STRING", "");
                 builder.UseSetting("ConnectionStrings:DefaultConnection", "");
                 builder.UseSetting("Jwt:Secret", "a-sufficiently-long-production-ready-jwt-key-32-bytes!");
+                builder.ConfigureServices(FakeDatabaseRoleInspectorRegistration.Register);
             });
 
         var ex = Assert.Throws<InvalidOperationException>(() =>

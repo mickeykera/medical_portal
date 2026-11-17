@@ -1,6 +1,7 @@
 using System.Threading.Channels;
 using MedicalPortal.Core.Entities;
 using MedicalPortal.Infrastructure.Data;
+using MedicalPortal.Infrastructure.Tenancy;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -133,6 +134,13 @@ public class AuditLogBatchWorker : BackgroundService
     private async Task SaveBatchAsync(List<AuditLog> batch, CancellationToken cancellationToken)
     {
         using var scope = _scopeFactory.CreateScope();
+        // Set default tenant context for background worker
+        var tenantContext = scope.ServiceProvider.GetService<ITenantContext>();
+        if (tenantContext != null && !tenantContext.IsResolved)
+        {
+            var defaultTenant = new Tenant { Id = TenantConstants.DefaultTenantId };
+            tenantContext.SetTenant(defaultTenant);
+        }
         var db = scope.ServiceProvider.GetRequiredService<MedicalPortalDbContext>();
         db.AuditLogs.AddRange(batch);
         await db.SaveChangesAsync(cancellationToken);

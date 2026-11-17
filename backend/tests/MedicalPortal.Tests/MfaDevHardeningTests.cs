@@ -212,12 +212,16 @@ public class MfaDevHardeningTests : IClassFixture<WebApplicationFactory<Program>
         }
 
         var origDevSecret = Environment.GetEnvironmentVariable("DEV_TOTP_SECRET");
+        var origDevSeedPassword = Environment.GetEnvironmentVariable("DEV_SEED_PASSWORD");
+        var origDevQuickLogin = Environment.GetEnvironmentVariable("DEV_QUICK_LOGIN");
         var origStripeFake = Environment.GetEnvironmentVariable("STRIPE_USE_FAKE");
         var origHmsFake = Environment.GetEnvironmentVariable("HMS_USE_FAKE");
         var origHmsSecret = Environment.GetEnvironmentVariable("HMS_WEBHOOK_SECRET");
         var origStripeKey = Environment.GetEnvironmentVariable("STRIPE_SECRET_KEY");
 
         Environment.SetEnvironmentVariable("DEV_TOTP_SECRET", null);
+        Environment.SetEnvironmentVariable("DEV_SEED_PASSWORD", null);
+        Environment.SetEnvironmentVariable("DEV_QUICK_LOGIN", null);
         Environment.SetEnvironmentVariable("STRIPE_USE_FAKE", "false");
         Environment.SetEnvironmentVariable("HMS_USE_FAKE", "false");
         Environment.SetEnvironmentVariable("HMS_WEBHOOK_SECRET", "prod-webhook-secret-value-12345");
@@ -250,6 +254,8 @@ public class MfaDevHardeningTests : IClassFixture<WebApplicationFactory<Program>
                             opts.UseSqlite(connStr);
                         });
                     });
+
+                    builder.ConfigureServices(FakeDatabaseRoleInspectorRegistration.Register);
                 });
 
             var ex = Assert.Throws<InvalidOperationException>(() =>
@@ -262,6 +268,8 @@ public class MfaDevHardeningTests : IClassFixture<WebApplicationFactory<Program>
         finally
         {
             Environment.SetEnvironmentVariable("DEV_TOTP_SECRET", origDevSecret);
+            Environment.SetEnvironmentVariable("DEV_SEED_PASSWORD", origDevSeedPassword);
+            Environment.SetEnvironmentVariable("DEV_QUICK_LOGIN", origDevQuickLogin);
             Environment.SetEnvironmentVariable("STRIPE_USE_FAKE", origStripeFake);
             Environment.SetEnvironmentVariable("HMS_USE_FAKE", origHmsFake);
             Environment.SetEnvironmentVariable("HMS_WEBHOOK_SECRET", origHmsSecret);

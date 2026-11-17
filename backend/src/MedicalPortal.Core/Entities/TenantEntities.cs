@@ -6,6 +6,7 @@ namespace MedicalPortal.Core.Entities;
 public static class TenantConstants
 {
     public static readonly Guid DefaultTenantId = Guid.Parse("00000000-0000-0000-0000-000000000001");
+    public static readonly Guid PlatformTenantId = Guid.Parse("00000000-0000-0000-0000-000000000000");
     public const string DefaultTenantSlug = "springfield";
     public const string DefaultTenantName = "Addis Care Health Network (DEMO)";
     public const string TenantSlugHeader = "X-Tenant-Slug";

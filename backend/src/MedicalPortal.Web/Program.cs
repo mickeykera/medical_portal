@@ -24,6 +24,7 @@ using MedicalPortal.Web.Filters;
 using MedicalPortal.Web.Hubs;
 using MedicalPortal.Web.Middleware;
 using MedicalPortal.Web.Services;
+using MedicalPortal.Web;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
@@ -201,37 +202,37 @@ if (builder.Environment.IsProduction() && !isPostgres)
 }
 
 if (isPostgres)
-{
-    var npgsqlConnection = PostgresConnectionHelper.ToNpgsqlConnectionString(rawConnectionString!);
-    builder.Services.AddDbContext<MedicalPortalDbContext>(options =>
-        options.UseNpgsql(npgsqlConnection, npgsqlOptions =>
-        {
-            if (builder.Environment.IsProduction())
-            {
-                npgsqlOptions.EnableRetryOnFailure(
-                    maxRetryCount: 5,
-                    maxRetryDelay: TimeSpan.FromSeconds(10),
-                    errorCodesToAdd: null);
-            }
-        }));
-}
-else
-{
-    var allowSqliteFallback = builder.Environment.IsDevelopment() &&
-        builder.Configuration.GetValue<bool>("Database:AllowSqliteFallback");
-    if (!allowSqliteFallback)
     {
-        throw new InvalidOperationException(
-            "PostgreSQL is required. SQLite fallback is allowed only when ASPNETCORE_ENVIRONMENT=Development and Database:AllowSqliteFallback=true.");
+        var npgsqlConnection = PostgresConnectionHelper.ToNpgsqlConnectionString(rawConnectionString!);
+        builder.Services.AddDbContext<MedicalPortalDbContext>(options =>
+            options.UseNpgsql(npgsqlConnection, npgsqlOptions =>
+            {
+                if (builder.Environment.IsProduction())
+                {
+                    npgsqlOptions.EnableRetryOnFailure(
+                        maxRetryCount: 5,
+                        maxRetryDelay: TimeSpan.FromSeconds(10),
+                        errorCodesToAdd: null);
+                }
+            }));
     }
-    var dbPath = builder.Configuration["DB_PATH"] ?? "medical_portal.db";
-    var sqliteConnection = !string.IsNullOrWhiteSpace(rawConnectionString) && rawConnectionString.Contains("Data Source=")
-        ? rawConnectionString
-        : $"Data Source={dbPath}";
+    else
+    {
+        var allowSqliteFallback = builder.Environment.IsDevelopment() &&
+            builder.Configuration.GetValue<bool>("Database:AllowSqliteFallback");
+        if (!allowSqliteFallback)
+        {
+            throw new InvalidOperationException(
+                "PostgreSQL is required. SQLite fallback is allowed only when ASPNETCORE_ENVIRONMENT=Development and Database:AllowSqliteFallback=true.");
+        }
+        var dbPath = builder.Configuration["DB_PATH"] ?? "medical_portal.db";
+        var sqliteConnection = !string.IsNullOrWhiteSpace(rawConnectionString) && rawConnectionString.Contains("Data Source=")
+            ? rawConnectionString
+            : $"Data Source={dbPath}";
 
-    builder.Services.AddDbContext<MedicalPortalDbContext>(options =>
-        options.UseSqlite(sqliteConnection));
-}
+        builder.Services.AddDbContext<MedicalPortalDbContext>(options =>
+            options.UseSqlite(sqliteConnection));
+    }
 
 // Enterprise Dependency Health Checks
 builder.Services.AddHealthChecks()
@@ -708,7 +709,7 @@ builder.Services.AddCors(options =>
     });
 });
 
-builder.Services.AddSingleton<MedicalPortal.Web.IDatabaseRoleInspector, MedicalPortal.Web.DatabaseRoleInspector>();
+builder.Services.AddSingleton<IDatabaseRoleInspector, DatabaseRoleInspector>();
 var app = builder.Build();
 
 // Initialize ambient FieldEncryptionAccessor for EF Core ValueConverters
@@ -1117,56 +1118,6 @@ app.Run();
 public partial class Program
 {
     private static readonly SemaphoreSlim DbInitLock = new(1, 1);
-
-    internal static async Task ValidateProductionDatabaseRoleAsync(
-        MedicalPortalDbContext db,
-        string connectionString)
-    {
-        var parsed = new NpgsqlConnectionStringBuilder(
-            PostgresConnectionHelper.ToNpgsqlConnectionString(connectionString));
-        if (string.Equals(parsed.Password, "postgres", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(parsed.Password, "password", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(parsed.Password, "changeme", StringComparison.OrdinalIgnoreCase))
-        {
-            throw new InvalidOperationException(
-                "Production startup failed: the database password is a known default and must be rotated.");
-        }
-
-        await db.Database.OpenConnectionAsync();
-        try
-        {
-            await using var command = db.Database.GetDbConnection().CreateCommand();
-            command.CommandText =
-                """
-                SELECT r.rolsuper,
-                       r.rolbypassrls,
-                       (
-                           SELECT COUNT(*)
-                           FROM pg_class c
-                           JOIN pg_namespace n ON n.oid = c.relnamespace
-                           WHERE n.nspname = 'public'
-                             AND c.relkind IN ('r', 'S')
-                             AND c.relowner = r.oid
-                       )
-                FROM pg_roles r
-                WHERE r.rolname = current_user
-                """;
-
-            await using var reader = await command.ExecuteReaderAsync();
-            if (!await reader.ReadAsync())
-                throw new InvalidOperationException("Production startup failed: the connected database role could not be resolved.");
-            if (reader.GetBoolean(0))
-                throw new InvalidOperationException("Production startup failed: the application database role must not be a superuser.");
-            if (reader.GetBoolean(1))
-                throw new InvalidOperationException("Production startup failed: the application database role must not have BYPASSRLS.");
-            if (reader.GetInt64(2) != 0)
-                throw new InvalidOperationException("Production startup failed: the application database role must not own application tables.");
-        }
-        finally
-        {
-            await db.Database.CloseConnectionAsync();
-        }
-    }
 
     private static void LoadDotEnvIntoConfiguration(ConfigurationManager config)
     {

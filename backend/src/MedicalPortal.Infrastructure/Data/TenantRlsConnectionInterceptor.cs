@@ -40,7 +40,9 @@ internal sealed class TenantRlsConnectionInterceptor : DbConnectionInterceptor
             ? _tenantContext.TenantId
             : TenantConstants.DefaultTenantId;
         using var command = connection.CreateCommand();
-        command.CommandText = "SELECT set_config('app.current_tenant_id', @tenant_id, false)";
+        // Use SET LOCAL (transaction-level) - ConnectionOpened is called when connection opens,
+        // which happens when first command executes (typically within a transaction for SaveChanges)
+        command.CommandText = "SELECT set_config('app.current_tenant_id', @tenant_id, true)";
         var parameter = command.CreateParameter();
         parameter.ParameterName = "tenant_id";
         parameter.Value = tenantId.ToString();
@@ -57,7 +59,7 @@ internal sealed class TenantRlsConnectionInterceptor : DbConnectionInterceptor
             ? _tenantContext.TenantId
             : TenantConstants.DefaultTenantId;
         await using var command = connection.CreateCommand();
-        command.CommandText = "SELECT set_config('app.current_tenant_id', @tenant_id, false)";
+        command.CommandText = "SELECT set_config('app.current_tenant_id', @tenant_id, true)";
         var parameter = command.CreateParameter();
         parameter.ParameterName = "tenant_id";
         parameter.Value = tenantId.ToString();

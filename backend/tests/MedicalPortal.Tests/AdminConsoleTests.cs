@@ -21,8 +21,9 @@ public class AdminConsoleTests : IClassFixture<WebApplicationFactory<Program>>
         _factory = factory;
     }
 
-    private (UserAccount account, string token) CreateTestUser(MedicalPortalDbContext db, ITokenService tokens, IPasswordHasher hasher, UserRole role)
+private (UserAccount account, string token) CreateTestUser(MedicalPortalDbContext db, ITokenService tokens, IPasswordHasher hasher, UserRole role)
     {
+        using var tx = db.BeginDefaultTestTransaction();
         var email = $"test.{role.ToString().ToLowerInvariant()}.{Guid.NewGuid():N}@clinic.example";
         var person = new Person
         {
@@ -45,6 +46,7 @@ public class AdminConsoleTests : IClassFixture<WebApplicationFactory<Program>>
         db.SaveChanges();
 
         var token = db.CreateAuthenticatedSession(tokens, account, person.Id);
+        tx.Commit();
         return (account, token);
     }
 
@@ -131,6 +133,7 @@ public class AdminConsoleTests : IClassFixture<WebApplicationFactory<Program>>
         // Verify account exists in DB with hashed password
         using var verifyScope = _factory.Services.CreateScope();
         var verifyDb = verifyScope.ServiceProvider.GetRequiredService<MedicalPortalDbContext>();
+        await using var verifyTx = await verifyDb.BeginDefaultTestTransactionAsync();
         var created = await verifyDb.UserAccounts
             .Include(u => u.Person)
             .FirstOrDefaultAsync(u => u.Email == newEmail);
@@ -158,6 +161,8 @@ public class AdminConsoleTests : IClassFixture<WebApplicationFactory<Program>>
         var tokens = scope.ServiceProvider.GetRequiredService<ITokenService>();
         var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
 
+        await using var tx = await db.BeginDefaultTestTransactionAsync();
+
         var (admin, adminToken) = CreateTestUser(db, tokens, hasher, UserRole.ADMIN);
         var (targetUser, _) = CreateTestUser(db, tokens, hasher, UserRole.NURSE);
 
@@ -172,6 +177,7 @@ public class AdminConsoleTests : IClassFixture<WebApplicationFactory<Program>>
         };
         db.UserSessions.Add(session);
         await db.SaveChangesAsync();
+        await tx.CommitAsync();
 
         var client = _factory.CreateClient();
 
@@ -185,6 +191,7 @@ public class AdminConsoleTests : IClassFixture<WebApplicationFactory<Program>>
         // Verify DB: IsActive is false and sessions are deleted/revoked
         using var checkScope = _factory.Services.CreateScope();
         var checkDb = checkScope.ServiceProvider.GetRequiredService<MedicalPortalDbContext>();
+        await using var checkTx = await checkDb.BeginDefaultTestTransactionAsync();
         var updated = await checkDb.UserAccounts.FindAsync(targetUser.Id);
         Assert.NotNull(updated);
         Assert.False(updated.IsActive);
@@ -216,6 +223,7 @@ public class AdminConsoleTests : IClassFixture<WebApplicationFactory<Program>>
         // Verify DB: IsActive is true
         using var recheckScope = _factory.Services.CreateScope();
         var recheckDb = recheckScope.ServiceProvider.GetRequiredService<MedicalPortalDbContext>();
+        await using var recheckTx = await recheckDb.BeginDefaultTestTransactionAsync();
         var reenabled = await recheckDb.UserAccounts.FindAsync(targetUser.Id);
         Assert.NotNull(reenabled);
         Assert.True(reenabled.IsActive);
@@ -250,6 +258,7 @@ public class AdminConsoleTests : IClassFixture<WebApplicationFactory<Program>>
 
         using var verifyScope = _factory.Services.CreateScope();
         var verifyDb = verifyScope.ServiceProvider.GetRequiredService<MedicalPortalDbContext>();
+        await using var verifyTx = await verifyDb.BeginDefaultTestTransactionAsync();
         var updated = await verifyDb.UserAccounts.FindAsync(targetUser.Id);
         Assert.NotNull(updated);
         Assert.Equal(UserRole.COMPLIANCE_AUDITOR, updated.Role);
@@ -269,11 +278,14 @@ public class AdminConsoleTests : IClassFixture<WebApplicationFactory<Program>>
         var tokens = scope.ServiceProvider.GetRequiredService<ITokenService>();
         var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
 
+        await using var setupTx = await db.BeginDefaultTestTransactionAsync();
+
         var (admin, adminToken) = CreateTestUser(db, tokens, hasher, UserRole.ADMIN);
         var (staff, _) = CreateTestUser(db, tokens, hasher, UserRole.SCHEDULER);
 
         var facility = await db.Facilities.Include(f => f.Departments).FirstAsync();
         var department = facility.Departments.First();
+        await setupTx.CommitAsync();
 
         var client = _factory.CreateClient();
 
@@ -295,6 +307,7 @@ public class AdminConsoleTests : IClassFixture<WebApplicationFactory<Program>>
 
         using var verifyScope = _factory.Services.CreateScope();
         var verifyDb = verifyScope.ServiceProvider.GetRequiredService<MedicalPortalDbContext>();
+        await using var verifyTx = await verifyDb.BeginDefaultTestTransactionAsync();
         var membership = await verifyDb.UserMemberships.FindAsync(membershipId);
         Assert.NotNull(membership);
         Assert.Equal(facility.Id, membership.FacilityId);
@@ -315,6 +328,7 @@ public class AdminConsoleTests : IClassFixture<WebApplicationFactory<Program>>
         // Verify DB removed
         using var recheckScope = _factory.Services.CreateScope();
         var recheckDb = recheckScope.ServiceProvider.GetRequiredService<MedicalPortalDbContext>();
+        await using var recheckTx = await recheckDb.BeginDefaultTestTransactionAsync();
         var deleted = await recheckDb.UserMemberships.FindAsync(membershipId);
         Assert.Null(deleted);
 
@@ -333,6 +347,8 @@ public class AdminConsoleTests : IClassFixture<WebApplicationFactory<Program>>
         var tokens = scope.ServiceProvider.GetRequiredService<ITokenService>();
         var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
 
+        await using var tx = await db.BeginDefaultTestTransactionAsync();
+
         var (admin, adminToken) = CreateTestUser(db, tokens, hasher, UserRole.ADMIN);
 
         var testOrg = new Organization
@@ -342,6 +358,7 @@ public class AdminConsoleTests : IClassFixture<WebApplicationFactory<Program>>
         };
         db.Organizations.Add(testOrg);
         await db.SaveChangesAsync();
+        await tx.CommitAsync();
 
         var client = _factory.CreateClient();
 
@@ -387,6 +404,7 @@ public class AdminConsoleTests : IClassFixture<WebApplicationFactory<Program>>
         // Verify in DB and AuditLogs
         using var verifyScope = _factory.Services.CreateScope();
         var verifyDb = verifyScope.ServiceProvider.GetRequiredService<MedicalPortalDbContext>();
+        await using var verifyTx = await verifyDb.BeginDefaultTestTransactionAsync();
         var fac = await verifyDb.Facilities.FindAsync(facilityId);
         Assert.NotNull(fac);
         Assert.Equal("Lideta Specialty Clinic (DEMO)", fac.Name);
@@ -414,6 +432,8 @@ public class AdminConsoleTests : IClassFixture<WebApplicationFactory<Program>>
         var tokens = scope.ServiceProvider.GetRequiredService<ITokenService>();
         var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
 
+        await using var tx = await db.BeginDefaultTestTransactionAsync();
+
         var (admin, adminToken) = CreateTestUser(db, tokens, hasher, UserRole.ADMIN);
 
         var patientPerson = new Person { FirstName = "Grantor", LastName = "Patient", Email = $"grantor.{Guid.NewGuid():N}@patient.example", DateOfBirth = DateTime.UtcNow.AddYears(-30) };
@@ -429,6 +449,7 @@ public class AdminConsoleTests : IClassFixture<WebApplicationFactory<Program>>
         };
         db.ProxyGrants.Add(grant);
         await db.SaveChangesAsync();
+        await tx.CommitAsync();
 
         var client = _factory.CreateClient();
 
@@ -447,6 +468,7 @@ public class AdminConsoleTests : IClassFixture<WebApplicationFactory<Program>>
         // Verify DB: RevokedAt is set
         using var verifyScope = _factory.Services.CreateScope();
         var verifyDb = verifyScope.ServiceProvider.GetRequiredService<MedicalPortalDbContext>();
+        await using var verifyTx = await verifyDb.BeginDefaultTestTransactionAsync();
         var updated = await verifyDb.ProxyGrants.FindAsync(grant.Id);
         Assert.NotNull(updated);
         Assert.NotNull(updated.RevokedAt);
@@ -467,6 +489,8 @@ public class AdminConsoleTests : IClassFixture<WebApplicationFactory<Program>>
         var tokens = scope.ServiceProvider.GetRequiredService<ITokenService>();
         var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
 
+        await using var tx = await db.BeginDefaultTestTransactionAsync();
+
         var (admin, adminToken) = CreateTestUser(db, tokens, hasher, UserRole.ADMIN);
 
         var patientPerson = new Person { FirstName = "Share", LastName = "Patient", Email = $"share.{Guid.NewGuid():N}@example.com", DateOfBirth = DateTime.UtcNow.AddYears(-25) };
@@ -486,6 +510,7 @@ public class AdminConsoleTests : IClassFixture<WebApplicationFactory<Program>>
         };
         db.RecordShares.Add(share);
         await db.SaveChangesAsync();
+        await tx.CommitAsync();
 
         var client = _factory.CreateClient();
 
@@ -504,6 +529,7 @@ public class AdminConsoleTests : IClassFixture<WebApplicationFactory<Program>>
         // Verify DB: RevokedAt is set
         using var verifyScope = _factory.Services.CreateScope();
         var verifyDb = verifyScope.ServiceProvider.GetRequiredService<MedicalPortalDbContext>();
+        await using var verifyTx = await verifyDb.BeginDefaultTestTransactionAsync();
         var updated = await verifyDb.RecordShares.FindAsync(share.Id);
         Assert.NotNull(updated);
         Assert.NotNull(updated.RevokedAt);
